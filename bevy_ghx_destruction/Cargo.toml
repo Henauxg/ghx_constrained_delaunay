@@ -1,0 +1,8 @@
+[package]
+name = "bevy_ghx_destruction"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# External dependencies
+bevy = { version = "0.13.0", default-features = false, features = [] }
