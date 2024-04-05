@@ -14,6 +14,7 @@ bevy = { version = "0.13.0", default-features = false, features = [
 
     "bevy_core_pipeline", # Common rendering abstractions
     "bevy_gilrs",         # Adds gamepad support
+    "bevy_gizmos",        # Adds support for rendering gizmos
     "bevy_render",        # Rendering framework core
     "bevy_pbr",           # 3D (physically-based) rendering
     "bevy_text",          # Text/font rendering
@@ -34,6 +35,7 @@ bevy = { version = "0.13.0", default-features = false, features = [
     "dynamic_linking", # Dynamic linking for faster compile-times
 ] }
 tritet = "0.4.0"
+simple_delaunay_lib = "0.2.0"
 
 [[example]]
 name = "sandbox"
