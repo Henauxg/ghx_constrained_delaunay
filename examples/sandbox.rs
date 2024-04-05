@@ -24,6 +24,7 @@ use bevy::{
     DefaultPlugins,
 };
 use bevy_ghx_utils::camera::{pan_orbit_camera, toggle_auto_orbit, PanOrbitCamera};
+use tritet::Tetgen;
 
 fn main() {
     let mut app = App::new();
@@ -112,6 +113,33 @@ pub fn setup_sandbox(
         },
         // CustomUV,
     ));
+
+    // allocate data for 8 points
+    let mut tetgen_data = Tetgen::new(8, None, None, None).unwrap();
+
+    // set points
+    tetgen_data
+        .set_point(0, 0, 0.0, 0.0, 0.0)
+        .unwrap()
+        .set_point(1, 0, 1.0, 0.0, 0.0)
+        .unwrap()
+        .set_point(2, 0, 1.0, 1.0, 0.0)
+        .unwrap()
+        .set_point(3, 0, 0.0, 1.0, 0.0)
+        .unwrap()
+        .set_point(4, 0, 0.0, 0.0, 1.0)
+        .unwrap()
+        .set_point(5, 0, 1.0, 0.0, 1.0)
+        .unwrap()
+        .set_point(6, 0, 1.0, 1.0, 1.0)
+        .unwrap()
+        .set_point(7, 0, 0.0, 1.0, 1.0)
+        .unwrap();
+
+    // generate Delaunay triangulation
+    tetgen_data.generate_delaunay(false).unwrap();
+
+    // tetgen_data.gene
 }
 
 #[rustfmt::skip]

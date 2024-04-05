@@ -33,6 +33,7 @@ bevy = { version = "0.13.0", default-features = false, features = [
     # Development/Debug features:
     "dynamic_linking", # Dynamic linking for faster compile-times
 ] }
+tritet = "0.4.0"
 
 [[example]]
 name = "sandbox"
