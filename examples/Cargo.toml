@@ -38,3 +38,7 @@ tritet = "0.4.0"
 [[example]]
 name = "sandbox"
 path = "sandbox.rs"
+
+[[example]]
+name = "ashbox"
+path = "ashbox.rs"

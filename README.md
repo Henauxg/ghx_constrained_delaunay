@@ -22,6 +22,17 @@ Simple standalone example to test the crate features.
 
 </details>
 
+<details>
+  <summary>Ashbox</summary>
+
+```
+cargo run --example ashbox
+```
+
+Simple standalone example to test the crate features.
+
+</details>
+
 
 # Misc
 
