@@ -44,3 +44,7 @@ path = "src/sandbox.rs"
 [[example]]
 name = "ashbox"
 path = "src/ashbox.rs"
+
+[[example]]
+name = "prefracture"
+path = "src/prefracture.rs"
