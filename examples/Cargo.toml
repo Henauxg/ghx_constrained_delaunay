@@ -4,9 +4,9 @@ version = "0.1.0"
 publish = false
 edition = "2021"
 
-[dev-dependencies]
+[dependencies]
 # Internal dependencies
-bevy_ghx_utils = { version = "0.2.0", default-features = true }
+bevy_ghx_utils = { git = "https://github.com/Henauxg/bevy_ghx_utils.git", rev = "70e1f17", version = "0.3.0-dev", default-features = true }
 
 # External dependencies
 bevy = { version = "0.13.0", default-features = false, features = [

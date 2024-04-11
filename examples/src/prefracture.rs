@@ -22,7 +22,7 @@ use bevy::{
     utils::default,
     DefaultPlugins,
 };
-use bevy_ghx_utils::camera::{pan_orbit_camera, toggle_auto_orbit, PanOrbitCamera};
+use bevy_ghx_utils::camera::{toggle_auto_orbit, update_pan_orbit_camera, PanOrbitCamera};
 
 fn main() {
     let mut app = App::new();
@@ -38,7 +38,7 @@ fn main() {
         Update,
         (
             toggle_auto_orbit.run_if(input_just_pressed(KeyCode::F5)),
-            (pan_orbit_camera,),
+            update_pan_orbit_camera,
         ),
     );
 

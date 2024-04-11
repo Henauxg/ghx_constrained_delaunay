@@ -6,11 +6,7 @@ use bevy::{
     app::{App, Startup, Update},
     asset::Assets,
     core_pipeline::core_3d::Camera3dBundle,
-    ecs::{
-        schedule::IntoSystemConfigs,
-        system::{Commands, ResMut},
-    },
-    input::{common_conditions::input_just_pressed, keyboard::KeyCode},
+    ecs::system::{Commands, ResMut},
     math::{primitives::Plane3d, EulerRot, Quat, Vec3},
     pbr::{
         AmbientLight, CascadeShadowConfigBuilder, DirectionalLight, DirectionalLightBundle,
@@ -25,8 +21,9 @@ use bevy::{
     utils::default,
     DefaultPlugins,
 };
-use bevy_ghx_utils::camera::{pan_orbit_camera, toggle_auto_orbit, PanOrbitCamera};
+use bevy_ghx_utils::camera::PanOrbitCamera;
 
+use examples::plugin::ExamplesPlugin;
 use simple_delaunay_lib::delaunay_3d::delaunay_struct_3d::DelaunayStructure3D;
 use simple_delaunay_lib::delaunay_3d::simplicial_struct_3d;
 
@@ -37,21 +34,9 @@ fn main() {
         color: Color::WHITE,
         brightness: 2000.,
     })
-    .add_plugins(DefaultPlugins);
+    .add_plugins((DefaultPlugins, ExamplesPlugin));
 
-    app.add_systems(Startup, (setup_camera, setup_sandbox));
-    app.add_systems(
-        Update,
-        (
-            toggle_auto_orbit.run_if(input_just_pressed(KeyCode::F5)),
-            (
-                // setup_sandbox_once_loaded,
-                // sandbox_keyboard_animation_control,
-                pan_orbit_camera,
-            ),
-        ),
-    );
-
+    app.add_systems(Startup, setup_sandbox);
     app.add_systems(Update, generate_tera);
 
     app.run();

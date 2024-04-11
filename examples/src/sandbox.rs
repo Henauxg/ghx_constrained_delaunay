@@ -1,18 +1,10 @@
-use std::{
-    f32::consts::PI,
-    sync::{Arc, Mutex},
-};
+use std::f32::consts::PI;
 
 use bevy::{
-    app::{App, Startup, Update},
+    app::{App, Startup},
     asset::{Assets, Handle},
-    core_pipeline::core_3d::Camera3dBundle,
-    ecs::{
-        schedule::IntoSystemConfigs,
-        system::{Commands, Res, ResMut, Resource},
-    },
-    input::{common_conditions::input_just_pressed, keyboard::KeyCode},
-    math::{primitives::Plane3d, EulerRot, Quat, Vec3},
+    ecs::system::{Commands, ResMut},
+    math::{primitives::Plane3d, EulerRot, Quat},
     pbr::{
         AmbientLight, CascadeShadowConfigBuilder, DirectionalLight, DirectionalLightBundle,
         PbrBundle, StandardMaterial,
@@ -26,7 +18,7 @@ use bevy::{
     utils::default,
     DefaultPlugins,
 };
-use bevy_ghx_utils::camera::{pan_orbit_camera, toggle_auto_orbit, PanOrbitCamera};
+use examples::plugin::ExamplesPlugin;
 use tritet::Tetgen;
 
 fn main() {
@@ -36,39 +28,11 @@ fn main() {
         color: Color::WHITE,
         brightness: 2000.,
     })
-    .add_plugins(DefaultPlugins);
+    .add_plugins((DefaultPlugins, ExamplesPlugin));
 
-    app.add_systems(Startup, (setup_camera, setup_sandbox));
-    app.add_systems(
-        Update,
-        (
-            toggle_auto_orbit.run_if(input_just_pressed(KeyCode::F5)),
-            (
-                // setup_sandbox_once_loaded,
-                // sandbox_keyboard_animation_control,
-                pan_orbit_camera,
-            ),
-        ),
-    );
+    app.add_systems(Startup, setup_sandbox);
 
     app.run();
-}
-
-pub fn setup_camera(mut commands: Commands) {
-    // Camera
-    let camera_position = Vec3::new(0., 1.5, 2.5);
-    let look_target = Vec3::ZERO;
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_translation(camera_position)
-                .looking_at(look_target, Vec3::Y),
-            ..default()
-        },
-        PanOrbitCamera {
-            radius: (look_target - camera_position).length(),
-            ..Default::default()
-        },
-    ));
 }
 
 pub fn setup_sandbox(
