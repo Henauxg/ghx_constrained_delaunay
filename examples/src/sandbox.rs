@@ -146,9 +146,9 @@ pub fn setup_sandbox(
     // let ntet = tetgen_data.out_ncell();
     const EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
     let tetras_count = delaunay.out_ncell();
-    let attributes = Vec::with_capacity(tetras_count);
+    // let attributes = Vec::with_capacity(tetras_count);
     for tetra_idx in 0..tetras_count {
-        attributes.push(delaunay.out_cell_attribute(tetra_idx));
+        // attributes.push(delaunay.out_cell_attribute(tetra_idx));
         for vert_local_index in 0..4 {
             let vert_id = delaunay.out_cell_point(tetra_idx, vert_local_index);
             let xyz = vec![
@@ -163,34 +163,34 @@ pub fn setup_sandbox(
             //     xcen[dim] += x[dim] / 4.0;
             // }
         }
-        for (vert_local_idx_a, vert_local_idx_b) in &EDGES {
-            let a = delaunay.out_cell_point(tetra_idx, *vert_local_idx_a);
-            let b = delaunay.out_cell_point(tetra_idx, *vert_local_idx_b);
-            for dim in 0..3 {
-                xa[dim] = self.out_point(a, dim);
-                xb[dim] = self.out_point(b, dim);
-            }
-            canvas.polyline_3d_begin();
-            canvas.polyline_3d_add(xa[0], xa[1], xa[2]);
-            canvas.polyline_3d_add(xb[0], xb[1], xb[2]);
-            canvas.polyline_3d_end();
-        }
+        // for (vert_local_idx_a, vert_local_idx_b) in &EDGES {
+        //     let a = delaunay.out_cell_point(tetra_idx, *vert_local_idx_a);
+        //     let b = delaunay.out_cell_point(tetra_idx, *vert_local_idx_b);
+        //     for dim in 0..3 {
+        //         xa[dim] = self.out_point(a, dim);
+        //         xb[dim] = self.out_point(b, dim);
+        //     }
+        //     canvas.polyline_3d_begin();
+        //     canvas.polyline_3d_add(xa[0], xa[1], xa[2]);
+        //     canvas.polyline_3d_add(xb[0], xb[1], xb[2]);
+        //     canvas.polyline_3d_end();
+        // }
     }
     let ntet = delaunay.out_ncell();
 
-    commands.insert_resource(DestructionMesh { delaunay });
+    // commands.insert_resource(DestructionMesh { delaunay });
 
     // tetgen_data.gene
 }
 
-#[derive(Resource)]
-pub struct DestructionMesh {
-    delaunay: Arc<Tetgen>,
-}
+// #[derive(Resource)]
+// pub struct DestructionMesh {
+//     delaunay: Arc<Tetgen>,
+// }
 
 // impl Send for Arc<Mutex<Tetgen>> {}
 
-pub fn draw_destrtuction_mesh(destr_mesh: Res<DestructionMesh>, mut gizmos: Gizmos) {}
+// pub fn draw_destrtuction_mesh(destr_mesh: Res<DestructionMesh>, mut gizmos: Gizmos) {}
 
 #[rustfmt::skip]
 fn create_cube_mesh() -> Mesh {
