@@ -39,8 +39,12 @@ simple_delaunay_lib = "0.2.0"
 
 [[example]]
 name = "sandbox"
-path = "sandbox.rs"
+path = "src/sandbox.rs"
 
 [[example]]
 name = "ashbox"
-path = "ashbox.rs"
+path = "src/ashbox.rs"
+
+[[example]]
+name = "prefracture"
+path = "src/prefracture.rs"
