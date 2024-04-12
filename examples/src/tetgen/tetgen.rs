@@ -1,10 +1,14 @@
 use std::f32::consts::PI;
 
 use bevy::{
-    app::{App, Startup},
+    app::{App, Startup, Update},
     asset::{Assets, Handle},
-    ecs::system::{Commands, ResMut},
-    math::{primitives::Plane3d, EulerRot, Quat},
+    ecs::{
+        system::{Commands, NonSend, ResMut},
+        world::World,
+    },
+    gizmos::gizmos::Gizmos,
+    math::{primitives::Plane3d, EulerRot, Quat, Vec3},
     pbr::{
         AmbientLight, CascadeShadowConfigBuilder, DirectionalLight, DirectionalLightBundle,
         PbrBundle, StandardMaterial,
@@ -18,7 +22,7 @@ use bevy::{
     utils::default,
     DefaultPlugins,
 };
-use examples::plugin::ExamplesPlugin;
+use examples::{plugin::ExamplesPlugin, COLORS};
 use tritet::Tetgen;
 
 fn main() {
@@ -30,7 +34,8 @@ fn main() {
     })
     .add_plugins((DefaultPlugins, ExamplesPlugin));
 
-    app.add_systems(Startup, setup_sandbox);
+    app.add_systems(Startup, (setup_sandbox, setup_procedural_mesh))
+        .add_systems(Update, draw_delaunay);
 
     app.run();
 }
@@ -39,12 +44,12 @@ pub fn setup_sandbox(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    // mut destruction_mesh: ResMut<>,
 ) {
-    // // Plane
+    // Plane
     commands.spawn(PbrBundle {
         mesh: meshes.add(Plane3d::default().mesh().size(500000.0, 500000.0)),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+        transform: Transform::from_xyz(0., -0.5, 0.),
         ..default()
     });
 
@@ -67,21 +72,19 @@ pub fn setup_sandbox(
     // Create and save a handle to the mesh.
     let cube_mesh_handle: Handle<Mesh> = meshes.add(create_cube_mesh());
 
-    // Render the mesh with the custom texture using a PbrBundle, add the marker.
-    commands.spawn((
-        PbrBundle {
-            mesh: cube_mesh_handle,
-            // material: materials.add(StandardMaterial {
-            //      base_color_texture: Some(custom_texture_handle),
-            //     ..default()
-            // }),
-            material: materials.add(Color::ORANGE_RED),
-            transform: Transform::from_xyz(0., 1., 0.),
-            ..default()
-        },
-        // CustomUV,
-    ));
+    commands.spawn((PbrBundle {
+        mesh: cube_mesh_handle,
+        material: materials.add(Color::ORANGE_RED),
+        transform: Transform::from_xyz(0., 1., 0.),
+        ..default()
+    },));
+}
 
+pub struct DestructionMesh {
+    delaunay: Tetgen,
+}
+
+pub fn setup_procedural_mesh(world: &mut World) {
     // allocate data for 8 points
     let mut delaunay = Tetgen::new(8, None, None, None).unwrap();
 
@@ -103,58 +106,40 @@ pub fn setup_sandbox(
         .unwrap()
         .set_point(7, 0, 0.0, 1.0, 1.0)
         .unwrap();
-
-    // generate Delaunay triangulation
     delaunay.generate_delaunay(false).unwrap();
+    delaunay.generate_mesh(false, false, None, None).unwrap();
 
-    // let ntet = tetgen_data.out_ncell();
-    const EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    let tetras_count = delaunay.out_ncell();
-    // let attributes = Vec::with_capacity(tetras_count);
-    for tetra_idx in 0..tetras_count {
-        // attributes.push(delaunay.out_cell_attribute(tetra_idx));
-        for vert_local_index in 0..4 {
-            let vert_id = delaunay.out_cell_point(tetra_idx, vert_local_index);
-            let xyz = vec![
-                delaunay.out_point(vert_id, 0),
-                delaunay.out_point(vert_id, 1),
-                delaunay.out_point(vert_id, 2),
-            ];
-            // for dim in 0..3 {
-            //     x[dim] = tetgen_data.out_point(vert_id, dim);
-            //     min[dim] = f64::min(min[dim], x[dim]);
-            //     max[dim] = f64::max(max[dim], x[dim]);
-            //     xcen[dim] += x[dim] / 4.0;
-            // }
-        }
-        // for (vert_local_idx_a, vert_local_idx_b) in &EDGES {
-        //     let a = delaunay.out_cell_point(tetra_idx, *vert_local_idx_a);
-        //     let b = delaunay.out_cell_point(tetra_idx, *vert_local_idx_b);
-        //     for dim in 0..3 {
-        //         xa[dim] = self.out_point(a, dim);
-        //         xb[dim] = self.out_point(b, dim);
-        //     }
-        //     canvas.polyline_3d_begin();
-        //     canvas.polyline_3d_add(xa[0], xa[1], xa[2]);
-        //     canvas.polyline_3d_add(xb[0], xb[1], xb[2]);
-        //     canvas.polyline_3d_end();
-        // }
-    }
-    let ntet = delaunay.out_ncell();
-
-    // commands.insert_resource(DestructionMesh { delaunay });
-
-    // tetgen_data.gene
+    world.insert_non_send_resource(DestructionMesh { delaunay });
 }
 
-// #[derive(Resource)]
-// pub struct DestructionMesh {
-//     delaunay: Arc<Tetgen>,
-// }
+pub fn draw_delaunay(destr_mesh: NonSend<DestructionMesh>, mut gizmos: Gizmos) {
+    const TETRA_EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
-// impl Send for Arc<Mutex<Tetgen>> {}
+    let delaunay = &destr_mesh.delaunay;
 
-// pub fn draw_destrtuction_mesh(destr_mesh: Res<DestructionMesh>, mut gizmos: Gizmos) {}
+    let tetras_count = delaunay.out_ncell();
+    // let attributes = Vec::with_capacity(tetras_count);
+    for tetra_id in 0..tetras_count {
+        // attributes.push(delaunay.out_cell_attribute(tetra_idx));
+        let mut tetra_vertices = Vec::with_capacity(4);
+        for vertex_local_id in 0..=3 {
+            let vert_id = delaunay.out_cell_point(tetra_id, vertex_local_id);
+            tetra_vertices.push(Vec3::new(
+                delaunay.out_point(vert_id, 0) as f32,
+                delaunay.out_point(vert_id, 1) as f32,
+                delaunay.out_point(vert_id, 2) as f32,
+            ));
+        }
+        let color = COLORS[tetra_id % COLORS.len()];
+        for (vertex_local_id_a, vertex_local_id_b) in TETRA_EDGES {
+            gizmos.line(
+                tetra_vertices[vertex_local_id_a],
+                tetra_vertices[vertex_local_id_b],
+                color,
+            );
+        }
+    }
+}
 
 #[rustfmt::skip]
 fn create_cube_mesh() -> Mesh {
