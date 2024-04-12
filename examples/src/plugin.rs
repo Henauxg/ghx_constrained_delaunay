@@ -4,7 +4,10 @@ use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     ecs::{component::Component, schedule::IntoSystemConfigs, system::Commands},
     hierarchy::BuildChildren,
-    input::{common_conditions::input_just_pressed, keyboard::KeyCode},
+    input::{
+        common_conditions::{input_just_pressed, input_toggle_active},
+        keyboard::KeyCode,
+    },
     math::Vec3,
     render::color::Color,
     text::{BreakLineOn, Text, TextSection, TextStyle},
@@ -19,6 +22,7 @@ use bevy_ghx_utils::{
     camera::{toggle_auto_orbit, update_pan_orbit_camera, PanOrbitCamera},
     systems::toggle_visibility,
 };
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::{
     fps::{FpsDisplayPlugin, FpsRoot},
@@ -32,7 +36,7 @@ impl Plugin for ExamplesPlugin {
         app.add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
             FpsDisplayPlugin,
-            // EguiPlugin, // TODO
+            WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
         ));
         app.add_systems(Startup, (setup_camera, setup_ui));
         app.add_systems(
@@ -86,6 +90,7 @@ pub fn setup_ui(mut commands: Commands) {
     let keybindings_text = "Toggles:\n\
         'F1' Show/hide UI\n\
         'F2' Show/hide fps\n\
+        'F3' Show/hide inspector\n\
         'F5' Enable/disable camera rotation\n\
         "
     .to_string();
