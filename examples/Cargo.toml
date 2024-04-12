@@ -60,3 +60,7 @@ path = "src/simple_delaunay/simple_delaunay.rs"
 [[example]]
 name = "prefracture"
 path = "src/prefracture/prefracture.rs"
+
+[[example]]
+name = "slicing"
+path = "src/slicing/slicing.rs"
