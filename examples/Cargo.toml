@@ -49,13 +49,13 @@ bevy-inspector-egui = "0.23"
 
 
 [[example]]
-name = "sandbox"
-path = "src/sandbox.rs"
+name = "tetgen"
+path = "src/tetgen/tetgen.rs"
 
 [[example]]
-name = "ashbox"
-path = "src/ashbox.rs"
+name = "simple_delaunay"
+path = "src/simple_delaunay/simple_delaunay.rs"
 
 [[example]]
 name = "prefracture"
-path = "src/prefracture.rs"
+path = "src/prefracture/prefracture.rs"
