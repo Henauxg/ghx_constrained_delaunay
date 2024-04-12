@@ -46,6 +46,7 @@ bevy_rapier3d = { version = "0.25.0", features = [
 ] }
 bevy_egui = "0.26"
 bevy-inspector-egui = "0.23"
+rand = "0.8.5"
 
 
 [[example]]
