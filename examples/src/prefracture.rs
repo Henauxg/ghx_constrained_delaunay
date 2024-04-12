@@ -1,4 +1,3 @@
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use examples::plugin::ExamplesPlugin;
 use std::f32::consts::*;
@@ -15,9 +14,11 @@ fn main() {
             brightness: 1.0 / 5.0f32,
         })
         .insert_resource(Time::<Fixed>::from_seconds(10.5))
-        .add_plugins((DefaultPlugins, ExamplesPlugin, WorldInspectorPlugin::new()))
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        // .add_plugins(RapierDebugRenderPlugin::default())
+        .add_plugins((DefaultPlugins, ExamplesPlugin))
+        .add_plugins((
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            // RapierDebugRenderPlugin::default()
+        ))
         .add_systems(Startup, setup_scene)
         .add_systems(
             Update,
