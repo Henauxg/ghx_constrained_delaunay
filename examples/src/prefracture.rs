@@ -1,11 +1,9 @@
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
+use examples::plugin::ExamplesPlugin;
 use std::f32::consts::*;
 
-use bevy::{
-    input::common_conditions::input_just_pressed, pbr::CascadeShadowConfigBuilder, prelude::*,
-};
-use bevy_ghx_utils::camera::{toggle_auto_orbit, update_pan_orbit_camera, PanOrbitCamera};
+use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
 
 pub const CUBE_FRAC_ASSET_PATH: &str = "cube_frac.glb#Scene0";
 pub const CUBE_ASSET_PATH: &str = "cube.glb#Scene0";
@@ -17,40 +15,15 @@ fn main() {
             brightness: 1.0 / 5.0f32,
         })
         .insert_resource(Time::<Fixed>::from_seconds(10.5))
-        .add_plugins(DefaultPlugins)
+        .add_plugins((DefaultPlugins, ExamplesPlugin, WorldInspectorPlugin::new()))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugins(RapierDebugRenderPlugin::default())
-        .add_plugins(WorldInspectorPlugin::new())
-        .add_systems(Startup, (setup_camera, setup_scene))
-        .add_systems(
-            Update,
-            (
-                toggle_auto_orbit.run_if(input_just_pressed(KeyCode::F5)),
-                update_pan_orbit_camera,
-            ),
-        )
+        .add_systems(Startup, setup_scene)
         .add_systems(
             Update,
             (respawn_cube, attach_physics_components_to_cells).chain(),
         )
         .run();
-}
-
-pub fn setup_camera(mut commands: Commands) {
-    // Camera
-    let camera_position = Vec3::new(0., 4.5, 7.5);
-    let look_target = Vec3::ZERO;
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_translation(camera_position)
-                .looking_at(look_target, Vec3::Y),
-            ..default()
-        },
-        PanOrbitCamera {
-            radius: (look_target - camera_position).length(),
-            ..Default::default()
-        },
-    ));
 }
 
 #[derive(Component, Debug)]
