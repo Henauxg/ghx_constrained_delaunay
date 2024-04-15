@@ -25,6 +25,7 @@ use bevy_ghx_utils::{
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::{
+    ball::{despawn_balls, setup_ball_assets, throw_ball},
     fps::{FpsDisplayPlugin, FpsRoot},
     DEFAULT_EXAMPLES_FONT_SIZE,
 };
@@ -38,7 +39,7 @@ impl Plugin for ExamplesPlugin {
             FpsDisplayPlugin,
             WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
         ));
-        app.add_systems(Startup, (setup_camera, setup_ui));
+        app.add_systems(Startup, (setup_camera, setup_ui, setup_ball_assets));
         app.add_systems(
             Update,
             (
@@ -46,6 +47,10 @@ impl Plugin for ExamplesPlugin {
                 toggle_visibility::<FpsRoot>.run_if(input_just_pressed(KeyCode::F2)),
                 toggle_auto_orbit.run_if(input_just_pressed(KeyCode::F5)),
                 update_pan_orbit_camera,
+                (
+                    throw_ball.run_if(input_just_pressed(KeyCode::Space)),
+                    despawn_balls,
+                ),
             ),
         );
     }
