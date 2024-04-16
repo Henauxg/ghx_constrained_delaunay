@@ -1,18 +1,39 @@
-use bevy_rapier3d::prelude::*;
+use bevy::{
+    app::{App, Startup, Update},
+    asset::{AssetServer, Assets, Handle},
+    ecs::{
+        component::Component,
+        entity::Entity,
+        event::EventReader,
+        query::With,
+        schedule::IntoSystemConfigs,
+        system::{Commands, Query, Res, ResMut},
+    },
+    hierarchy::{Children, DespawnRecursiveExt, HierarchyQueryExt, Parent},
+    input::{keyboard::KeyCode, ButtonInput},
+    render::mesh::Mesh,
+    scene::SceneBundle,
+    time::{Fixed, Time},
+    transform::components::Transform,
+    utils::default,
+    DefaultPlugins,
+};
+use bevy_rapier3d::{
+    dynamics::{FixedJointBuilder, ImpulseJoint, RigidBody},
+    geometry::{
+        ActiveCollisionTypes, Collider, ColliderMassProperties, ComputedColliderShape, Friction,
+        Restitution,
+    },
+    pipeline::{CollisionEvent, ContactForceEvent},
+    plugin::{NoUserData, RapierPhysicsPlugin},
+};
 use examples::plugin::ExamplesPlugin;
-use std::f32::consts::*;
-
-use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
 
 pub const CUBE_FRAC_ASSET_PATH: &str = "cube_frac.glb#Scene0";
 pub const CUBE_ASSET_PATH: &str = "cube.glb#Scene0";
 
 fn main() {
     App::new()
-        .insert_resource(AmbientLight {
-            color: Color::WHITE,
-            brightness: 1.0 / 5.0f32,
-        })
         .insert_resource(Time::<Fixed>::from_seconds(10.5))
         .add_plugins((DefaultPlugins, ExamplesPlugin))
         .add_plugins((
@@ -46,44 +67,7 @@ impl Default for FragmentedCubeRoot {
 #[derive(Component)]
 struct ExampleCube;
 
-fn setup_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // // Plane
-    let radius = 2000.;
-    let height = 200.;
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Cylinder::new(radius, height)),
-            material: materials.add(Color::WHITE),
-            transform: Transform::from_xyz(0.0, -height / 2., 0.0),
-            ..default()
-        },
-        Collider::cylinder(height / 2., radius),
-        (ActiveCollisionTypes::default()),
-        Friction::coefficient(0.7),
-        Restitution::coefficient(0.3),
-    ));
-
-    // Light
-    commands.spawn(DirectionalLightBundle {
-        transform: Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 1.0, -PI / 4.)),
-        directional_light: DirectionalLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        cascade_shadow_config: CascadeShadowConfigBuilder {
-            first_cascade_far_bound: 200.0,
-            maximum_distance: 400.0,
-            ..default()
-        }
-        .into(),
-        ..default()
-    });
-
+fn setup_scene(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_frac_cube(&asset_server, &mut commands);
 }
 
@@ -181,13 +165,11 @@ fn handle_collisions(
     mut contact_force_events: EventReader<ContactForceEvent>,
     fragments: Query<&Fragment>,
 ) {
-    for collision_event in collision_events.read() {
-        println!("Received collision event: {:?}", collision_event);
+    for _collision_event in collision_events.read() {
+        // println!("Received collision event: {:?}", collision_event);
     }
 
     for contact_force_event in contact_force_events.read() {
-        println!("Received contact force event: {:?}", contact_force_event);
-
         let fragment = if let Ok(_) = fragments.get(contact_force_event.collider1) {
             Some(contact_force_event.collider1)
         } else if let Ok(_) = fragments.get(contact_force_event.collider2) {
@@ -196,6 +178,7 @@ fn handle_collisions(
             None
         };
         if let Some(fragment_entity) = fragment {
+            println!("Handled contact force event: {:?}", contact_force_event);
             commands.entity(fragment_entity).remove::<ImpulseJoint>();
         }
     }

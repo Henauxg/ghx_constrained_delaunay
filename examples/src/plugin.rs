@@ -1,15 +1,23 @@
+use std::f32::consts::PI;
+
 use bevy::{
     app::{App, Plugin, Startup, Update},
+    asset::Assets,
     core_pipeline::core_3d::Camera3dBundle,
     diagnostic::FrameTimeDiagnosticsPlugin,
-    ecs::{component::Component, schedule::IntoSystemConfigs, system::Commands},
+    ecs::{
+        component::Component,
+        schedule::IntoSystemConfigs,
+        system::{Commands, ResMut},
+    },
     hierarchy::BuildChildren,
     input::{
         common_conditions::{input_just_pressed, input_toggle_active},
         keyboard::KeyCode,
     },
-    math::Vec3,
-    render::color::Color,
+    math::{primitives::Cylinder, EulerRot, Quat, Vec3},
+    pbr::{AmbientLight, DirectionalLight, DirectionalLightBundle, PbrBundle, StandardMaterial},
+    render::{color::Color, mesh::Mesh},
     text::{BreakLineOn, Text, TextSection, TextStyle},
     transform::components::Transform,
     ui::{
@@ -23,6 +31,7 @@ use bevy_ghx_utils::{
     systems::toggle_visibility,
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_rapier3d::geometry::{ActiveCollisionTypes, Collider, Friction, Restitution};
 
 use crate::{
     ball::BallPlugin,
@@ -40,7 +49,7 @@ impl Plugin for ExamplesPlugin {
             WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
             BallPlugin,
         ));
-        app.add_systems(Startup, (setup_camera, setup_ui));
+        app.add_systems(Startup, (setup_camera, setup_ui, setup_environment));
         app.add_systems(
             Update,
             (
@@ -147,4 +156,62 @@ pub fn setup_ui(mut commands: Commands) {
     commands
         .entity(keybindings_ui_background)
         .add_child(keybindings_ui);
+}
+
+fn setup_environment(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Plane
+    let radius = 2000.;
+    let height = 200.;
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Cylinder::new(radius, height)),
+            material: materials.add(Color::WHITE),
+            transform: Transform::from_xyz(0.0, -height / 2., 0.0),
+            ..default()
+        },
+        Collider::cylinder(height / 2., radius),
+        (ActiveCollisionTypes::default()),
+        Friction::coefficient(0.7),
+        Restitution::coefficient(0.3),
+    ));
+
+    // Lights
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 50.,
+    });
+    commands.spawn(DirectionalLightBundle {
+        transform: Transform::from_rotation(Quat::from_euler(
+            EulerRot::ZYX,
+            0.,
+            -PI / 5.,
+            -PI / 3.,
+        )),
+        directional_light: DirectionalLight {
+            shadows_enabled: true,
+            illuminance: 4000.,
+            color: Color::WHITE,
+            ..default()
+        },
+        ..default()
+    });
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            shadows_enabled: false,
+            illuminance: 1000.,
+            color: Color::WHITE,
+            ..default()
+        },
+        transform: Transform::from_rotation(Quat::from_euler(
+            EulerRot::ZYX,
+            0.,
+            PI * 4. / 5.,
+            -PI / 3.,
+        )),
+        ..default()
+    });
 }
