@@ -28,13 +28,15 @@ use bevy::{
 };
 use bevy_rapier3d::{
     dynamics::{ExternalImpulse, RigidBody},
-    geometry::{ActiveCollisionTypes, Collider, ColliderMassProperties, Friction, Restitution},
+    geometry::{
+        ActiveCollisionTypes, ActiveEvents, Collider, ColliderMassProperties, Friction, Restitution,
+    },
 };
 
-pub const BALL_RADIUS: f32 = 0.35;
+pub const BALL_RADIUS: f32 = 0.25;
 pub const PREVIS_BALL_RADIUS: f32 = 0.35 / 5.;
 pub const BALL_DESPAWN_TIMER_S: u64 = 5;
-pub const BALL_THROW_FORCE: f32 = 100.0;
+pub const BALL_THROW_FORCE: f32 = 7500.0;
 pub const BALL_CAMERA_DISTANCE: f32 = 10. * BALL_RADIUS;
 
 pub struct BallPlugin;
@@ -128,7 +130,8 @@ pub fn throw_ball(
         ActiveCollisionTypes::default(),
         Friction::coefficient(0.7),
         Restitution::coefficient(0.05),
-        ColliderMassProperties::Density(2.0),
+        ColliderMassProperties::Density(1000.0),
+        ActiveEvents::CONTACT_FORCE_EVENTS,
         ExternalImpulse {
             impulse: transform.forward() * BALL_THROW_FORCE,
             ..default()
