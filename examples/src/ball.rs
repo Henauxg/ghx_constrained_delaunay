@@ -34,10 +34,10 @@ use bevy_rapier3d::{
 };
 
 pub const BALL_RADIUS: f32 = 0.25;
-pub const PREVIS_BALL_RADIUS: f32 = 0.35 / 5.;
+pub const PREVIS_BALL_RADIUS: f32 = 0.35 / 10.;
 pub const BALL_DESPAWN_TIMER_S: u64 = 5;
 pub const BALL_THROW_FORCE: f32 = 7500.0;
-pub const BALL_CAMERA_DISTANCE: f32 = 10. * BALL_RADIUS;
+pub const BALL_CAMERA_DISTANCE: f32 = 5. * BALL_RADIUS;
 
 pub struct BallPlugin;
 
