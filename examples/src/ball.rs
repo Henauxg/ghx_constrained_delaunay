@@ -1,23 +1,29 @@
 use std::time::Duration;
 
 use bevy::{
+    app::{App, Plugin, PostUpdate, Startup, Update},
     asset::{Assets, Handle},
     ecs::{
         component::Component,
         entity::Entity,
-        query::With,
+        query::{With, Without},
+        schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Resource},
     },
     hierarchy::DespawnRecursiveExt,
+    input::{common_conditions::input_just_pressed, keyboard::KeyCode},
     math::primitives::Sphere,
-    pbr::{PbrBundle, StandardMaterial},
+    pbr::{AlphaMode, PbrBundle, StandardMaterial},
     render::{
         camera::Camera,
         color::Color,
         mesh::{Mesh, Meshable},
     },
     time::{Time, Timer, TimerMode},
-    transform::components::{GlobalTransform, Transform},
+    transform::{
+        components::{GlobalTransform, Transform},
+        TransformSystem,
+    },
     utils::default,
 };
 use bevy_rapier3d::{
@@ -25,9 +31,30 @@ use bevy_rapier3d::{
     geometry::{ActiveCollisionTypes, Collider, ColliderMassProperties, Friction, Restitution},
 };
 
-pub const BALL_RADIUS: f32 = 0.5;
+pub const BALL_RADIUS: f32 = 0.35;
+pub const PREVIS_BALL_RADIUS: f32 = 0.35 / 5.;
 pub const BALL_DESPAWN_TIMER_S: u64 = 5;
 pub const BALL_THROW_FORCE: f32 = 100.0;
+pub const BALL_CAMERA_DISTANCE: f32 = 10. * BALL_RADIUS;
+
+pub struct BallPlugin;
+
+impl Plugin for BallPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_balls);
+        app.add_systems(
+            Update,
+            (
+                throw_ball.run_if(input_just_pressed(KeyCode::Space)),
+                despawn_balls,
+            ),
+        );
+        app.add_systems(
+            PostUpdate,
+            (update_previsualisation_ball.before(TransformSystem::TransformPropagate),),
+        );
+    }
+}
 
 #[derive(Resource)]
 pub struct BallAssets {
@@ -35,7 +62,10 @@ pub struct BallAssets {
     pub material: Handle<StandardMaterial>,
 }
 
-pub fn setup_ball_assets(
+#[derive(Component)]
+pub struct PrevisualisationBall;
+
+pub fn setup_balls(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -45,6 +75,22 @@ pub fn setup_ball_assets(
         ..default()
     });
     let mesh = meshes.add(Sphere::new(BALL_RADIUS).mesh().ico(5).unwrap());
+
+    // Spawn previsualisation ball
+    let previs_mesh = meshes.add(Sphere::new(PREVIS_BALL_RADIUS).mesh().ico(5).unwrap());
+    let previs_material = materials.add(StandardMaterial {
+        base_color: Color::WHITE.with_a(0.2),
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    commands.spawn((
+        PbrBundle {
+            mesh: previs_mesh.clone(),
+            material: previs_material.clone(),
+            ..default()
+        },
+        PrevisualisationBall,
+    ));
 
     commands.insert_resource(BallAssets { mesh, material });
 }
@@ -68,7 +114,7 @@ pub fn throw_ball(
 ) {
     let cam_transform = camera.get_single().unwrap();
     let mut transform = Transform::from(*cam_transform);
-    transform.translation += transform.forward() * 4. * BALL_RADIUS;
+    transform.translation += transform.forward() * BALL_CAMERA_DISTANCE;
     commands.spawn((
         PbrBundle {
             mesh: ball_assets.mesh.clone(),
@@ -101,4 +147,15 @@ pub fn despawn_balls(
             commands.entity(ball_entity).despawn_recursive();
         }
     }
+}
+
+pub fn update_previsualisation_ball(
+    camera: Query<&Transform, (With<Camera>, Without<PrevisualisationBall>)>,
+    mut previs_ball: Query<&mut Transform, With<PrevisualisationBall>>,
+) {
+    let cam_transform = camera.get_single().unwrap();
+    let mut previs_ball_transform = previs_ball.get_single_mut().unwrap();
+
+    *previs_ball_transform = Transform::from(*cam_transform);
+    previs_ball_transform.translation += cam_transform.forward() * BALL_CAMERA_DISTANCE;
 }
