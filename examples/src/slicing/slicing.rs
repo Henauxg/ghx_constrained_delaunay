@@ -90,7 +90,7 @@ fn setup_scene(
         ..default()
     });
 
-    spawn_frac_cube(&asset_server, &mut commands);
+    spawn_cube(&asset_server, &mut commands);
 }
 
 fn spawn_cube(asset_server: &Res<AssetServer>, commands: &mut Commands) {
@@ -168,68 +168,3 @@ fn attach_physics_components_to_cells(
         }
     }
 }
-
-// fn slice(
-//     source_object: Entity,
-//     fragment_template: Entity,
-//     slice_normal: Vec3,
-//     slice_origin: Vec3,
-//     parent: Transform,
-// ) {
-
-//     // 1 mesh cube
-
-//     // slice en 2
-
-//     // spawn frags
-// }
-
-// fn create_fragment(
-//     mut commands: Commands,
-//     source_object: Entity,
-//     meshes_handles: Query<&Handle<Mesh>>,
-//     query_rigid_bodies: Query<&RigidBody>,
-//     query_trasnform: Query<&Transform>,
-//     fragment_template: Entity,
-//     parent: Transform,
-//     fragment_mesh_data: Vec<f32>,
-//     meshes_assets: ResMut<Assets<Mesh>>,
-// ) {
-//     // Fragment mesh creation
-//     let mut fragment_mesh = Mesh::new(
-//         PrimitiveTopology::TriangleList,
-//         RenderAssetUsages::MAIN_WORLD,
-//     );
-
-//     // Add vertices to mesh
-//     fragment_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, fragment_mesh_data);
-
-//     // List of all fragmented mesh
-//     let mut meshes = Vec::new();
-//     meshes.push(fragment_mesh);
-
-//     //Get BB size and Rigidbody from the source object
-//     if let Ok(source_object_mesh_handle) = meshes_handles.get(source_object) {
-//         let source_object_mesh = meshes_assets.get(source_object_mesh_handle).unwrap();
-
-//         //BB
-//         let parent_bounding_box_size = source_object_mesh.compute_aabb().unwrap().max()
-//             - source_object_mesh.compute_aabb().unwrap().min();
-//         //Rigidbody
-//         let parent_rigid_body = query_rigid_bodies.get(source_object).unwrap();
-//     }
-
-//     for i in 0..meshes.len() {
-//         // Create a new entity based on fragment template entity
-//         let fragment = fragment_template.clone();
-
-//         commands.entity(parent).push_children(fragment);
-
-//         // Set all the transform parameters
-//         let mut fragment_transform = *query_trasnform.get(fragment).unwrap();
-//         let source_object_transform = *query_trasnform.get(source_object).unwrap();
-//         fragment_transform.translation = Vec3::new(0., 0., 0.);
-//         fragment_transform.rotation = Quat::IDENTITY;
-//         fragment_transform.scale = source_object_transform.scale;
-//     }
-// }
