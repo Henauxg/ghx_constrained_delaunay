@@ -10,7 +10,7 @@ use bevy::{
         schedule::IntoSystemConfigs,
         system::{Commands, Query, Res, ResMut, Resource},
     },
-    hierarchy::DespawnRecursiveExt,
+    hierarchy::{BuildChildren, DespawnRecursiveExt},
     input::{common_conditions::input_just_pressed, keyboard::KeyCode},
     math::primitives::Sphere,
     pbr::{AlphaMode, PbrBundle, StandardMaterial},
@@ -22,18 +22,20 @@ use bevy::{
     time::{Time, Timer, TimerMode},
     transform::{
         components::{GlobalTransform, Transform},
-        TransformSystem,
+        TransformBundle, TransformSystem,
     },
     utils::default,
 };
 use bevy_rapier3d::{
     dynamics::{ExternalImpulse, RigidBody},
     geometry::{
-        ActiveCollisionTypes, ActiveEvents, Collider, ColliderMassProperties, Friction, Restitution,
+        ActiveCollisionTypes, ActiveEvents, Collider, ColliderMassProperties, Friction,
+        Restitution, Sensor,
     },
 };
 
 pub const BALL_RADIUS: f32 = 0.25;
+pub const BALL_SENSOR_RADIUS: f32 = BALL_RADIUS * 5.;
 pub const PREVIS_BALL_RADIUS: f32 = 0.35 / 10.;
 pub const BALL_DESPAWN_TIMER_S: u64 = 5;
 pub const BALL_THROW_FORCE: f32 = 7500.0;
@@ -109,6 +111,9 @@ impl Ball {
     }
 }
 
+#[derive(Component)]
+pub struct BallSensor;
+
 pub fn throw_ball(
     mut commands: Commands,
     ball_assets: Res<BallAssets>,
@@ -117,26 +122,40 @@ pub fn throw_ball(
     let cam_transform = camera.get_single().unwrap();
     let mut transform = Transform::from(*cam_transform);
     transform.translation += transform.forward() * BALL_CAMERA_DISTANCE;
-    commands.spawn((
-        PbrBundle {
-            mesh: ball_assets.mesh.clone(),
-            material: ball_assets.material.clone(),
-            transform,
-            ..default()
-        },
-        Ball::new(),
-        RigidBody::Dynamic,
-        Collider::ball(BALL_RADIUS),
-        ActiveCollisionTypes::default(),
-        Friction::coefficient(0.7),
-        Restitution::coefficient(0.05),
-        ColliderMassProperties::Density(1000.0),
-        ActiveEvents::CONTACT_FORCE_EVENTS,
-        ExternalImpulse {
-            impulse: transform.forward() * BALL_THROW_FORCE,
-            ..default()
-        },
-    ));
+    commands
+        .spawn((
+            PbrBundle {
+                mesh: ball_assets.mesh.clone(),
+                material: ball_assets.material.clone(),
+                transform,
+                ..default()
+            },
+            Ball::new(),
+            RigidBody::Dynamic,
+            Collider::ball(BALL_RADIUS),
+            // Sensor,
+            ActiveCollisionTypes::default(),
+            Friction::coefficient(0.7),
+            Restitution::coefficient(0.05),
+            ColliderMassProperties::Density(1000.0),
+            (ActiveEvents::CONTACT_FORCE_EVENTS),
+            ExternalImpulse {
+                impulse: transform.forward() * BALL_THROW_FORCE,
+                ..default()
+            },
+        ))
+        .with_children(|children| {
+            children
+                .spawn((
+                    (
+                        Collider::ball(BALL_SENSOR_RADIUS),
+                        Sensor,
+                        (ActiveEvents::COLLISION_EVENTS),
+                    ),
+                    BallSensor,
+                ))
+                .insert(TransformBundle::from(Transform::from_xyz(0.0, 0.0, 0.0)));
+        });
 }
 
 pub fn despawn_balls(
