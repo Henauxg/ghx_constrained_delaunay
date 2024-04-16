@@ -17,12 +17,15 @@ fn main() {
         .add_plugins((DefaultPlugins, ExamplesPlugin))
         .add_plugins((
             RapierPhysicsPlugin::<NoUserData>::default(),
-            // RapierDebugRenderPlugin::default()
+            // RapierDebugRenderPlugin::default(),
         ))
         .add_systems(Startup, setup_scene)
         .add_systems(
             Update,
-            (respawn_cube, attach_physics_components_to_cells).chain(),
+            (
+                (respawn_cube, attach_physics_components_to_cells).chain(),
+                handle_collisions,
+            ),
         )
         .run();
 }
@@ -88,7 +91,7 @@ fn spawn_cube(asset_server: &Res<AssetServer>, commands: &mut Commands) {
     commands.spawn((
         SceneBundle {
             scene: asset_server.load(CUBE_ASSET_PATH),
-            transform: Transform::from_xyz(0., 2., 0.),
+            transform: Transform::from_xyz(0., 1., 0.),
             ..default()
         },
         ExampleCube,
@@ -99,7 +102,7 @@ fn spawn_frac_cube(asset_server: &Res<AssetServer>, commands: &mut Commands) {
     commands.spawn((
         SceneBundle {
             scene: asset_server.load(CUBE_FRAC_ASSET_PATH),
-            transform: Transform::from_xyz(0., 2., 0.),
+            transform: Transform::from_xyz(0., 1., 0.),
             ..default()
         },
         FragmentedCubeRoot::default(),
@@ -126,36 +129,74 @@ fn respawn_cube(
         spawn_frac_cube(&asset_server, &mut commands);
     }
 }
+#[derive(Component)]
+pub struct Fragment;
 
 fn attach_physics_components_to_cells(
     mut commands: Commands,
     mut fractured_scene: Query<(Entity, &mut FragmentedCubeRoot)>,
     children: Query<&Children>,
-    meshes_handles: Query<&Handle<Mesh>>,
+    fragments: Query<(&Parent, &Handle<Mesh>)>,
     meshes: ResMut<Assets<Mesh>>,
+    transforms: Query<&Transform>,
 ) {
     for (fractured_scene_entity, mut fragments_root) in fractured_scene.iter_mut() {
+        commands
+            .entity(fractured_scene_entity)
+            .insert(RigidBody::Dynamic);
+
         // We only want to attach the physics components once
         if !fragments_root.physics_applied {
             for entity in children.iter_descendants(fractured_scene_entity) {
                 // Attach the physics components only to the meshes entities
-                if let Ok(mesh_handle) = meshes_handles.get(entity) {
+                if let Ok((parent, mesh_handle)) = fragments.get(entity) {
+                    let fragment_parent_transform = transforms.get(parent.get()).unwrap();
+
                     let mesh = meshes.get(mesh_handle).unwrap();
-                    info!("Attaching physics components to entity {:?}", entity);
                     let collider =
                         Collider::from_bevy_mesh(mesh, &ComputedColliderShape::ConvexHull).unwrap();
+                    let joint = FixedJointBuilder::new()
+                        .local_anchor1(fragment_parent_transform.translation);
                     commands.entity(entity).insert((
+                        Fragment,
                         RigidBody::Dynamic,
                         collider,
                         ActiveCollisionTypes::default(),
                         Friction::coefficient(0.7),
                         Restitution::coefficient(0.05),
                         ColliderMassProperties::Density(2.0),
+                        ImpulseJoint::new(fractured_scene_entity, joint),
                     ));
                     // Children do not seem to be created at the same time as the cube root entity, so we only update the flag once children are present
                     fragments_root.physics_applied = true;
                 }
             }
+        }
+    }
+}
+
+fn handle_collisions(
+    mut commands: Commands,
+    mut collision_events: EventReader<CollisionEvent>,
+    mut contact_force_events: EventReader<ContactForceEvent>,
+    fragments: Query<&Fragment>,
+) {
+    for collision_event in collision_events.read() {
+        println!("Received collision event: {:?}", collision_event);
+    }
+
+    for contact_force_event in contact_force_events.read() {
+        println!("Received contact force event: {:?}", contact_force_event);
+
+        let fragment = if let Ok(_) = fragments.get(contact_force_event.collider1) {
+            Some(contact_force_event.collider1)
+        } else if let Ok(_) = fragments.get(contact_force_event.collider2) {
+            Some(contact_force_event.collider2)
+        } else {
+            None
+        };
+        if let Some(fragment_entity) = fragment {
+            commands.entity(fragment_entity).remove::<ImpulseJoint>();
         }
     }
 }
