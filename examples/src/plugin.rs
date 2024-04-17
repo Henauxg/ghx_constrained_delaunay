@@ -176,7 +176,7 @@ fn setup_environment(
         Collider::cylinder(height / 2., radius),
         (ActiveCollisionTypes::default()),
         Friction::coefficient(0.7),
-        Restitution::coefficient(0.3),
+        Restitution::coefficient(0.0),
     ));
 
     // Lights
