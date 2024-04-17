@@ -1,8 +1,4 @@
-use std::slice::Chunks;
-
-use bevy_rapier3d::{
-    parry::query::point::PointCompositeShapeProjWithFeatureBestFirstVisitor, prelude::*,
-};
+use bevy_rapier3d::prelude::*;
 
 use bevy::{
     math::Vec3A,
@@ -437,9 +433,9 @@ pub fn cross_from_vec3a(vertexe_1: [f32; 3], vertexe_2: Vec3A) -> [f32; 3] {
     dot_product.to_array()
 }
 
-pub fn dot_from_array(vertexe_1: [f32; 3], vertexe_2: [f32; 3]) -> f32 {
-    let vec1 = Vec3A::from_array(vertexe_1);
-    let vec2 = Vec3A::from_array(vertexe_2);
+pub fn dot_from_array(vertexe_1: &[f32; 3], vertexe_2: &[f32; 3]) -> f32 {
+    let vec1 = Vec3A::from_array(*vertexe_1);
+    let vec2 = Vec3A::from_array(*vertexe_2);
     let dot_product = vec1.dot(vec2);
     dot_product
 }
