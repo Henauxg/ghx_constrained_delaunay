@@ -14,7 +14,6 @@ use bevy::{
     log::info,
     render::mesh::Mesh,
     scene::SceneBundle,
-    time::{Fixed, Time},
     transform::components::Transform,
     utils::default,
     DefaultPlugins,
@@ -30,6 +29,8 @@ use bevy_rapier3d::{
 };
 use examples::{ball::BallSensor, plugin::ExamplesPlugin};
 
+// "dragon_frac.glb#Scene0";
+// "dragon_low_poly.glb#Scene0";
 pub const CUBE_FRAC_ASSET_PATH: &str = "cube_frac.glb#Scene0";
 pub const CUBE_ASSET_PATH: &str = "cube.glb#Scene0";
 
@@ -37,7 +38,6 @@ const DEFAULT_TRANSFORM: Transform = Transform::from_xyz(0., 1., 0.);
 
 fn main() {
     App::new()
-        .insert_resource(Time::<Fixed>::from_seconds(10.5))
         .add_plugins((DefaultPlugins, ExamplesPlugin))
         .add_plugins((
             RapierPhysicsPlugin::<NoUserData>::default(),
@@ -75,11 +75,7 @@ pub struct FragmentedMesh;
 struct ExampleCube;
 
 fn setup_scene(mut commands: Commands, asset_server: Res<AssetServer>) {
-    spawn_frac_cube(
-        &asset_server,
-        Transform::from_xyz(0., 1., 0.),
-        &mut commands,
-    );
+    spawn_frac_cube(&asset_server, DEFAULT_TRANSFORM, &mut commands);
 }
 
 fn spawn_cube(asset_server: &Res<AssetServer>, transform: Transform, commands: &mut Commands) {
@@ -205,7 +201,7 @@ fn attach_physics_components_to_fragments(
         if children_physics_applied {
             commands
                 .entity(fractured_scene_entity)
-                .insert(RigidBody::Dynamic)
+                .insert(RigidBody::Fixed)
                 .remove::<UninitializedFragmentedMesh>();
         }
     }
