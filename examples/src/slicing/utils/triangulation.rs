@@ -324,10 +324,10 @@ fn update_triangle_neighbour(
             let triangle = &mut triangles[triangle_id];
             if triangle.edge12 == old_neighbour_id {
                 triangle.edge12 = new_neighbour_id;
-            } else if triangle.edge12 == old_neighbour_id {
-                triangle.edge12 = new_neighbour_id;
-            } else if triangle.edge12 == old_neighbour_id {
-                triangle.edge12 = new_neighbour_id;
+            } else if triangle.edge23 == old_neighbour_id {
+                triangle.edge23 = new_neighbour_id;
+            } else if triangle.edge31 == old_neighbour_id {
+                triangle.edge31 = new_neighbour_id;
             }
         }
         None => (),
@@ -462,7 +462,26 @@ fn check_and_swap_quad_diagonal(
     (swapped_quad_diagonal, triangle_3_id, triangle_4_id)
 }
 
-// See ref: Cline and Renka [5] ?
+/// See ref: Cline and Renka [5]
+/// The algo is sensitive to the order of the given vertices. In order:
+///
+/// n3 --------------------- n2
+/// |                       /|
+/// |                     /  |
+/// |                   /    |
+/// |                 /      |
+/// |               /        |
+/// |             /          |
+/// |           /            |
+/// |         /              |
+/// |       /                |
+/// |     /                  |
+/// |   /                    |
+/// | /                      |
+/// n1 ---------------------- p
+///
+/// where n1, n2 and n3 are the given vertices of the given triangle and p the vertex to be check
+///
 fn is_vertex_in_triangle_circumcircle(
     triangle_v1: Vec2,
     triangle_v2: Vec2,
