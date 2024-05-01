@@ -35,8 +35,8 @@ impl MeshMapping {
     }
 
     pub fn add_mapped_vertex(&self, vertex: &[f32; 3], vertex_id: u32) {
-        self.vertex_buffer.push(*vertex);
-        self.index_map[vertex_id as usize] = (self.vertex_buffer.len() - 1) as u32;
-        // TODO Mapping
+        // self.vertex_buffer.push(*vertex);
+        // self.index_map[vertex_id as usize] = (self.vertex_buffer.len() - 1) as u32;
+        // // TODO Mapping
     }
 }
