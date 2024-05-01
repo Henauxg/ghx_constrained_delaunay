@@ -22,7 +22,7 @@ pub fn triangulate_3d_planar_vertices(
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
 /// - Input vertices need to all belong to the same 3d plan
 /// - There must be at least two vertices
-fn transform_to_2d_planar_coordinate_system(
+pub(crate) fn transform_to_2d_planar_coordinate_system(
     vertices: &mut Vec<Vec3A>,
     plane_normal: Vec3A,
 ) -> Vec<Vec2> {
@@ -40,7 +40,7 @@ fn transform_to_2d_planar_coordinate_system(
 }
 
 ///  This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane. The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
-fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
+pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
     let (mut x_min, mut y_min, mut x_max, mut y_max) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
 
     for vertex in vertices.iter() {
@@ -66,22 +66,22 @@ fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
     }
 }
 
-pub type VertexId = usize;
-pub type TriangleId = usize;
+pub(crate) type VertexId = usize;
+pub(crate) type TriangleId = usize;
 
 #[derive(Debug, Clone)]
-struct TriangleData {
+pub(crate) struct TriangleData {
     // Vertices ids
-    v1: VertexId,
-    v2: VertexId,
-    v3: VertexId,
+    pub(crate) v1: VertexId,
+    pub(crate) v2: VertexId,
+    pub(crate) v3: VertexId,
     // Neighbours
-    edge12: Option<TriangleId>,
-    edge23: Option<TriangleId>,
-    edge31: Option<TriangleId>,
+    pub(crate) edge12: Option<TriangleId>,
+    pub(crate) edge23: Option<TriangleId>,
+    pub(crate) edge31: Option<TriangleId>,
 }
 
-fn search_enclosing_triangle(
+pub(crate) fn search_enclosing_triangle(
     vertex: Vec2,
     from: Option<TriangleId>,
     triangles: &Vec<TriangleData>,
@@ -178,15 +178,15 @@ fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> Vec<VertexId> {
     indices
 }
 
-struct VertexBinSort {
+pub(crate) struct VertexBinSort {
     bins_per_row: usize,
     bins_count: usize,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
-struct SortedVertex {
-    original_id: VertexId,
-    vertex: Vec2,
+pub(crate) struct SortedVertex {
+    pub(crate) original_id: VertexId,
+    pub(crate) vertex: Vec2,
 }
 
 impl VertexBinSort {
@@ -252,7 +252,7 @@ fn is_vertex_on_right_side_of_edge(v1: Vec2, v2: Vec2, p: Vec2) -> bool {
     ((v2.x - v1.x) * (p.y - v1.y) - (v2.y - v1.y) * (p.x - v1.x)) <= 0.
 }
 
-fn split_triangle_in_three_at_vertex(
+pub(crate) fn split_triangle_in_three_at_vertex(
     triangle_id: TriangleId,
     vertex_id: VertexId,
     triangles: &mut Vec<TriangleData>,
@@ -313,7 +313,7 @@ fn split_triangle_in_three_at_vertex(
     );
 }
 
-fn update_triangle_neighbour(
+pub(crate) fn update_triangle_neighbour(
     triangle_id: Option<TriangleId>,
     old_neighbour_id: Option<TriangleId>,
     new_neighbour_id: Option<TriangleId>,
@@ -369,14 +369,14 @@ fn restore_delaunay_triangulation(
 }
 
 #[derive(Debug)]
-struct Quad {
-    v1: VertexId,
-    v2: VertexId,
-    v3: VertexId,
-    v4: VertexId,
+pub(crate) struct Quad {
+    pub(crate) v1: VertexId,
+    pub(crate) v2: VertexId,
+    pub(crate) v3: VertexId,
+    pub(crate) v4: VertexId,
 }
 
-fn check_and_swap_quad_diagonal(
+pub(crate) fn check_and_swap_quad_diagonal(
     vertex_id: VertexId,
     triangle_id: TriangleId,
     adjacent_triangle_id: TriangleId,
@@ -482,7 +482,7 @@ fn check_and_swap_quad_diagonal(
 ///
 /// where n1, n2 and n3 are the given vertices of the given triangle and p the vertex to be check
 ///
-fn is_vertex_in_triangle_circumcircle(
+pub(crate) fn is_vertex_in_triangle_circumcircle(
     triangle_v1: Vec2,
     triangle_v2: Vec2,
     triangle_v3: Vec2,
