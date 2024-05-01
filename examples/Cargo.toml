@@ -68,3 +68,7 @@ path = "src/slicing/slicing.rs"
 [[example]]
 name = "triangulation"
 path = "src/slicing/triangulation_example.rs"
+
+[[example]]
+name = "constrained_triangulation"
+path = "src/slicing/constrained_triangulation_example.rs"
