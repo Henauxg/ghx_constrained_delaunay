@@ -15,9 +15,9 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let mut vertices = Vec::<[f32; 3]>::new();
-    vertices.push([0., 5., 0.]);
-    vertices.push([5., 5., 0.]);
-    vertices.push([5., 0., 0.]);
+    vertices.push([0., 1., 0.]);
+    vertices.push([1., 1., 0.]);
+    vertices.push([1., 0., 0.]);
     vertices.push([0., 0., 0.]);
 
     let indices = triangulate_3d_planar_vertices(&vertices, Vec3::Z.into());
