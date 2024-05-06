@@ -1,11 +1,14 @@
-use bevy::math::{Vec2, Vec3A};
+use bevy::{
+    log::info,
+    math::{Vec2, Vec3A, Vec3Swizzles},
+};
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
 pub fn triangulate_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
-) -> Vec<VertexId> {
+) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
     // TODO See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
     for v in vertices {
@@ -14,6 +17,11 @@ pub fn triangulate_3d_planar_vertices(
 
     let mut planar_vertices =
         transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
+
+    info!(
+        "transform_to_2d_planar_coordinate_system {:?}",
+        planar_vertices
+    );
 
     // Delaunay triangulation
     triangulate_2d_vertices(&mut planar_vertices)
@@ -35,11 +43,14 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
     let mut vertices_2d = Vec::with_capacity(vertices.len());
     for vertex in vertices {
         vertices_2d.push(Vec2::new(vertex.dot(basis_1), vertex.dot(basis_3)));
+
+        //vertices_2d.push(vertex.xy());
     }
     vertices_2d
 }
 
-///  This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane. The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
+/// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
+/// The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
 pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
     let (mut x_min, mut y_min, mut x_max, mut y_max) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
 
@@ -70,16 +81,22 @@ pub(crate) type VertexId = usize;
 pub(crate) type TriangleId = usize;
 
 #[derive(Debug, Clone)]
-pub(crate) struct TriangleData {
+pub struct TriangleData {
     // Vertices ids
-    pub(crate) v1: VertexId,
-    pub(crate) v2: VertexId,
-    pub(crate) v3: VertexId,
+    pub v1: VertexId,
+    pub v2: VertexId,
+    pub v3: VertexId,
     // Neighbours
-    pub(crate) edge12: Option<TriangleId>,
-    pub(crate) edge23: Option<TriangleId>,
-    pub(crate) edge31: Option<TriangleId>,
+    pub edge12: Option<TriangleId>,
+    pub edge23: Option<TriangleId>,
+    pub edge31: Option<TriangleId>,
+    //pub edges: [TriangleId;3],
 }
+
+const EDGE_12: usize = 0; 
+const EDGE_23: usize = 1; 
+const EDGE_31: usize = 2; 
+const EDGES: [usize;3] = [EDGE_12, EDGE_23, EDGE_31];
 
 pub(crate) fn search_enclosing_triangle(
     vertex: Vec2,
@@ -88,7 +105,11 @@ pub(crate) fn search_enclosing_triangle(
     vertices: &Vec<Vec2>,
 ) -> Option<TriangleId> {
     let mut triangle_id = from;
-    for _ in 0..triangles.len() {
+    #[cfg(feature = "debug_traces")]
+    info!("search_enclosing_triangle----------------------------------------------------------------------------");
+    for iter in 0..triangles.len() {
+        #[cfg(feature = "debug_traces")]
+        info!("inter{}", iter);
         let Some(current_triangle_id) = triangle_id else {
             break;
         };
@@ -98,28 +119,65 @@ pub(crate) fn search_enclosing_triangle(
         let v2 = vertices[triangles[current_triangle_id].v2];
         let v3 = vertices[triangles[current_triangle_id].v3];
 
+        #[cfg(feature = "debug_traces")]
+        info!("point to be placed {}", vertex);
+
         // Check if the point is inside the triangle, if not check the neighbours
         if !is_vertex_on_right_side_of_edge(v1, v2, vertex) {
+            #[cfg(feature = "debug_traces")]
+            info!(
+                "triangle{},v1{}, v2{}, vertex{} ",
+                current_triangle_id, v1, v2, vertex
+            );
             triangle_id = triangles[current_triangle_id].edge12;
         } else if !is_vertex_on_right_side_of_edge(v2, v3, vertex) {
+            #[cfg(feature = "debug_traces")]
+            info!(
+                "triangle{},v1{}, v2{}, vertex{} ",
+                current_triangle_id, v1, v2, vertex
+            );
             triangle_id = triangles[current_triangle_id].edge23;
         } else if !is_vertex_on_right_side_of_edge(v3, v1, vertex) {
+            #[cfg(feature = "debug_traces")]
+            info!(
+                "triangle{},v1{}, v2{}, vertex{} ",
+                current_triangle_id, v1, v2, vertex
+            );
             triangle_id = triangles[current_triangle_id].edge31;
         } else {
+            #[cfg(feature = "debug_traces")]
+            info!("current triangle{}", current_triangle_id);
             return Some(current_triangle_id);
         }
     }
     None
 }
 
-fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> Vec<VertexId> {
+fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
+    let (triangles, container_triangle, mut debugger) = wrap_and_triangulate_2d_vertices(vertices);
+
+    let indices = remove_wrapping(&triangles, &container_triangle, &mut debugger);
+
+    (indices, debugger)
+}
+
+pub(crate) fn wrap_and_triangulate_2d_vertices(
+    vertices: &mut Vec<Vec2>,
+) -> (Vec<TriangleData>, TriangleData, Vec<Vec<TriangleData>>) {
+    //Debug
+    let mut debugger: Vec<Vec<TriangleData>> = Vec::new();
+
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     normalize_vertices_coordinates(vertices);
 
-    // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points. Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin. Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
+    // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
+    // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
+    // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
     let partitioned_vertices = VertexBinSort::sort(&vertices, 0.5);
 
-    // Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated. This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle. Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
+    // Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
+    // This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle.
+    // Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
     // TODO Clean: constants + comments
     // TODO See if we could avoid merging fake data
     let mut triangles = Vec::<TriangleData>::new();
@@ -139,6 +197,8 @@ fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> Vec<VertexId> {
     // Id of the triangle we are looking at
     let mut triangle_id = Some(0);
 
+    debugger.push(triangles.clone());
+
     // Loop over all the input vertices
     for sorted_vertex in partitioned_vertices.iter() {
         // Find an existing triangle which encloses P
@@ -155,10 +215,20 @@ fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> Vec<VertexId> {
             }
             None => (),
         }
+        debugger.push(triangles.clone());
     }
 
+    (triangles, container_triangle, debugger)
+}
+
+pub(crate) fn remove_wrapping(
+    triangles: &Vec<TriangleData>,
+    container_triangle: &TriangleData,
+    mut debugger: &mut Vec<Vec<TriangleData>>,
+) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
+    let mut filtered_debug_triangles = Vec::new();
     for triangle in triangles.iter() {
         if triangle.v1 != container_triangle.v1
             && triangle.v2 != container_triangle.v1
@@ -173,8 +243,11 @@ fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> Vec<VertexId> {
             indices.push(triangle.v1);
             indices.push(triangle.v2);
             indices.push(triangle.v3);
+            filtered_debug_triangles.push(triangle.clone());
         }
     }
+    debugger.push(filtered_debug_triangles);
+
     indices
 }
 
@@ -249,7 +322,8 @@ impl VertexBinSort {
 
 fn is_vertex_on_right_side_of_edge(v1: Vec2, v2: Vec2, p: Vec2) -> bool {
     // Cross product of vectors v1-v2 and v1-p
-    ((v2.x - v1.x) * (p.y - v1.y) - (v2.y - v1.y) * (p.x - v1.x)) <= 0.
+    //((v2.x - v1.x) * (p.y - v1.y) - (v2.y - v1.y) * (p.x - v1.x)) <= 0.
+    ((p.x - v1.x) * (v2.y - v1.y) - (p.y - v1.y) * (v2.x - v1.x)) >= 0.
 }
 
 pub(crate) fn split_triangle_in_three_at_vertex(
@@ -258,6 +332,12 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     triangles: &mut Vec<TriangleData>,
     vertices: &Vec<Vec2>,
 ) {
+    #[cfg(feature = "debug_traces")]
+    info!(
+        "split_triangle_in_three_at_vertex, vertex {}",
+        vertices[vertex_id]
+    );
+
     // Re-use the existing triangle id for the first triangle
     let triangle_1_id = triangle_id;
     // Create two new triangles for the other two
