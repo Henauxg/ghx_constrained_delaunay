@@ -68,7 +68,7 @@ pub struct ExamplesUiRoot;
 
 pub fn setup_camera(mut commands: Commands) {
     // Camera
-    let camera_position = Vec3::new(0., 1.5, 2.5);
+    let camera_position = Vec3::new(0., 0., 120.5);
     let look_target = Vec3::ZERO;
     commands.spawn((
         Camera3dBundle {
@@ -78,6 +78,7 @@ pub fn setup_camera(mut commands: Commands) {
         },
         PanOrbitCamera {
             radius: (look_target - camera_position).length(),
+            auto_orbit:false,
             ..Default::default()
         },
     ));
