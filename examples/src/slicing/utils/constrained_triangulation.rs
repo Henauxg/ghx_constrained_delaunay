@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
 use bevy::{
-    log::info, math::{Vec2, Vec3A}
+    log::info,
+    math::{Vec2, Vec3A},
 };
 
 use super::triangulation::{
-    self, remove_wrapping, wrap_and_triangulate_2d_vertices, Quad, TriangleData, TriangleId,
-    VertexId,
+    self, wrap_and_triangulate_2d_vertices, Quad, TriangleData, TriangleId, VertexId,
 };
 
 /// plane_normal must be normalized
@@ -37,11 +37,121 @@ fn triangulate_2d_vertices_constrained(
     let (mut triangles, container_triangle, mut debugger) =
         wrap_and_triangulate_2d_vertices(vertices);
 
+    let skip_triangles = remove_non_contrained_triangles(&triangles, constrained_edges);
+
+    info!("skip triangle {:?}", skip_triangles);
+
     apply_constrains(vertices, constrained_edges, &mut triangles, &mut debugger);
 
-    let indices = remove_wrapping(&triangles, &container_triangle, &mut debugger);
+    let indices = remove_constrained_wrapping(
+        &triangles,
+        &container_triangle,
+        &mut debugger,
+        &skip_triangles,
+    );
 
     (indices, debugger)
+}
+
+fn remove_constrained_wrapping(
+    triangles: &Vec<TriangleData>,
+    container_triangle: &TriangleData,
+    debugger: &mut Vec<Vec<TriangleData>>,
+    skip_triangles: &Vec<bool>,
+) -> Vec<VertexId> {
+    // TODO Clean: Size approx
+    let mut indices = Vec::with_capacity(3 * triangles.len());
+    let mut filtered_debug_triangles = Vec::new();
+    for (index, triangle) in triangles.iter().enumerate() {
+        if triangle.v1 != container_triangle.v1
+            && triangle.v2 != container_triangle.v1
+            && triangle.v3 != container_triangle.v1
+            && triangle.v1 != container_triangle.v2
+            && triangle.v2 != container_triangle.v2
+            && triangle.v3 != container_triangle.v2
+            && triangle.v1 != container_triangle.v3
+            && triangle.v2 != container_triangle.v3
+            && triangle.v3 != container_triangle.v3
+            && !skip_triangles[index]
+        {
+            indices.push(triangle.v1);
+            indices.push(triangle.v2);
+            indices.push(triangle.v3);
+            filtered_debug_triangles.push(triangle.clone());
+        }
+    }
+    debugger.push(filtered_debug_triangles);
+
+    indices
+}
+
+fn remove_non_contrained_triangles(
+    triangles: &Vec<TriangleData>,
+    constrained_edges: &Vec<(usize, usize)>,
+) -> Vec<bool> {
+    let mut skip_triangles = vec![true; triangles.len()];
+    let mut visited_triangles = vec![false; triangles.len()];
+
+    let mut frontier = Vec::new();
+
+    for (index, triangle) in triangles.iter().enumerate() {
+        if visited_triangles[index] {
+            continue;
+        }
+
+        let v1 = triangle.v1;
+        let v2 = triangle.v2;
+        let v3 = triangle.v3;
+        let e12 = constrained_edges.contains(&(v1, v2));
+        let e23 = constrained_edges.contains(&(v2, v3));
+        let e31 = constrained_edges.contains(&(v3, v1));
+
+        if e12 || e23 || e31 {
+            skip_triangles[index] = false;
+
+            frontier.clear();
+            if !e12 {
+                frontier.push(triangle.edge12);
+            }
+            if !e23 {
+                frontier.push(triangle.edge23);
+            }
+            if !e31 {
+                frontier.push(triangle.edge31);
+            }
+
+            while frontier.len() > 0 {
+                let edge = frontier.pop().unwrap();
+                match edge {
+                    Some(neighbor_id) => {
+                        if visited_triangles[neighbor_id] {
+                            continue;
+                        } else {
+                            skip_triangles[neighbor_id] = false;
+                            visited_triangles[neighbor_id] = true;
+
+                            let v1 = triangles[neighbor_id].v1;
+                            let v2 = triangles[neighbor_id].v2;
+                            let v3 = triangles[neighbor_id].v3;
+
+                            if !constrained_edges.contains(&(v1, v2)) {
+                                frontier.push(triangles[neighbor_id].edge12);
+                            }
+                            if !constrained_edges.contains(&(v2, v3)) {
+                                frontier.push(triangles[neighbor_id].edge23);
+                            }
+                            if !constrained_edges.contains(&(v3, v1)) {
+                                frontier.push(triangles[neighbor_id].edge31);
+                            }
+                        }
+                    }
+                    None => continue,
+                }
+            }
+        }
+    }
+
+    skip_triangles
 }
 
 fn apply_constrains(
@@ -70,13 +180,8 @@ fn apply_constrains(
             intersected_edges(&triangles, vertices, constrained_edge, &triangle_vertices);
 
         // Remove intersecting edges
-        let mut new_edges_created = remove_crossing_edges(
-            triangles,
-            vertices,
-            constrained_edge,
-            intersected_edges,
-            &mut debugger,
-        );
+        let mut new_edges_created =
+            remove_crossing_edges(triangles, vertices, constrained_edge, intersected_edges);
 
         // Restore Delaunay triangulation
         restore_delaunay_triangulation_constrained(
@@ -290,7 +395,6 @@ fn remove_crossing_edges(
     vertices: &mut Vec<Vec2>,
     constrained_edge: &(usize, usize),
     mut intersected_edges: VecDeque<(usize, (usize, usize))>,
-    mut debugger: &mut Vec<Vec<TriangleData>>,
 ) -> VecDeque<(usize, usize, (usize, usize))> {
     let mut new_edges_created = VecDeque::new();
 
