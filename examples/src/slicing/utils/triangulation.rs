@@ -93,10 +93,10 @@ pub struct TriangleData {
     //pub edges: [TriangleId;3],
 }
 
-const EDGE_12: usize = 0; 
-const EDGE_23: usize = 1; 
-const EDGE_31: usize = 2; 
-const EDGES: [usize;3] = [EDGE_12, EDGE_23, EDGE_31];
+const EDGE_12: usize = 0;
+const EDGE_23: usize = 1;
+const EDGE_31: usize = 2;
+const EDGES: [usize; 3] = [EDGE_12, EDGE_23, EDGE_31];
 
 pub(crate) fn search_enclosing_triangle(
     vertex: Vec2,
