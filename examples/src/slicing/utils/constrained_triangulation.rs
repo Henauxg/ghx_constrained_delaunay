@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::{
     log::info,
@@ -11,11 +11,11 @@ use super::triangulation::{
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
-/// constrained edges must be oriented: vi -> vj and vi < vj
+/// constrained edges must be oriented: vi -> vj
 pub fn triangulate_3d_planar_vertices_constrained(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
-    mut constrained_edges: &Vec<(usize, usize)>,
+    constrained_edges: &mut VecDeque<(usize, usize)>,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
     // TODO See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
@@ -27,27 +27,27 @@ pub fn triangulate_3d_planar_vertices_constrained(
         triangulation::transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
 
     // Delaunay triangulation
-    triangulate_2d_vertices_constrained(&mut planar_vertices, &mut constrained_edges)
+    triangulate_2d_vertices_constrained(&mut planar_vertices, constrained_edges)
 }
 
 fn triangulate_2d_vertices_constrained(
     vertices: &mut Vec<Vec2>,
-    constrained_edges: &Vec<(usize, usize)>,
+    constrained_edges: &mut VecDeque<(usize, usize)>,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
     let (mut triangles, container_triangle, mut debugger) =
         wrap_and_triangulate_2d_vertices(vertices);
 
-    let skip_triangles = remove_non_contrained_triangles(&triangles, constrained_edges);
-
-    info!("skip triangle {:?}", skip_triangles);
-
     apply_constrains(vertices, constrained_edges, &mut triangles, &mut debugger);
+
+    let killed_triangles = marked_triangles_to_be_killed(&triangles, constrained_edges);
+
+    info!("killed_triangles {:?}", killed_triangles);
 
     let indices = remove_constrained_wrapping(
         &triangles,
         &container_triangle,
+        &killed_triangles,
         &mut debugger,
-        &skip_triangles,
     );
 
     (indices, debugger)
@@ -56,8 +56,8 @@ fn triangulate_2d_vertices_constrained(
 fn remove_constrained_wrapping(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
+    killed_triangles: &Vec<bool>,
     debugger: &mut Vec<Vec<TriangleData>>,
-    skip_triangles: &Vec<bool>,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
@@ -72,7 +72,7 @@ fn remove_constrained_wrapping(
             && triangle.v1 != container_triangle.v3
             && triangle.v2 != container_triangle.v3
             && triangle.v3 != container_triangle.v3
-            && !skip_triangles[index]
+            && !killed_triangles[index]
         {
             indices.push(triangle.v1);
             indices.push(triangle.v2);
@@ -85,14 +85,31 @@ fn remove_constrained_wrapping(
     indices
 }
 
-fn remove_non_contrained_triangles(
+/// Mark as repmove all triangles that are not suppose tostay in theoriginal configuration
+/// This supposes that all group of constrained edges are oriented in different orientations, as shown:
+/// ---------------<----------------
+/// |                              |
+/// |   ----------->------------   |
+/// |   |  zone to be removed  |   |
+/// |   |   -------<--------   |   |
+/// |   |   |              |   |   |
+/// v   ∧   v              ∧   v   ∧
+/// |   |   |              |   |   |
+/// |   |   ------->--------   |   |
+/// |   |                      |   |
+/// |   -----------<------------   |
+/// |                              |
+/// --------------->----------------
+fn marked_triangles_to_be_killed(
     triangles: &Vec<TriangleData>,
-    constrained_edges: &Vec<(usize, usize)>,
+    constrained_edges: &mut VecDeque<(usize, usize)>,
 ) -> Vec<bool> {
-    let mut skip_triangles = vec![true; triangles.len()];
+    let mut killed_triangles = vec![true; triangles.len()];
     let mut visited_triangles = vec![false; triangles.len()];
 
-    let mut frontier = Vec::new();
+    visited_triangles[0] = true;
+
+    let mut triangle_buffer = Vec::new();
 
     for (index, triangle) in triangles.iter().enumerate() {
         if visited_triangles[index] {
@@ -102,61 +119,275 @@ fn remove_non_contrained_triangles(
         let v1 = triangle.v1;
         let v2 = triangle.v2;
         let v3 = triangle.v3;
-        let e12 = constrained_edges.contains(&(v1, v2));
+
+        let e12: bool = constrained_edges.contains(&(v1, v2));
         let e23 = constrained_edges.contains(&(v2, v3));
         let e31 = constrained_edges.contains(&(v3, v1));
 
         if e12 || e23 || e31 {
-            skip_triangles[index] = false;
+            killed_triangles[index] = false;
 
-            frontier.clear();
+            triangle_buffer.clear();
+
             if !e12 {
-                frontier.push(triangle.edge12);
+                triangle_buffer.push(triangle.edge12);
             }
             if !e23 {
-                frontier.push(triangle.edge23);
+                triangle_buffer.push(triangle.edge23);
             }
             if !e31 {
-                frontier.push(triangle.edge31);
+                triangle_buffer.push(triangle.edge31);
             }
 
-            while frontier.len() > 0 {
-                let edge = frontier.pop().unwrap();
-                match edge {
-                    Some(neighbor_id) => {
-                        if visited_triangles[neighbor_id] {
+            while triangle_buffer.len() > 0 {
+                let triangle_index = triangle_buffer.pop().unwrap();
+
+                match triangle_index {
+                    Some(neighbor) => {
+                        if visited_triangles[neighbor] {
                             continue;
                         } else {
-                            skip_triangles[neighbor_id] = false;
-                            visited_triangles[neighbor_id] = true;
+                            killed_triangles[neighbor] = false;
+                            visited_triangles[neighbor] = true;
 
-                            let v1 = triangles[neighbor_id].v1;
-                            let v2 = triangles[neighbor_id].v2;
-                            let v3 = triangles[neighbor_id].v3;
+                            let v1 = triangles[neighbor].v1;
+                            let v2 = triangles[neighbor].v2;
+                            let v3 = triangles[neighbor].v3;
 
                             if !constrained_edges.contains(&(v1, v2)) {
-                                frontier.push(triangles[neighbor_id].edge12);
+                                triangle_buffer.push(triangles[neighbor].edge12);
                             }
                             if !constrained_edges.contains(&(v2, v3)) {
-                                frontier.push(triangles[neighbor_id].edge23);
+                                triangle_buffer.push(triangles[neighbor].edge23);
                             }
                             if !constrained_edges.contains(&(v3, v1)) {
-                                frontier.push(triangles[neighbor_id].edge31);
+                                triangle_buffer.push(triangles[neighbor].edge31);
                             }
                         }
                     }
-                    None => continue,
+                    None => {
+                        continue;
+                    }
                 }
             }
         }
     }
 
-    skip_triangles
+    killed_triangles
 }
+
+// type FamilyId = usize;
+
+// fn get_sets_of_triangles(
+//     constrained_edges: &mut VecDeque<(usize, usize)>,
+//     vertices: &mut Vec<Vec2>,
+// ) -> Vec<(FamilyId, Vec<(usize, usize)>)> {
+//     // buffer of all the constrained cycles
+//     let mut sets = VecDeque::new();
+
+//     // fill the buffer with all the cycles
+//     while constrained_edges.len() != 0 {
+//         sets.push_back(determined_set(constrained_edges));
+//     }
+
+//     let mut polygons: Vec<(FamilyId, Vec<(usize, usize)>)> = Vec::new();
+
+//     // if there is only one cycle, the parent tree is only the set present in the buffer
+//     if sets.len() == 1 {
+//         polygons.push((usize::MAX, sets.pop_front().unwrap()));
+//         return polygons;
+//     } else if sets.len() == 2 {
+//         let polygon_1: Vec<(usize, usize)> = sets[0].clone();
+//         let polygon_2 = sets[1].clone();
+
+//         let family_trait = get_polygons_relationship(&polygon_1, &polygon_2, vertices);
+//         if family_trait == Family::PARENT {
+//             polygons.push((usize::MAX, polygon_1));
+//             polygons.push((1, polygon_2));
+//         } else {
+//             polygons.push((usize::MAX, polygon_1));
+//             polygons.push((usize::MAX, polygon_2));
+//         }
+//     } else {
+//         // we compare every sets 2 by 2
+//         for index in 0..sets.len() - 1 {
+//             // polygons to be compare
+//             let polygon_1 = sets[index].clone();
+//             let polygon_2 = sets[index + 1].clone();
+
+//             // we check rather the polygons are parent-child related or twins (not inside of each others but in the same level in thee family tree)
+//             let family_trait = get_polygons_relationship(&polygon_1, &polygon_2, vertices);
+
+//             //add the polygon into the polygon buffer with the family index
+//             if index == 0 {
+//                 info!("index start");
+//                 // specific case for start
+//                 if family_trait == Family::PARENT {
+//                     polygons.push((usize::MAX, polygon_1));
+//                 } else {
+//                     polygons.push((usize::MAX, polygon_1));
+//                     polygons.push((usize::MAX, polygon_2));
+//                     //todo
+//                 }
+//             } else if index == sets.len() - 2 {
+//                 info!("index end");
+//                 // specific case for end
+//                 if family_trait == Family::PARENT {
+//                     polygons.push((index, polygon_1));
+//                     polygons.push((index + 1, polygon_2));
+//                 } else {
+//                     polygons.push((index, polygon_1));
+//                     polygons.push((index, polygon_2));
+//                 }
+//                 break;
+//             } else {
+//                 if family_trait == Family::PARENT {
+//                     polygons.push((index, polygon_1));
+//                 } else {
+//                     polygons.push((index, polygon_1));
+//                     polygons.push((index, polygon_2));
+//                     //todo
+//                 }
+//             }
+//         }
+//     }
+
+//     polygons
+// }
+
+// #[derive(PartialEq)]
+// pub enum Family {
+//     PARENT,
+//     TWINS,
+// }
+
+// fn get_polygons_relationship(
+//     polygon_1: &Vec<(usize, usize)>,
+//     polygon_2: &Vec<(usize, usize)>,
+//     vertices: &mut Vec<Vec2>,
+// ) -> Family {
+//     //source: https://stackoverflow.com/questions/4833802/check-if-polygon-is-inside-a-polygon
+//     // we need to check rather a set is inside another or if the two set are all children of the upper set
+//     // if one of the two sets is not convex, we need to check every edge intersection
+//     if !is_polygon_convex(&polygon_1, vertices) || !is_polygon_convex(&polygon_2, vertices) {
+//         // If really necessary, you can speed up the line intersection tests using the sweep line algorithm.
+//         if !are_polygons_intersecting(&polygon_1, &polygon_2, vertices) {
+//             // polygon 2 is inside polygon 1
+//             if is_polygon_inside_polygon(&polygon_2, &polygon_1, vertices) {
+//                 return Family::PARENT;
+//             }
+//             // both polygons are children
+//             else {
+//                 return Family::TWINS;
+//             }
+//         }
+//     }
+
+//     // if the polygons are convex or there are no edge intersection, we need to check if a polygon is inside another by looking at every points of it
+//     // polygon 2 is inside polygon 1
+//     if is_polygon_inside_polygon(&polygon_2, &polygon_1, vertices) {
+//         return Family::PARENT;
+//     }
+//     // both polygons are children
+//     else {
+//         return Family::TWINS;
+//     }
+// }
+
+// ///source: https://stackoverflow.com/questions/217578/how-can-i-determine-whether-a-2d-point-is-within-a-polygon
+// fn is_polygon_inside_polygon(
+//     tested_polygon: &Vec<(usize, usize)>,
+//     encompass_polygon: &Vec<(usize, usize)>,
+//     vertices: &mut Vec<Vec2>,
+// ) -> bool {
+//     let mut c = false;
+//     for edge_index_1 in tested_polygon {
+//         let p = vertices[edge_index_1.0];
+
+//         for edge_index_2 in encompass_polygon.iter() {
+//             let q = vertices[edge_index_2.0];
+//             let r = vertices[edge_index_2.1];
+
+//             if ((r.y > p.y) != (q.y > p.y)) && (p.x < (q.x - r.x) * (p.y - r.y) / (q.y - r.y) + r.x)
+//             {
+//                 c = !c;
+//             }
+//         }
+//     }
+
+//     true
+// }
+
+// fn are_polygons_intersecting(
+//     polygon_1: &Vec<(usize, usize)>,
+//     polygon_2: &Vec<(usize, usize)>,
+//     vertices: &mut Vec<Vec2>,
+// ) -> bool {
+//     // for all edges of the first polygon
+//     for edge_index_1 in polygon_1 {
+//         for edge_index_2 in polygon_2 {
+//             let e1_0 = vertices[edge_index_1.0];
+//             let e1_1 = vertices[edge_index_1.1];
+//             let e2_0 = vertices[edge_index_2.0];
+//             let e2_1 = vertices[edge_index_2.1];
+
+//             if egdes_intersect(e1_0, e1_1, e2_0, e2_1) != EdgesIntersectionResult::None {
+//                 return true;
+//             }
+//         }
+//     }
+
+//     false
+// }
+
+// fn determined_set(constrained_edges: &mut VecDeque<(usize, usize)>) -> Vec<(usize, usize)> {
+//     //buffer of a cycle
+//     let mut set = Vec::new();
+
+//     // get the initial constrained edge to start with
+//     let initial_edge = constrained_edges.pop_front().unwrap();
+//     set.push(initial_edge);
+
+//     // check every constrained edges until the constrained edge list is empty
+//     while constrained_edges.len() != 0 {
+//         // get the next edge and add it
+//         let current_edge = constrained_edges.pop_front().unwrap();
+//         set.push(current_edge);
+
+//         // if we end a cycle,  we stop. We will start a new cycle from were we ended up
+//         if current_edge.1 == initial_edge.0 {
+//             break;
+//         }
+//     }
+
+//     set
+// }
+
+// ///source:https://stackoverflow.com/questions/471962/how-do-i-efficiently-determine-if-a-polygon-is-convex-non-convex-or-complex
+// ///For each consecutive pair of edges of the polygon (each triplet of points), compute the z-component of the cross product of the vectors defined by the edges pointing towards the points in increasing order. Take the cross product of these vectors.
+// /// The polygon is convex if the z-components of the cross products are either all positive or all negative. Otherwise the polygon is nonconvex.
+// fn is_polygon_convex(polygon: &Vec<(usize, usize)>, vertices: &mut Vec<Vec2>) -> bool {
+//     for index in 0..polygon.len() - 1 {
+//         let p0 = vertices[polygon[index].0];
+//         let p1 = vertices[polygon[index].1];
+//         let p2 = vertices[polygon[index + 1].1];
+
+//         let dx1 = p1.x - p0.x;
+//         let dy1 = p1.y - p0.y;
+//         let dx2 = p2.x - p1.x;
+//         let dy2 = p2.y - p1.y;
+
+//         if dx1 * dy2 - dy1 * dx2 == 0. {
+//             return false;
+//         }
+//     }
+
+//     true
+// }
 
 fn apply_constrains(
     vertices: &mut Vec<Vec2>,
-    constrained_edges: &Vec<(usize, usize)>,
+    constrained_edges: &VecDeque<(usize, usize)>,
     mut triangles: &mut Vec<TriangleData>,
     mut debugger: &mut Vec<Vec<TriangleData>>,
 ) {
