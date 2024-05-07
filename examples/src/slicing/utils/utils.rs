@@ -71,7 +71,7 @@ fn compute_slice(
     normal_vec: &Vec3A,
     main_mesh: &Mesh,
 ) -> Option<(Mesh, Mesh, Vec3A)> {
-    let Some(VertexAttributeValues::Float32x3(values)) =
+    let Some(VertexAttributeValues::Float32x3(mesh_vertices)) =
         main_mesh.attribute(Mesh::ATTRIBUTE_POSITION)
     else {
         return None;
@@ -79,7 +79,7 @@ fn compute_slice(
 
     // Split in half all triangles that are inside the slice plane:
     let (top_slice_splited, bottom_slice_splited) =
-        separate_triangles_in_half(&origin_point, &normal_vec, values, main_mesh);
+        separate_triangles_in_half(&origin_point, &normal_vec, mesh_vertices, main_mesh);
 
     let mut fragment_top = Mesh::new(
         PrimitiveTopology::TriangleList,
@@ -114,21 +114,10 @@ fn separate_triangles_in_half(
     vertices: &Vec<[f32; 3]>,
     mesh: &Mesh,
 ) -> (MeshMapping, MeshMapping) {
-    // let mut top_mesh_vertices = Vec::new(); // contains top vertices for top mesh
-    // let mut bottom_mesh_vertices = Vec::new(); // contains bottom vertices for bottom mesh
-
-    // let mut top_mesh_indexes = Vec::new(); // contains top vertices indexes for top mesh
-    // let mut bottom_mesh_indexes = Vec::new(); // contains bottom vertices indexes for bottom mesh
-
     let mut sides = Vec::new();
 
     // Get the vertices indexes of the current mesh
     let mesh_indices = mesh.indices().unwrap();
-    // let mut index_buffer = Vec::new();
-
-    // for index in mesh_indices.iter() {
-    //     index_buffer.push(index);
-    // }
 
     // Create the two slices buffers
     let mut top_slice = MeshMapping::new();
@@ -141,15 +130,11 @@ fn separate_triangles_in_half(
 
         // Put vertices and indexes in two buffers for the two areas (top and bottom)
         match vertex_above_plane {
-            true => top_slice.add_mapped_vertex(vertex, vertex_id),
-            false => bottom_slice.add_mapped_vertex(vertex, vertex_id),
+            true => top_slice.add_mapped_vertex(vertex, vertex_id as u32),
+            false => bottom_slice.add_mapped_vertex(vertex, vertex_id as u32),
         };
         sides.push(vertex_above_plane);
     }
-
-    // // Create the two slices buffers
-    // let mut top_slice = MeshMapping::new(top_mesh_vertices, top_mesh_indexes);
-    // let mut bottom_slice = MeshMapping::new(bottom_mesh_vertices, bottom_mesh_indexes);
 
     let (mut top_slice_splited, mut bottom_slice_splited) = split_triangles(
         vertices,
@@ -205,11 +190,6 @@ fn split_triangles(
     let mut index_buffer_top_slice = top_slice.get_index_buffer().clone();
     let mut index_buffer_bottom_slice = bottom_slice.get_index_buffer().clone();
 
-    // for index in (0..index_buffer.len()).step_by(3) {
-    //     let vertex_indexe_1 = index_buffer[index];
-    //     let vertex_indexe_2 = index_buffer[index + 1];
-    //     let vertex_indexe_3 = index_buffer[index + 3];
-
     for index in index_buffer.iter().step_by(3) {
         let vertex_indexe_1 = index_buffer.at(index);
         let vertex_indexe_2 = index_buffer.at(index + 1);
@@ -217,15 +197,15 @@ fn split_triangles(
 
         // if triangle is completely above plane
         if side[vertex_indexe_1] && side[vertex_indexe_2] && side[vertex_indexe_3] {
-            index_buffer_top_slice.push(vertex_indexe_1);
-            index_buffer_top_slice.push(vertex_indexe_2);
-            index_buffer_top_slice.push(vertex_indexe_3);
+            index_buffer_top_slice.push(vertex_indexe_1 as u32);
+            index_buffer_top_slice.push(vertex_indexe_2 as u32);
+            index_buffer_top_slice.push(vertex_indexe_3 as u32);
         }
         // if triangle is bellow plane
         else if !side[vertex_indexe_1] && !side[vertex_indexe_2] && !side[vertex_indexe_3] {
-            index_buffer_bottom_slice.push(vertex_indexe_1);
-            index_buffer_bottom_slice.push(vertex_indexe_2);
-            index_buffer_bottom_slice.push(vertex_indexe_3);
+            index_buffer_bottom_slice.push(vertex_indexe_1 as u32);
+            index_buffer_bottom_slice.push(vertex_indexe_2 as u32);
+            index_buffer_bottom_slice.push(vertex_indexe_3 as u32);
         }
         // the triangle is beeing intercept by the slide plane:
         else {
@@ -414,28 +394,28 @@ fn spawn_fragments(
     ));
 }
 
-pub fn substract_two_vertices(vertexe_1: [f32; 3], vertexe_2: [f32; 3]) -> [f32; 3] {
-    let x = vertexe_1[0] - vertexe_2[0];
-    let y = vertexe_1[1] - vertexe_2[1];
-    let z = vertexe_1[2] - vertexe_2[2];
-    [x, y, z]
-}
+// pub fn substract_two_vertices(vertexe_1: [f32; 3], vertexe_2: [f32; 3]) -> [f32; 3] {
+//     let x = vertexe_1[0] - vertexe_2[0];
+//     let y = vertexe_1[1] - vertexe_2[1];
+//     let z = vertexe_1[2] - vertexe_2[2];
+//     [x, y, z]
+// }
 
-pub fn normalize_vertexe(vertexe: [f32; 3]) -> [f32; 3] {
-    let vec = Vec3A::from_array(vertexe);
-    vec.normalize();
-    vec.to_array()
-}
+// pub fn normalize_vertexe(vertexe: [f32; 3]) -> [f32; 3] {
+//     let vec = Vec3A::from_array(vertexe);
+//     vec.normalize();
+//     vec.to_array()
+// }
 
-pub fn cross_from_vec3a(vertexe_1: [f32; 3], vertexe_2: Vec3A) -> [f32; 3] {
-    let vec = Vec3A::from_array(vertexe_1);
-    let dot_product = vec.cross(vertexe_2);
-    dot_product.to_array()
-}
+// pub fn cross_from_vec3a(vertexe_1: [f32; 3], vertexe_2: Vec3A) -> [f32; 3] {
+//     let vec = Vec3A::from_array(vertexe_1);
+//     let dot_product = vec.cross(vertexe_2);
+//     dot_product.to_array()
+// }
 
-pub fn dot_from_array(vertexe_1: &[f32; 3], vertexe_2: &[f32; 3]) -> f32 {
-    let vec1 = Vec3A::from_array(*vertexe_1);
-    let vec2 = Vec3A::from_array(*vertexe_2);
-    let dot_product = vec1.dot(vec2);
-    dot_product
-}
+// pub fn dot_from_array(vertexe_1: &[f32; 3], vertexe_2: &[f32; 3]) -> f32 {
+//     let vec1 = Vec3A::from_array(*vertexe_1);
+//     let vec2 = Vec3A::from_array(*vertexe_2);
+//     let dot_product = vec1.dot(vec2);
+//     dot_product
+//}
