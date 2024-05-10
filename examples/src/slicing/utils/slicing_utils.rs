@@ -1,16 +1,23 @@
+use std::{
+    collections::{HashMap, HashSet},
+    iter::zip,
+};
+
 use bevy_rapier3d::prelude::*;
 
 use bevy::{
     math::Vec3A,
     prelude::*,
+    reflect::Map,
     render::{
         mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
         render_asset::RenderAssetUsages,
     },
 };
+use ordered_float::OrderedFloat;
 use rand::Rng;
 
-use super::mesh_mapping::MeshMapping;
+use super::{mesh_mapping::MeshMapping, triangulation::VertexId};
 
 fn get_mesh_center(
     meshes_handles: Query<&Handle<Mesh>>,
@@ -94,7 +101,7 @@ pub fn compute_slice(
 
     // Split in half the main mesh into mesh mappings
     let (top_slice_splited, bottom_slice_splited) =
-        separate_mesh_in_half(&origin_point, &normal_vec, &mut vertices, main_mesh);
+        cut_mesh(&origin_point, &normal_vec, &mut vertices, main_mesh);
 
     // create the top mesh
     let mut fragment_top = Mesh::new(
@@ -141,7 +148,7 @@ fn is_above_plane(point: Vec3A, plane_normal: &Vec3A, plane_point: &Vec3A) -> bo
     return distance < 0.;
 }
 
-fn separate_mesh_in_half(
+fn cut_mesh(
     origin_point: &Vec3A,
     normal_vec: &Vec3A,
     vertices: &mut Vec<[f32; 3]>,
@@ -191,6 +198,19 @@ fn split_triangles(
     let mut index_buffer_top_slice = Vec::new();
     let mut index_buffer_bottom_slice = Vec::new();
 
+    let mut vertices_added = HashMap::new();
+
+    for (index, vertex) in vertices.iter().enumerate() {
+        vertices_added.insert(
+            [
+                OrderedFloat(vertex[0]),
+                OrderedFloat(vertex[1]),
+                OrderedFloat(vertex[2]),
+            ],
+            main_mesh_vertices_index_buffer.,
+        )
+    }
+
     for index in (0..main_mesh_vertices_index_buffer.len()).step_by(3) {
         let vertex_indexe_1 = main_mesh_vertices_index_buffer.at(index);
         let vertex_indexe_2 = main_mesh_vertices_index_buffer.at(index + 1);
@@ -222,6 +242,7 @@ fn split_triangles(
                     vertex_indexe_2,
                     vertex_indexe_3,
                     true,
+                    &mut vertices_added,
                 );
             }
 
@@ -236,6 +257,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     vertex_indexe_2,
                     true,
+                    &mut vertices_added,
                 );
             }
 
@@ -250,6 +272,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     vertex_indexe_1,
                     true,
+                    &mut vertices_added,
                 );
             }
 
@@ -265,6 +288,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     vertex_indexe_1,
                     false,
+                    &mut vertices_added,
                 );
             }
 
@@ -279,6 +303,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     vertex_indexe_2,
                     false,
+                    &mut vertices_added,
                 );
             }
 
@@ -293,6 +318,7 @@ fn split_triangles(
                     vertex_indexe_2,
                     vertex_indexe_3,
                     false,
+                    &mut vertices_added,
                 );
             }
         }
@@ -300,16 +326,9 @@ fn split_triangles(
 
     info!("index_buffer_top_slice {:?}", index_buffer_top_slice);
     info!("index_buffer_bottom_slice {:?}", index_buffer_bottom_slice);
+    info!("vertices len {:?}", vertices);
 
     (index_buffer_top_slice, index_buffer_bottom_slice)
-}
-
-fn regulates_index_buffers(
-    index_buffer_top_slice: &mut Vec<usize>,
-    index_buffer_bottom_slice: &mut Vec<usize>,
-    vertices: &mut Vec<[f32; 3]>,
-) -> (Vec<usize>, Vec<usize>) {
-    todo!()
 }
 
 /// if two edges on top:
@@ -341,6 +360,7 @@ fn split_small_triangles(
     vertex_indexe_2: usize,
     vertex_indexe_3: usize,
     two_edges_on_top: bool,
+    vertices_added: &mut HashMap<[OrderedFloat<f32>; 3], VertexId>,
 ) {
     // vertices of the current triangle crossed by the slice plane
     let v1 = Vec3A::from_array(*vertices.get(vertex_indexe_1).unwrap());
@@ -357,13 +377,40 @@ fn split_small_triangles(
 
         // /!\ Add vertices/normals/uv for the intersection points to each mesh
 
-        // add the new vertices in the list
-        vertices.push(v13.to_array());
-        vertices.push(v23.to_array());
+        let ordered_v13: [OrderedFloat<f32>; 3] = [
+            OrderedFloat(v13.x),
+            OrderedFloat(v13.y),
+            OrderedFloat(v13.z),
+        ];
+        let ordered_v23 = [
+            OrderedFloat(v23.x),
+            OrderedFloat(v23.y),
+            OrderedFloat(v23.z),
+        ];
 
         // create the indices
-        let index13 = vertices.len() - 2;
-        let index23 = vertices.len() - 1;
+        let mut index13 = vertices.len() - 2;
+        let mut index23 = vertices.len() - 1;
+
+        if !vertices_added.contains_key(&ordered_v13) {
+            // add the new vertices in the hash map
+            vertices_added.insert(ordered_v13, index13);
+
+            // add the new vertices in the list
+            vertices.push(v13.to_array());
+        } else {
+            index13 = *vertices_added.get(&ordered_v13).unwrap();
+        }
+
+        if !vertices_added.contains_key(&ordered_v23) {
+            // add the new vertices in the hash map
+            vertices_added.insert(ordered_v23, index23);
+
+            // add the new vertices in the list
+            vertices.push(v23.to_array());
+        } else {
+            index23 = *vertices_added.get(&ordered_v23).unwrap();
+        }
 
         if two_edges_on_top {
             // add two triangles on top
