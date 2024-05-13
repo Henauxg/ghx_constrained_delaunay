@@ -2,17 +2,15 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
+use bevy_ghx_destruction::triangulation::constrained_triangulation::triangulate_3d_planar_vertices_constrained;
 use bevy_mod_billboard::plugin::BillboardPlugin;
-use examples::plugin::ExamplesPlugin;
-use utils::{
-    constrained_triangulation::triangulate_3d_planar_vertices_constrained,
+use examples::{
     debug_utils::{
         create_displayed_vertices, draw_triangles_debug_data, update_triangles_debug_index,
         update_triangles_debugs_labels, TriangleDebugDataUpdated, TrianglesDebugData,
     },
+    plugin::ExamplesPlugin,
 };
-
-pub mod utils;
 
 fn main() {
     App::new()

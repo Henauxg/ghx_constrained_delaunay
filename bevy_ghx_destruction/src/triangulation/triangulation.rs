@@ -1,7 +1,9 @@
 use bevy::{
     log::info,
-    math::{Vec2, Vec3A, Vec3Swizzles},
+    math::{Vec2, Vec3A},
 };
+
+use super::{TriangleData, TriangleId, VertexId};
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
@@ -75,22 +77,6 @@ pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
         vertex.x = (vertex.x - x_min) / scale_factor;
         vertex.y = (vertex.y - y_min) / scale_factor;
     }
-}
-
-pub(crate) type VertexId = usize;
-pub(crate) type TriangleId = usize;
-
-#[derive(Debug, Clone)]
-pub struct TriangleData {
-    // Vertices ids
-    pub v1: VertexId,
-    pub v2: VertexId,
-    pub v3: VertexId,
-    // Neighbours
-    pub edge12: Option<TriangleId>,
-    pub edge23: Option<TriangleId>,
-    pub edge31: Option<TriangleId>,
-    //pub edges: [TriangleId;3],
 }
 
 const EDGE_12: usize = 0;

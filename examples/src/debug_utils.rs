@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
+use bevy_ghx_destruction::triangulation::TriangleData;
 use bevy_mod_billboard::BillboardTextBundle;
-
-use super::triangulation::TriangleData;
 
 pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
 

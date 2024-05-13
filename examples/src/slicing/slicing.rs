@@ -1,170 +1,152 @@
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_rapier3d::prelude::*;
-use examples::plugin::ExamplesPlugin;
-use std::f32::consts::*;
-
 use bevy::{
-    ecs::query,
-    pbr::CascadeShadowConfigBuilder,
+    math::Vec3A,
     prelude::*,
     render::{
-        mesh::{shape::Quad, MeshVertexAttribute, PrimitiveTopology},
+        mesh::{Indices, PrimitiveTopology},
         render_asset::RenderAssetUsages,
     },
 };
 
-pub mod utils;
-
-pub const CUBE_FRAC_ASSET_PATH: &str = "cube_frac.glb#Scene0";
-pub const CUBE_ASSET_PATH: &str = "cube.glb#Scene0";
+use bevy_ghx_destruction::{slicing::slicing::compute_slice, utils::get_random_normalized_vec};
+use examples::plugin::ExamplesPlugin;
 
 fn main() {
     App::new()
-        .insert_resource(AmbientLight {
-            color: Color::WHITE,
-            brightness: 1.0 / 5.0f32,
-        })
-        .insert_resource(Time::<Fixed>::from_seconds(10.5))
-        .add_plugins((DefaultPlugins, ExamplesPlugin, WorldInspectorPlugin::new()))
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        // .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Startup, setup_scene)
-        .add_systems(
-            Update,
-            (respawn_cube, attach_physics_components_to_cells).chain(),
-        )
+        .add_plugins((DefaultPlugins, ExamplesPlugin))
+        .add_systems(Startup, setup)
         .run();
 }
 
-#[derive(Component, Debug)]
-struct FragmentedCubeRoot {
-    physics_applied: bool,
+fn setup() {
+    let plane_normal = Vec3A::Y;
+
+    let mesh = create_cube_mesh();
+
+    // get mesh center
+    let mesh_center = mesh.compute_aabb().unwrap().center;
+
+    // get random normalized vector for the cut plane
+    let _normal_vec = get_random_normalized_vec();
+
+    // vertices of the main mesh
+    let _slice = compute_slice(&mesh_center, &plane_normal, &mesh);
 }
 
-impl Default for FragmentedCubeRoot {
-    fn default() -> Self {
-        Self {
-            physics_applied: false,
-        }
-    }
-}
-
-#[derive(Component)]
-struct ExampleCube;
-
-fn setup_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // // Plane
-    let radius = 2000.;
-    let height = 200.;
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Cylinder::new(radius, height)),
-            material: materials.add(Color::WHITE),
-            transform: Transform::from_xyz(0.0, -height / 2., 0.0),
-            ..default()
-        },
-        Collider::cylinder(height / 2., radius),
-        (ActiveCollisionTypes::default()),
-        Friction::coefficient(0.7),
-        Restitution::coefficient(0.3),
-    ));
-
-    // Light
-    commands.spawn(DirectionalLightBundle {
-        transform: Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 1.0, -PI / 4.)),
-        directional_light: DirectionalLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        cascade_shadow_config: CascadeShadowConfigBuilder {
-            first_cascade_far_bound: 200.0,
-            maximum_distance: 400.0,
-            ..default()
-        }
-        .into(),
-        ..default()
-    });
-
-    spawn_cube(&asset_server, &mut commands);
-}
-
-fn spawn_cube(asset_server: &Res<AssetServer>, commands: &mut Commands) {
-    commands.spawn((
-        SceneBundle {
-            scene: asset_server.load(CUBE_ASSET_PATH),
-            transform: Transform::from_xyz(0., 2., 0.),
-            ..default()
-        },
-        ExampleCube,
-    ));
-}
-
-fn spawn_frac_cube(asset_server: &Res<AssetServer>, commands: &mut Commands) {
-    commands.spawn((
-        SceneBundle {
-            scene: asset_server.load(CUBE_FRAC_ASSET_PATH),
-            transform: Transform::from_xyz(0., 2., 0.),
-            ..default()
-        },
-        FragmentedCubeRoot::default(),
-        ExampleCube,
-    ));
-}
-
-fn respawn_cube(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    query_cubes: Query<Entity, With<ExampleCube>>,
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-) {
-    if keyboard_input.pressed(KeyCode::KeyF) {
-        for entity in query_cubes.iter() {
-            commands.entity(entity).despawn_recursive();
-        }
-        spawn_cube(&asset_server, &mut commands);
-    }
-    if keyboard_input.pressed(KeyCode::KeyG) {
-        for entity in query_cubes.iter() {
-            commands.entity(entity).despawn_recursive();
-        }
-        spawn_frac_cube(&asset_server, &mut commands);
-    }
-}
-
-fn attach_physics_components_to_cells(
-    mut commands: Commands,
-    mut fractured_scene: Query<(Entity, &mut FragmentedCubeRoot)>,
-    children: Query<&Children>,
-    meshes_handles: Query<&Handle<Mesh>>,
-    meshes: ResMut<Assets<Mesh>>,
-) {
-    for (fractured_scene_entity, mut fragments_root) in fractured_scene.iter_mut() {
-        // We only want to attach the physics components once
-        if !fragments_root.physics_applied {
-            for entity in children.iter_descendants(fractured_scene_entity) {
-                // Attach the physics components only to the meshes entities
-                if let Ok(mesh_handle) = meshes_handles.get(entity) {
-                    let mesh = meshes.get(mesh_handle).unwrap();
-                    info!("Attaching physics components to entity {:?}", entity);
-                    let collider =
-                        Collider::from_bevy_mesh(mesh, &ComputedColliderShape::ConvexHull).unwrap();
-                    commands.entity(entity).insert((
-                        RigidBody::Dynamic,
-                        collider,
-                        ActiveCollisionTypes::default(),
-                        Friction::coefficient(0.7),
-                        Restitution::coefficient(0.05),
-                        ColliderMassProperties::Density(2.0),
-                    ));
-                    // Children do not seem to be created at the same time as the cube root entity, so we only update the flag once children are present
-                    fragments_root.physics_applied = true;
-                }
-            }
-        }
-    }
+#[rustfmt::skip]
+fn create_cube_mesh() -> Mesh {
+    // Keep the mesh data accessible in future frames to be able to mutate it in toggle_texture.
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD)
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        // Each array is an [x, y, z] coordinate in local space.
+        // Meshes always rotate around their local [0, 0, 0] when a rotation is applied to their Transform.
+        // By centering our mesh around the origin, rotating the mesh preserves its center of mass.
+        vec![
+            // top (facing towards +y)
+            [-0.5, 0.5, -0.5], // vertex with index 0
+            [0.5, 0.5, -0.5], // vertex with index 1
+            [0.5, 0.5, 0.5], // etc. until 23
+            [-0.5, 0.5, 0.5],
+            // bottom   (-y)
+            [-0.5, -0.5, -0.5],
+            [0.5, -0.5, -0.5],
+            [0.5, -0.5, 0.5],
+            [-0.5, -0.5, 0.5],
+            // right    (+x)
+            [0.5, -0.5, -0.5],
+            [0.5, -0.5, 0.5],
+            [0.5, 0.5, 0.5], // This vertex is at the same position as vertex with index 2, but they'll have different UV and normal
+            [0.5, 0.5, -0.5],
+            // left     (-x)
+            [-0.5, -0.5, -0.5],
+            [-0.5, -0.5, 0.5],
+            [-0.5, 0.5, 0.5],
+            [-0.5, 0.5, -0.5],
+            // back     (+z)
+            [-0.5, -0.5, 0.5],
+            [-0.5, 0.5, 0.5],
+            [0.5, 0.5, 0.5],
+            [0.5, -0.5, 0.5],
+            // forward  (-z)
+            [-0.5, -0.5, -0.5],
+            [-0.5, 0.5, -0.5],
+            [0.5, 0.5, -0.5],
+            [0.5, -0.5, -0.5],
+        ],
+    )
+    // Set-up UV coordinates to point to the upper (V < 0.5), "dirt+grass" part of the texture.
+    // Take a look at the custom image (assets/textures/array_texture.png)
+    // so the UV coords will make more sense
+    // Note: (0.0, 0.0) = Top-Left in UV mapping, (1.0, 1.0) = Bottom-Right in UV mapping
+    // .with_inserted_attribute(
+    //     Mesh::ATTRIBUTE_UV_0,
+    //     vec![
+    //         // Assigning the UV coords for the top side.
+    //         [0.0, 0.2], [0.0, 0.0], [1.0, 0.0], [1.0, 0.25],
+    //         // Assigning the UV coords for the bottom side.
+    //         [0.0, 0.45], [0.0, 0.25], [1.0, 0.25], [1.0, 0.45],
+    //         // Assigning the UV coords for the right side.
+    //         [1.0, 0.45], [0.0, 0.45], [0.0, 0.2], [1.0, 0.2],
+    //         // Assigning the UV coords for the left side.
+    //         [1.0, 0.45], [0.0, 0.45], [0.0, 0.2], [1.0, 0.2],
+    //         // Assigning the UV coords for the back side.
+    //         [0.0, 0.45], [0.0, 0.2], [1.0, 0.2], [1.0, 0.45],
+    //         // Assigning the UV coords for the forward side.
+    //         [0.0, 0.45], [0.0, 0.2], [1.0, 0.2], [1.0, 0.45],
+    //     ],
+    // )
+    // For meshes with flat shading, normals are orthogonal (pointing out) from the direction of
+    // the surface.
+    // Normals are required for correct lighting calculations.
+    // Each array represents a normalized vector, which length should be equal to 1.0.
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_NORMAL,
+        vec![
+            // Normals for the top side (towards +y)
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            // Normals for the bottom side (towards -y)
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            // Normals for the right side (towards +x)
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            // Normals for the left side (towards -x)
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            // Normals for the back side (towards +z)
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            // Normals for the forward side (towards -z)
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+        ],
+    )
+    // Create the triangles out of the 24 vertices we created.
+    // To construct a square, we need 2 triangles, therefore 12 triangles in total.
+    // To construct a triangle, we need the indices of its 3 defined vertices, adding them one
+    // by one, in a counter-clockwise order (relative to the position of the viewer, the order
+    // should appear counter-clockwise from the front of the triangle, in this case from outside the cube).
+    // Read more about how to correctly build a mesh manually in the Bevy documentation of a Mesh,
+    // further examples and the implementation of the built-in shapes.
+    .with_inserted_indices(Indices::U32(vec![
+        0,3,1 , 1,3,2, // triangles making up the top (+y) facing side.
+        4,5,7 , 5,6,7, // bottom (-y)
+        8,11,9 , 9,11,10, // right (+x)
+        12,13,15 , 13,14,15, // left (-x)
+        16,19,17 , 17,19,18, // back (+z)
+        20,21,23 , 21,22,23, // forward (-z)
+    ]))
 }

@@ -6,3 +6,9 @@ edition = "2021"
 [dependencies]
 # External dependencies
 bevy = { version = "0.13.0", default-features = false, features = [] }
+rand = "0.8.5"
+ordered-float = "4.2.0"
+bevy_rapier3d = { version = "0.25.0", features = [
+    "simd-stable",
+    "debug-render-3d",
+] }

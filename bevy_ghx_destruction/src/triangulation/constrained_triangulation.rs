@@ -1,12 +1,13 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::VecDeque;
 
 use bevy::{
     log::info,
     math::{Vec2, Vec3A},
 };
 
-use super::triangulation::{
-    self, wrap_and_triangulate_2d_vertices, Quad, TriangleData, TriangleId, VertexId,
+use super::{
+    triangulation::{self, wrap_and_triangulate_2d_vertices, Quad},
+    TriangleData, TriangleId, VertexId,
 };
 
 /// plane_normal must be normalized

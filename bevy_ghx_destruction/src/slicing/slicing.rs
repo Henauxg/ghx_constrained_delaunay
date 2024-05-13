@@ -1,42 +1,20 @@
-use std::{
-    collections::{HashMap, HashSet},
-    iter::zip,
-};
+use std::collections::HashMap;
 
 use bevy_rapier3d::prelude::*;
 
 use bevy::{
     math::Vec3A,
     prelude::*,
-    reflect::Map,
     render::{
         mesh::{Indices, PrimitiveTopology, VertexAttributeValues},
         render_asset::RenderAssetUsages,
     },
 };
 use ordered_float::OrderedFloat;
-use rand::Rng;
 
-use super::{mesh_mapping::MeshMapping, triangulation::VertexId};
+use crate::{triangulation::VertexId, utils::get_random_normalized_vec};
 
-fn get_mesh_center(
-    meshes_handles: Query<&Handle<Mesh>>,
-    entity: Entity,
-    meshes_assets: ResMut<Assets<Mesh>>,
-) -> Option<Vec3A> {
-    if let Ok(source_object_mesh_handle) = meshes_handles.get(entity) {
-        // TODO Fix unwraps
-        let source_object_mesh = meshes_assets.get(source_object_mesh_handle).unwrap();
-        Some(source_object_mesh.compute_aabb().unwrap().center)
-    } else {
-        None
-    }
-}
-
-pub(crate) fn get_random_normalized_vec() -> Vec3A {
-    let mut rng = rand::thread_rng();
-    Vec3A::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>()).normalize()
-}
+use super::mesh_mapping::MeshMapping;
 
 /// Operate the slice on a mesh
 pub(crate) fn slice(
@@ -477,6 +455,7 @@ fn spawn_fragments(
         RigidBody::Dynamic,
         Collider::from_bevy_mesh(fragment_mesh, &ComputedColliderShape::ConvexHull).unwrap(),
         ActiveCollisionTypes::default(),
+        // TODO Configure
         Friction::coefficient(0.7),
         Restitution::coefficient(0.05),
         ColliderMassProperties::Density(2.0),

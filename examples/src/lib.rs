@@ -1,8 +1,8 @@
 use bevy::render::color::Color;
 
 pub mod ball;
+pub mod debug_utils;
 pub mod fps;
-pub mod mesh_mapping;
 pub mod plugin;
 
 pub const DEFAULT_EXAMPLES_FONT_SIZE: f32 = 17.;
