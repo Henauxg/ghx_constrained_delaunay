@@ -87,7 +87,7 @@ pub fn update_triangles_debugs_labels(
 
     for (index, t) in triangles.iter().enumerate() {
         let color = COLORS[index % COLORS.len()];
-        let (v1, v2, v3) = (vertices[t.v1], vertices[t.v2], vertices[t.v3]);
+        let (v1, v2, v3) = (vertices[t.v1()], vertices[t.v2()], vertices[t.v3()]);
         let center = 0.3 * (v1 + v2 + v3);
 
         commands.spawn((
@@ -135,9 +135,9 @@ pub fn draw_triangles_debug_data(mut gizmos: Gizmos, debug_vert_data: Res<Triang
 
     for (index, triangle) in triangles.iter().enumerate() {
         let (v1, v2, v3) = (
-            vertices[triangle.v1],
-            vertices[triangle.v2],
-            vertices[triangle.v3],
+            vertices[triangle.v1()],
+            vertices[triangle.v2()],
+            vertices[triangle.v3()],
         );
         let color = COLORS[index % COLORS.len()];
         gizmos.linestrip(vec![v1, v2, v3, v1], color);

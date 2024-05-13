@@ -1,13 +1,10 @@
 use std::collections::VecDeque;
 
-use bevy::{
-    log::info,
-    math::{Vec2, Vec3A},
-};
+use bevy::math::{Vec2, Vec3A};
 
 use super::{
-    triangulation::{self, wrap_and_triangulate_2d_vertices, Quad},
-    TriangleData, TriangleId, VertexId,
+    triangulation::{self, wrap_and_triangulate_2d_vertices},
+    Quad, TriangleData, TriangleId, VertexId,
 };
 
 /// plane_normal must be normalized
@@ -62,20 +59,20 @@ fn remove_constrained_wrapping(
     let mut indices = Vec::with_capacity(3 * triangles.len());
     let mut filtered_debug_triangles = Vec::new();
     for (index, triangle) in triangles.iter().enumerate() {
-        if triangle.v1 != container_triangle.v1
-            && triangle.v2 != container_triangle.v1
-            && triangle.v3 != container_triangle.v1
-            && triangle.v1 != container_triangle.v2
-            && triangle.v2 != container_triangle.v2
-            && triangle.v3 != container_triangle.v2
-            && triangle.v1 != container_triangle.v3
-            && triangle.v2 != container_triangle.v3
-            && triangle.v3 != container_triangle.v3
+        if triangle.v1() != container_triangle.v1()
+            && triangle.v2() != container_triangle.v1()
+            && triangle.v3() != container_triangle.v1()
+            && triangle.v1() != container_triangle.v2()
+            && triangle.v2() != container_triangle.v2()
+            && triangle.v3() != container_triangle.v2()
+            && triangle.v1() != container_triangle.v3()
+            && triangle.v2() != container_triangle.v3()
+            && triangle.v3() != container_triangle.v3()
             && !killed_triangles[index]
         {
-            indices.push(triangle.v1);
-            indices.push(triangle.v2);
-            indices.push(triangle.v3);
+            indices.push(triangle.v1());
+            indices.push(triangle.v2());
+            indices.push(triangle.v3());
             filtered_debug_triangles.push(triangle.clone());
         }
     }
@@ -115,9 +112,9 @@ fn marked_triangles_to_be_killed(
             continue;
         }
 
-        let v1 = triangle.v1;
-        let v2 = triangle.v2;
-        let v3 = triangle.v3;
+        let v1 = triangle.v1();
+        let v2 = triangle.v2();
+        let v3 = triangle.v3();
 
         let e12: bool = constrained_edges.contains(&(v1, v2));
         let e23 = constrained_edges.contains(&(v2, v3));
@@ -129,13 +126,13 @@ fn marked_triangles_to_be_killed(
             triangle_buffer.clear();
 
             if !e12 {
-                triangle_buffer.push(triangle.edge12);
+                triangle_buffer.push(triangle.neighbor12());
             }
             if !e23 {
-                triangle_buffer.push(triangle.edge23);
+                triangle_buffer.push(triangle.neighbor23());
             }
             if !e31 {
-                triangle_buffer.push(triangle.edge31);
+                triangle_buffer.push(triangle.neighbor31());
             }
 
             while triangle_buffer.len() > 0 {
@@ -149,18 +146,18 @@ fn marked_triangles_to_be_killed(
                             killed_triangles[neighbor] = false;
                             visited_triangles[neighbor] = true;
 
-                            let v1 = triangles[neighbor].v1;
-                            let v2 = triangles[neighbor].v2;
-                            let v3 = triangles[neighbor].v3;
+                            let v1 = triangles[neighbor].v1();
+                            let v2 = triangles[neighbor].v2();
+                            let v3 = triangles[neighbor].v3();
 
                             if !constrained_edges.contains(&(v1, v2)) {
-                                triangle_buffer.push(triangles[neighbor].edge12);
+                                triangle_buffer.push(triangles[neighbor].neighbor12());
                             }
                             if !constrained_edges.contains(&(v2, v3)) {
-                                triangle_buffer.push(triangles[neighbor].edge23);
+                                triangle_buffer.push(triangles[neighbor].neighbor23());
                             }
                             if !constrained_edges.contains(&(v3, v1)) {
-                                triangle_buffer.push(triangles[neighbor].edge31);
+                                triangle_buffer.push(triangles[neighbor].neighbor31());
                             }
                         }
                     }
@@ -393,9 +390,9 @@ fn apply_constrains(
     //Map each vertices to a triangle that contains it
     let mut triangle_vertices = vec![0; vertices.len()];
     for (indexe, triangle) in triangles.iter().enumerate() {
-        triangle_vertices[triangle.v1] = indexe;
-        triangle_vertices[triangle.v2] = indexe;
-        triangle_vertices[triangle.v3] = indexe;
+        triangle_vertices[triangle.v1()] = indexe;
+        triangle_vertices[triangle.v2()] = indexe;
+        triangle_vertices[triangle.v3()] = indexe;
     }
 
     // Loop over each constrained edge
@@ -428,12 +425,12 @@ fn is_constrained_edge_inside_triangulation(
     constrained_edge: &(usize, usize),
 ) -> bool {
     for triangle in triangles {
-        if (triangle.v1 == constrained_edge.0
-            || triangle.v2 == constrained_edge.0
-            || triangle.v3 == constrained_edge.0)
-            && (triangle.v1 == constrained_edge.1
-                || triangle.v2 == constrained_edge.1
-                || triangle.v3 == constrained_edge.1)
+        if (triangle.v1() == constrained_edge.0
+            || triangle.v2() == constrained_edge.0
+            || triangle.v3() == constrained_edge.0)
+            && (triangle.v1() == constrained_edge.1
+                || triangle.v2() == constrained_edge.1
+                || triangle.v3() == constrained_edge.1)
         {
             return true;
         }
@@ -462,9 +459,9 @@ fn intersected_edges(
     // we circle constrained_edge.0
     while !crossing {
         // Vertices of the current triangle
-        let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1];
-        let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2];
-        let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3];
+        let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1()];
+        let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2()];
+        let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3()];
 
         (crossing, _, _) = constrained_edge_intersect_triangle(
             triangles,
@@ -481,17 +478,17 @@ fn intersected_edges(
         // If the current triangle has already been visited, we go the right
         if visited_triangles[current_triangle_id] {
             if triangle_vertex_1 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge12 {
+                match triangles[current_triangle_id].neighbor12() {
                     Some(neighbour_triangle_id) => current_triangle_id = neighbour_triangle_id,
                     None => todo!(), // TODO: show error,
                 }
             } else if triangle_vertex_2 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge23 {
+                match triangles[current_triangle_id].neighbor23() {
                     Some(neighbour_triangle_id) => current_triangle_id = neighbour_triangle_id,
                     None => todo!(), // TODO: show error,
                 }
             } else if triangle_vertex_3 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge31 {
+                match triangles[current_triangle_id].neighbor31() {
                     Some(neighbour_triangle_id) => current_triangle_id = neighbour_triangle_id,
                     None => todo!(), // TODO: show error,
                 }
@@ -499,7 +496,7 @@ fn intersected_edges(
         } else {
             //march from one triangle to the next if there are no crossing edges
             if triangle_vertex_1 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge31 {
+                match triangles[current_triangle_id].neighbor31() {
                     // By default, we turn to the left
                     Some(neighbour_triangle_id) => {
                         // if the left triangle exist
@@ -509,18 +506,19 @@ fn intersected_edges(
                             visited_triangles[current_triangle_id] = true;
                         } else {
                             // if the left triangle has been visited
-                            current_triangle_id = triangles[current_triangle_id].edge12.unwrap(); // we turn to the right triangle
+                            current_triangle_id =
+                                triangles[current_triangle_id].neighbor12().unwrap(); // we turn to the right triangle
                             visited_triangles[current_triangle_id] = true;
                         }
                     }
                     None => {
                         // If there is no triangle in the left direction, we got to the right direction
-                        current_triangle_id = triangles[current_triangle_id].edge12.unwrap();
+                        current_triangle_id = triangles[current_triangle_id].neighbor12().unwrap();
                         visited_triangles[current_triangle_id] = true;
                     }
                 }
             } else if triangle_vertex_2 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge12 {
+                match triangles[current_triangle_id].neighbor12() {
                     // By default, we turn to the left
                     Some(neighbour_triangle_id) => {
                         // if the left triangle exist
@@ -530,18 +528,19 @@ fn intersected_edges(
                             visited_triangles[current_triangle_id] = true;
                         } else {
                             // if the left triangle has been visited
-                            current_triangle_id = triangles[current_triangle_id].edge23.unwrap(); // we turn to the right triangle
+                            current_triangle_id =
+                                triangles[current_triangle_id].neighbor23().unwrap(); // we turn to the right triangle
                             visited_triangles[current_triangle_id] = true;
                         }
                     }
                     None => {
                         // If there is no triangle in the left direction, we got to the right direction
-                        current_triangle_id = triangles[current_triangle_id].edge23.unwrap();
+                        current_triangle_id = triangles[current_triangle_id].neighbor23().unwrap();
                         visited_triangles[current_triangle_id] = true;
                     }
                 }
             } else if triangle_vertex_3 == vertices[constrained_edge.0] {
-                match triangles[current_triangle_id].edge23 {
+                match triangles[current_triangle_id].neighbor23() {
                     // By default, we turn to the left
                     Some(neighbour_triangle_id) => {
                         // if the left triangle exist
@@ -551,13 +550,14 @@ fn intersected_edges(
                             visited_triangles[current_triangle_id] = true;
                         } else {
                             // if the left triangle has been visited
-                            current_triangle_id = triangles[current_triangle_id].edge31.unwrap(); // we turn to the right triangle
+                            current_triangle_id =
+                                triangles[current_triangle_id].neighbor31().unwrap(); // we turn to the right triangle
                             visited_triangles[current_triangle_id] = true;
                         }
                     }
                     None => {
                         // If there is no triangle in the left direction, we got to the right direction
-                        current_triangle_id = triangles[current_triangle_id].edge31.unwrap();
+                        current_triangle_id = triangles[current_triangle_id].neighbor31().unwrap();
                         visited_triangles[current_triangle_id] = true;
                     }
                 }
@@ -572,9 +572,9 @@ fn intersected_edges(
         visited_triangles[current_triangle_id] = true;
 
         // Vertices of the current triangle
-        let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1];
-        let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2];
-        let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3];
+        let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1()];
+        let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2()];
+        let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3()];
 
         let (_, crossing_edge, crossed_triangle) = constrained_edge_intersect_triangle(
             triangles,
@@ -660,40 +660,41 @@ fn swap_quad_diagonal(
     triangles: &mut Vec<TriangleData>,
 ) -> (Option<TriangleId>, Option<TriangleId>) {
     let adjacent_triangle = &triangles[adjacent_triangle_id];
-    let (quad, triangle_3_id, triangle_4_id) = if adjacent_triangle.edge12 == Some(triangle_id) {
-        (
-            Quad {
-                v1: adjacent_triangle.v2,
-                v2: adjacent_triangle.v1,
-                v3: adjacent_triangle.v3,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge23,
-            adjacent_triangle.edge31,
-        )
-    } else if adjacent_triangle.edge23 == Some(triangle_id) {
-        (
-            Quad {
-                v1: adjacent_triangle.v3,
-                v2: adjacent_triangle.v2,
-                v3: adjacent_triangle.v1,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge31,
-            adjacent_triangle.edge12,
-        )
-    } else {
-        (
-            Quad {
-                v1: adjacent_triangle.v1,
-                v2: adjacent_triangle.v3,
-                v3: adjacent_triangle.v2,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge12,
-            adjacent_triangle.edge23,
-        )
-    };
+    let (quad, triangle_3_id, triangle_4_id) =
+        if adjacent_triangle.neighbor12() == Some(triangle_id) {
+            (
+                Quad {
+                    v1: adjacent_triangle.v2(),
+                    v2: adjacent_triangle.v1(),
+                    v3: adjacent_triangle.v3(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor23(),
+                adjacent_triangle.neighbor31(),
+            )
+        } else if adjacent_triangle.neighbor23() == Some(triangle_id) {
+            (
+                Quad {
+                    v1: adjacent_triangle.v3(),
+                    v2: adjacent_triangle.v2(),
+                    v3: adjacent_triangle.v1(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor31(),
+                adjacent_triangle.neighbor12(),
+            )
+        } else {
+            (
+                Quad {
+                    v1: adjacent_triangle.v1(),
+                    v2: adjacent_triangle.v3(),
+                    v3: adjacent_triangle.v2(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor12(),
+                adjacent_triangle.neighbor23(),
+            )
+        };
 
     // The triangle containing P as a vertex and the unstacked triangle form a convex quadrilateral whose diagonal is drawn in the wrong direction.
     // Swap this diagonal so that two old triangles are replaced by two new triangles and the structure of the Delaunay triangulation is locally restored.
@@ -704,26 +705,24 @@ fn swap_quad_diagonal(
         triangles,
     );
     triangulation::update_triangle_neighbour(
-        triangles[triangle_id].edge31,
+        triangles[triangle_id].neighbor31(),
         Some(triangle_id),
         Some(adjacent_triangle_id),
         triangles,
     );
 
-    triangles[triangle_id].v1 = quad.v4;
-    triangles[triangle_id].v2 = quad.v1;
-    triangles[triangle_id].v3 = quad.v3;
+    triangles[triangle_id].set_verts([quad.v4, quad.v1, quad.v3]);
 
-    triangles[adjacent_triangle_id].v1 = quad.v4;
-    triangles[adjacent_triangle_id].v2 = quad.v3;
-    triangles[adjacent_triangle_id].v3 = quad.v2;
+    triangles[adjacent_triangle_id].set_verts([quad.v4, quad.v3, quad.v2]);
 
-    triangles[adjacent_triangle_id].edge12 = Some(triangle_id);
-    triangles[adjacent_triangle_id].edge23 = triangle_4_id;
-    triangles[adjacent_triangle_id].edge31 = triangles[triangle_id].edge31;
+    triangles[adjacent_triangle_id].neighbors = [
+        Some(triangle_id),
+        triangle_4_id,
+        triangles[triangle_id].neighbor31(),
+    ];
 
-    triangles[triangle_id].edge23 = triangle_3_id;
-    triangles[triangle_id].edge31 = Some(adjacent_triangle_id);
+    triangles[triangle_id].set_neighbor23(triangle_3_id);
+    triangles[triangle_id].set_neighbor31(Some(adjacent_triangle_id));
 
     (triangle_3_id, triangle_4_id)
 }
@@ -767,40 +766,41 @@ fn swap_quad_diagonal_to_edge(
     vertices: &Vec<Vec2>,
 ) -> (bool, Option<TriangleId>, Option<TriangleId>, usize, usize) {
     let adjacent_triangle = &triangles[adjacent_triangle_id];
-    let (quad, triangle_3_id, triangle_4_id) = if adjacent_triangle.edge12 == Some(triangle_id) {
-        (
-            Quad {
-                v1: adjacent_triangle.v2,
-                v2: adjacent_triangle.v1,
-                v3: adjacent_triangle.v3,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge23,
-            adjacent_triangle.edge31,
-        )
-    } else if adjacent_triangle.edge23 == Some(triangle_id) {
-        (
-            Quad {
-                v1: adjacent_triangle.v3,
-                v2: adjacent_triangle.v2,
-                v3: adjacent_triangle.v1,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge31,
-            adjacent_triangle.edge12,
-        )
-    } else {
-        (
-            Quad {
-                v1: adjacent_triangle.v1,
-                v2: adjacent_triangle.v3,
-                v3: adjacent_triangle.v2,
-                v4: vertex_id,
-            },
-            adjacent_triangle.edge12,
-            adjacent_triangle.edge23,
-        )
-    };
+    let (quad, triangle_3_id, triangle_4_id) =
+        if adjacent_triangle.neighbor12() == Some(triangle_id) {
+            (
+                Quad {
+                    v1: adjacent_triangle.v2(),
+                    v2: adjacent_triangle.v1(),
+                    v3: adjacent_triangle.v3(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor23(),
+                adjacent_triangle.neighbor31(),
+            )
+        } else if adjacent_triangle.neighbor23() == Some(triangle_id) {
+            (
+                Quad {
+                    v1: adjacent_triangle.v3(),
+                    v2: adjacent_triangle.v2(),
+                    v3: adjacent_triangle.v1(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor31(),
+                adjacent_triangle.neighbor12(),
+            )
+        } else {
+            (
+                Quad {
+                    v1: adjacent_triangle.v1(),
+                    v2: adjacent_triangle.v3(),
+                    v3: adjacent_triangle.v2(),
+                    v4: vertex_id,
+                },
+                adjacent_triangle.neighbor12(),
+                adjacent_triangle.neighbor23(),
+            )
+        };
 
     // Check if the vertex is on the circumcircle of the adjacent triangle:
     let mut swapped_quad_diagonal = false;
@@ -819,26 +819,24 @@ fn swap_quad_diagonal_to_edge(
             triangles,
         );
         triangulation::update_triangle_neighbour(
-            triangles[triangle_id].edge31,
+            triangles[triangle_id].neighbor31(),
             Some(triangle_id),
             Some(adjacent_triangle_id),
             triangles,
         );
 
-        triangles[triangle_id].v1 = quad.v4;
-        triangles[triangle_id].v2 = quad.v1;
-        triangles[triangle_id].v3 = quad.v3;
+        triangles[triangle_id].set_verts([quad.v4, quad.v1, quad.v3]);
 
-        triangles[adjacent_triangle_id].v1 = quad.v4;
-        triangles[adjacent_triangle_id].v2 = quad.v3;
-        triangles[adjacent_triangle_id].v3 = quad.v2;
+        triangles[adjacent_triangle_id].set_verts([quad.v4, quad.v3, quad.v2]);
 
-        triangles[adjacent_triangle_id].edge12 = Some(triangle_id);
-        triangles[adjacent_triangle_id].edge23 = triangle_4_id;
-        triangles[adjacent_triangle_id].edge31 = triangles[triangle_id].edge31;
+        triangles[adjacent_triangle_id].neighbors = [
+            Some(triangle_id),
+            triangle_4_id,
+            triangles[triangle_id].neighbor31(),
+        ];
 
-        triangles[triangle_id].edge23 = triangle_3_id;
-        triangles[triangle_id].edge31 = Some(adjacent_triangle_id);
+        triangles[triangle_id].set_neighbor23(triangle_3_id);
+        triangles[triangle_id].set_neighbor31(Some(adjacent_triangle_id));
 
         swapped_quad_diagonal = true;
     }
@@ -874,9 +872,9 @@ fn find_quad_from_triangle_and_crossing_edge(
     let crossing_edge_v2 = crossing_edge.1;
 
     // Triangle vertices
-    let vertex_1 = triangles[triangle_id].v1;
-    let vertex_2 = triangles[triangle_id].v2;
-    let vertex_3 = triangles[triangle_id].v3;
+    let vertex_1 = triangles[triangle_id].v1();
+    let vertex_2 = triangles[triangle_id].v2();
+    let vertex_3 = triangles[triangle_id].v3();
 
     // Quad coords
     let q1 = crossing_edge_v1;
@@ -887,39 +885,39 @@ fn find_quad_from_triangle_and_crossing_edge(
     let (neighbour_triangle_id, q2) = if crossing_edge_v1 == vertex_1 {
         // Crossing edge ends at v2
         if crossing_edge_v2 == vertex_2 {
-            (triangles[triangle_id].edge12.unwrap(), vertex_3)
+            (triangles[triangle_id].neighbor12().unwrap(), vertex_3)
         }
         // Crossing edge ends at v3
         else {
-            (triangles[triangle_id].edge31.unwrap(), vertex_2)
+            (triangles[triangle_id].neighbor31().unwrap(), vertex_2)
         }
     }
     // Crossing edge starts at v2
     else if crossing_edge_v1 == vertex_2 {
         // Crossing edge ends at v1
         if crossing_edge_v2 == vertex_1 {
-            (triangles[triangle_id].edge12.unwrap(), vertex_3)
+            (triangles[triangle_id].neighbor12().unwrap(), vertex_3)
         }
         // Crossing edge ends at v3
         else {
-            (triangles[triangle_id].edge31.unwrap(), vertex_1)
+            (triangles[triangle_id].neighbor31().unwrap(), vertex_1)
         }
     }
     // Crossing edge starts at v3
     else {
         // Crossing edge ends at v1
         if crossing_edge_v2 == vertex_1 {
-            (triangles[triangle_id].edge31.unwrap(), vertex_2)
+            (triangles[triangle_id].neighbor31().unwrap(), vertex_2)
         }
         // Crossing edge ends at v2
         else {
-            (triangles[triangle_id].edge23.unwrap(), vertex_1)
+            (triangles[triangle_id].neighbor23().unwrap(), vertex_1)
         }
     };
 
-    let v1 = triangles[neighbour_triangle_id].v1;
-    let v2 = triangles[neighbour_triangle_id].v2;
-    let v3 = triangles[neighbour_triangle_id].v3;
+    let v1 = triangles[neighbour_triangle_id].v1();
+    let v2 = triangles[neighbour_triangle_id].v2();
+    let v3 = triangles[neighbour_triangle_id].v3();
     let q4 = if !(v1 == crossing_edge_v1 || v1 == crossing_edge_v2) {
         v1
     } else if !(v2 == crossing_edge_v1 || v2 == crossing_edge_v2) {
@@ -965,9 +963,9 @@ fn constrained_edge_intersect_triangle(
     let constrained_edge_start = vertices[constrained_edge.0];
     let constrained_edge_end = vertices[constrained_edge.1];
 
-    let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1];
-    let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2];
-    let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3];
+    let triangle_vertex_1 = vertices[triangles[current_triangle_id].v1()];
+    let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2()];
+    let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3()];
 
     // Check if constrained edge cross v1-v2
     if egdes_intersect(
@@ -977,17 +975,17 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_2,
     ) == EdgesIntersectionResult::Crossing
     {
-        let neighbour_triangle_id = triangles[current_triangle_id].edge12;
+        let neighbour_triangle_id = triangles[current_triangle_id].neighbor12();
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
                 if !visited_triangles[neighbour_triangle_id] {
                     return (
                         true,
                         Some((
-                            triangles[current_triangle_id].v1,
-                            triangles[current_triangle_id].v2,
+                            triangles[current_triangle_id].v1(),
+                            triangles[current_triangle_id].v2(),
                         )),
-                        triangles[current_triangle_id].edge12,
+                        triangles[current_triangle_id].neighbor12(),
                     );
                 }
             }
@@ -1002,17 +1000,17 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_3,
     ) == EdgesIntersectionResult::Crossing
     {
-        let neighbour_triangle_id = triangles[current_triangle_id].edge23;
+        let neighbour_triangle_id = triangles[current_triangle_id].neighbor23();
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
                 if !visited_triangles[neighbour_triangle_id] {
                     return (
                         true,
                         Some((
-                            triangles[current_triangle_id].v2,
-                            triangles[current_triangle_id].v3,
+                            triangles[current_triangle_id].v2(),
+                            triangles[current_triangle_id].v3(),
                         )),
-                        triangles[current_triangle_id].edge23,
+                        triangles[current_triangle_id].neighbor23(),
                     );
                 }
             }
@@ -1028,17 +1026,17 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_1,
     ) == EdgesIntersectionResult::Crossing
     {
-        let neighbour_triangle_id = triangles[current_triangle_id].edge31;
+        let neighbour_triangle_id = triangles[current_triangle_id].neighbor31();
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
                 if !visited_triangles[neighbour_triangle_id] {
                     return (
                         true,
                         Some((
-                            triangles[current_triangle_id].v3,
-                            triangles[current_triangle_id].v1,
+                            triangles[current_triangle_id].v3(),
+                            triangles[current_triangle_id].v1(),
                         )),
-                        triangles[current_triangle_id].edge31,
+                        triangles[current_triangle_id].neighbor31(),
                     );
                 }
             }
