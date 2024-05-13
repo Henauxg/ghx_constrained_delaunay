@@ -1,10 +1,15 @@
-use bevy::math::{Vec2, Vec3A};
+use bevy::{
+    math::{Vec2, Vec3A},
+    utils::hashbrown::HashSet,
+};
 
-use super::{Quad, TriangleData, TriangleId, VertexId, TRIANGLE_EDGES};
+use super::{Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
+
+const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
-pub fn triangulate_3d_planar_vertices(
+pub fn triangulation_from_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
@@ -17,8 +22,17 @@ pub fn triangulate_3d_planar_vertices(
     let mut planar_vertices =
         transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
 
-    // Delaunay triangulation
-    triangulate_2d_vertices(&mut planar_vertices)
+    triangulation_from_2d_vertices(&mut planar_vertices)
+}
+
+pub fn triangulation_from_2d_vertices(
+    vertices: &mut Vec<Vec2>,
+) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
+    let (triangles, container_triangle, mut debugger) = wrap_and_triangulate_2d_vertices(vertices);
+
+    let indices = remove_wrapping(&triangles, &container_triangle, &mut debugger);
+
+    (indices, debugger)
 }
 
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
@@ -85,8 +99,8 @@ pub(crate) fn search_enclosing_triangle(
 
         // Check if the point is inside the triangle, if not check the neighbours
         let mut inside_triangle = true;
-        for (triangle_edge_index, triangle_edge) in TRIANGLE_EDGES.iter().enumerate() {
-            let edge = triangle.edge_from_triangle_edge(triangle_edge);
+
+        for (triangle_edge_index, edge) in triangle.edges().iter().enumerate() {
             if !is_vertex_on_right_side_of_edge(vertices[edge.0], vertices[edge.1], vertex) {
                 triangle_id = triangle.neighbors[triangle_edge_index];
                 inside_triangle = false;
@@ -100,18 +114,31 @@ pub(crate) fn search_enclosing_triangle(
     None
 }
 
-fn triangulate_2d_vertices(vertices: &mut Vec<Vec2>) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
-    let (triangles, container_triangle, mut debugger) = wrap_and_triangulate_2d_vertices(vertices);
+/// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
+///  This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle.
+///  Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
+pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vec2>) -> TriangleData {
+    let container_triangle = TriangleData {
+        verts: [vertices.len(), vertices.len() + 1, vertices.len() + 2],
+        neighbors: [None, None, None],
+    };
 
-    let indices = remove_wrapping(&triangles, &container_triangle, &mut debugger);
+    vertices.push(Vec2::new(
+        -CONTAINER_TRIANGLE_COORDINATE,
+        -CONTAINER_TRIANGLE_COORDINATE,
+    ));
+    vertices.push(Vec2::new(0., CONTAINER_TRIANGLE_COORDINATE));
+    vertices.push(Vec2::new(
+        CONTAINER_TRIANGLE_COORDINATE,
+        -CONTAINER_TRIANGLE_COORDINATE,
+    ));
 
-    (indices, debugger)
+    container_triangle
 }
 
 pub(crate) fn wrap_and_triangulate_2d_vertices(
     vertices: &mut Vec<Vec2>,
 ) -> (Vec<TriangleData>, TriangleData, Vec<Vec<TriangleData>>) {
-    //Debug
     let mut debugger: Vec<Vec<TriangleData>> = Vec::new();
 
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -122,20 +149,10 @@ pub(crate) fn wrap_and_triangulate_2d_vertices(
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
     let partitioned_vertices = VertexBinSort::sort(&vertices, 0.5);
 
-    // Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
-    // This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle.
-    // Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
-    // TODO Clean: constants + comments
-    // TODO See if we could avoid merging fake data
+    let container_triangle = add_container_triangle_vertices(vertices);
+
     let mut triangles = Vec::<TriangleData>::new();
-    let container_triangle = TriangleData {
-        verts: [vertices.len(), vertices.len() + 1, vertices.len() + 2],
-        neighbors: [None, None, None],
-    };
     triangles.push(container_triangle.clone());
-    vertices.push(Vec2::new(-100., -100.));
-    vertices.push(Vec2::new(0., 100.));
-    vertices.push(Vec2::new(100., -100.));
 
     // Id of the triangle we are looking at
     let mut triangle_id = Some(0);
@@ -173,13 +190,12 @@ pub(crate) fn remove_wrapping(
     let mut indices = Vec::with_capacity(3 * triangles.len());
     let mut filtered_debug_triangles = Vec::new();
 
+    let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
     for triangle in triangles.iter() {
         let mut filtered = false;
-        for &vert in triangle.verts.iter() {
-            for &container_vert in container_triangle.verts.iter() {
-                if vert == container_vert {
-                    filtered = true;
-                }
+        for vert in triangle.verts.iter() {
+            if container_verts.contains(vert) {
+                filtered = true;
             }
         }
         if !filtered {
@@ -475,8 +491,8 @@ pub fn check_and_swap_quad_diagonal(
             triangles[triangle_id].neighbor31(),
         ];
 
-        triangles[triangle_id].set_neighbor23(triangle_3_id);
-        triangles[triangle_id].set_neighbor31(Some(adjacent_triangle_id));
+        triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
+        triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
 
         QuadSwapResult::Swapped
     } else {

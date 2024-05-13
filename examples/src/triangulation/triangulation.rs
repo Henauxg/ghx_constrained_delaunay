@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use bevy_ghx_destruction::triangulation::triangulation::triangulate_3d_planar_vertices;
+use bevy_ghx_destruction::triangulation::triangulation::triangulation_from_3d_planar_vertices;
 use bevy_mod_billboard::plugin::BillboardPlugin;
 use examples::{
     debug_utils::{
@@ -52,7 +52,7 @@ fn setup(mut commands: Commands) {
     vertices.push([4., -8., 0.]);
 
     let plane_normal = Vec3::Z;
-    let (_, debug_data) = triangulate_3d_planar_vertices(&vertices, plane_normal.into());
+    let (_, debug_data) = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
 
     let displayed_vertices = create_displayed_vertices(vertices, plane_normal);
 

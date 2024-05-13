@@ -1,19 +1,22 @@
 use std::collections::VecDeque;
 
-use bevy::math::{Vec2, Vec3A};
+use bevy::{
+    math::{Vec2, Vec3A},
+    utils::hashbrown::HashSet,
+};
 
 use super::{
     triangulation::{self, wrap_and_triangulate_2d_vertices},
-    Quad, TriangleData, TriangleId, VertexId,
+    Edge, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31,
 };
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
 /// constrained edges must be oriented: vi -> vj
-pub fn triangulate_3d_planar_vertices_constrained(
+pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
-    constrained_edges: &mut VecDeque<(usize, usize)>,
+    constrained_edges: &HashSet<Edge>,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
     // TODO See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
@@ -24,140 +27,107 @@ pub fn triangulate_3d_planar_vertices_constrained(
     let mut planar_vertices =
         triangulation::transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
 
-    // Delaunay triangulation
-    triangulate_2d_vertices_constrained(&mut planar_vertices, constrained_edges)
+    constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges)
 }
 
-fn triangulate_2d_vertices_constrained(
+pub fn constrained_triangulation_from_2d_vertices(
     vertices: &mut Vec<Vec2>,
-    constrained_edges: &mut VecDeque<(usize, usize)>,
+    constrained_edges: &HashSet<Edge>,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
     let (mut triangles, container_triangle, mut debugger) =
         wrap_and_triangulate_2d_vertices(vertices);
 
-    apply_constrains(vertices, constrained_edges, &mut triangles, &mut debugger);
+    apply_constraints(vertices, constrained_edges, &mut triangles, &mut debugger);
 
-    let killed_triangles = marked_triangles_to_be_killed(&triangles, constrained_edges);
-
-    let indices = remove_constrained_wrapping(
+    let indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
         &container_triangle,
-        &killed_triangles,
+        constrained_edges,
         &mut debugger,
     );
 
     (indices, debugger)
 }
 
-fn remove_constrained_wrapping(
+/// Mark triangles that should be removed due to the input domains constraints
+/// This supposes that all groups of constrained edges are cycles, and oriented, as shown below:
+///
+/// ---------------<-------------------------------------
+/// |                        keep                       |
+/// |   ----------->---------------------------------   |
+/// |   |                   remove                  |   |
+/// |   |   -------<--------     -------<--------   |   |
+/// |   |   |              |     |              |   |   |
+/// v   ∧   v     keep     ∧     v     keep     ∧   v   ∧
+/// |   |   |              |     |              |   |   |
+/// |   |   ------->--------     ------->--------   |   |
+/// |   |                                           |   |
+/// |   -----------<---------------------------------   |
+/// |                                                   |
+/// --------------->-------------------------------------
+fn remove_wrapping_and_unconstrained_domains(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
-    killed_triangles: &Vec<bool>,
+    constrained_edges: &HashSet<Edge>,
     debugger: &mut Vec<Vec<TriangleData>>,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
-    let mut filtered_debug_triangles = Vec::new();
-    for (index, triangle) in triangles.iter().enumerate() {
-        if triangle.v1() != container_triangle.v1()
-            && triangle.v2() != container_triangle.v1()
-            && triangle.v3() != container_triangle.v1()
-            && triangle.v1() != container_triangle.v2()
-            && triangle.v2() != container_triangle.v2()
-            && triangle.v3() != container_triangle.v2()
-            && triangle.v1() != container_triangle.v3()
-            && triangle.v2() != container_triangle.v3()
-            && triangle.v3() != container_triangle.v3()
-            && !killed_triangles[index]
-        {
-            indices.push(triangle.v1());
-            indices.push(triangle.v2());
-            indices.push(triangle.v3());
-            filtered_debug_triangles.push(triangle.clone());
-        }
-    }
-    debugger.push(filtered_debug_triangles);
-
-    indices
-}
-
-/// Mark as repmove all triangles that are not suppose tostay in theoriginal configuration
-/// This supposes that all group of constrained edges are oriented in different orientations, as shown:
-/// ---------------<----------------
-/// |                              |
-/// |   ----------->------------   |
-/// |   |  zone to be removed  |   |
-/// |   |   -------<--------   |   |
-/// |   |   |              |   |   |
-/// v   ∧   v              ∧   v   ∧
-/// |   |   |              |   |   |
-/// |   |   ------->--------   |   |
-/// |   |                      |   |
-/// |   -----------<------------   |
-/// |                              |
-/// --------------->----------------
-fn marked_triangles_to_be_killed(
-    triangles: &Vec<TriangleData>,
-    constrained_edges: &mut VecDeque<(usize, usize)>,
-) -> Vec<bool> {
-    let mut killed_triangles = vec![true; triangles.len()];
     let mut visited_triangles = vec![false; triangles.len()];
+    let mut triangles_to_explore = Vec::new();
+    let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
 
-    visited_triangles[0] = true;
+    // TODO: Debug-only
+    let mut filtered_debug_triangles = Vec::new();
 
-    let mut triangle_buffer = Vec::new();
-
+    // Loop over all triangles
     for (index, triangle) in triangles.iter().enumerate() {
         if visited_triangles[index] {
             continue;
         }
 
-        let v1 = triangle.v1();
-        let v2 = triangle.v2();
-        let v3 = triangle.v3();
+        let mut triangle_edge_is_constrained = [false; 3];
+        for (edge_index, edge) in triangle.edges().iter().enumerate() {
+            triangle_edge_is_constrained[edge_index] = constrained_edges.contains(edge);
+        }
 
-        let e12: bool = constrained_edges.contains(&(v1, v2));
-        let e23 = constrained_edges.contains(&(v2, v3));
-        let e31 = constrained_edges.contains(&(v3, v1));
-
-        if e12 || e23 || e31 {
-            killed_triangles[index] = false;
-
-            triangle_buffer.clear();
-
-            if !e12 {
-                triangle_buffer.push(triangle.neighbor12());
+        // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
+        if triangle_edge_is_constrained.contains(&true) {
+            triangles_to_explore.clear();
+            register_triangle(
+                &mut indices,
+                triangle,
+                &container_verts,
+                &mut filtered_debug_triangles,
+            );
+            for (edge_index, is_constrained) in triangle_edge_is_constrained.iter().enumerate() {
+                if !is_constrained {
+                    triangles_to_explore.push(triangle.neighbors[edge_index]);
+                }
             }
-            if !e23 {
-                triangle_buffer.push(triangle.neighbor23());
-            }
-            if !e31 {
-                triangle_buffer.push(triangle.neighbor31());
-            }
+            visited_triangles[index] = true;
 
-            while triangle_buffer.len() > 0 {
-                let triangle_index = triangle_buffer.pop().unwrap();
-
-                match triangle_index {
-                    Some(neighbor) => {
-                        if visited_triangles[neighbor] {
+            // Triangle-walk in the domain to register the domain's triangles
+            while let Some(neighbor) = triangles_to_explore.pop() {
+                match neighbor {
+                    Some(triangle_index) => {
+                        if visited_triangles[triangle_index] {
                             continue;
                         } else {
-                            killed_triangles[neighbor] = false;
-                            visited_triangles[neighbor] = true;
+                            let triangle = &triangles[triangle_index];
+                            register_triangle(
+                                &mut indices,
+                                triangle,
+                                &container_verts,
+                                &mut filtered_debug_triangles,
+                            );
+                            visited_triangles[triangle_index] = true;
 
-                            let v1 = triangles[neighbor].v1();
-                            let v2 = triangles[neighbor].v2();
-                            let v3 = triangles[neighbor].v3();
-
-                            if !constrained_edges.contains(&(v1, v2)) {
-                                triangle_buffer.push(triangles[neighbor].neighbor12());
-                            }
-                            if !constrained_edges.contains(&(v2, v3)) {
-                                triangle_buffer.push(triangles[neighbor].neighbor23());
-                            }
-                            if !constrained_edges.contains(&(v3, v1)) {
-                                triangle_buffer.push(triangles[neighbor].neighbor31());
+                            for (edge_index, edge) in triangle.edges().iter().enumerate() {
+                                if !constrained_edges.contains(edge) {
+                                    // TODO Clean: Would it be quicker to also check for visited before adding to the stack
+                                    triangles_to_explore.push(triangle.neighbors[edge_index]);
+                                }
                             }
                         }
                     }
@@ -169,7 +139,29 @@ fn marked_triangles_to_be_killed(
         }
     }
 
-    killed_triangles
+    debugger.push(filtered_debug_triangles);
+
+    indices
+}
+
+fn register_triangle(
+    indices: &mut Vec<VertexId>,
+    triangle: &TriangleData,
+    container_verts: &HashSet<VertexId>,
+    filtered_debug_triangles: &mut Vec<TriangleData>,
+) {
+    let mut filtered = false;
+    for vert in triangle.verts.iter() {
+        if container_verts.contains(vert) {
+            filtered = true;
+        }
+    }
+    if !filtered {
+        indices.push(triangle.v1());
+        indices.push(triangle.v2());
+        indices.push(triangle.v3());
+        filtered_debug_triangles.push(triangle.clone());
+    }
 }
 
 // type FamilyId = usize;
@@ -381,9 +373,9 @@ fn marked_triangles_to_be_killed(
 //     true
 // }
 
-fn apply_constrains(
+fn apply_constraints(
     vertices: &mut Vec<Vec2>,
-    constrained_edges: &VecDeque<(usize, usize)>,
+    constrained_edges: &HashSet<(usize, usize)>,
     mut triangles: &mut Vec<TriangleData>,
     mut debugger: &mut Vec<Vec<TriangleData>>,
 ) {
@@ -711,9 +703,9 @@ fn swap_quad_diagonal(
         triangles,
     );
 
-    triangles[triangle_id].set_verts([quad.v4, quad.v1, quad.v3]);
+    triangles[triangle_id].verts = [quad.v4, quad.v1, quad.v3];
 
-    triangles[adjacent_triangle_id].set_verts([quad.v4, quad.v3, quad.v2]);
+    triangles[adjacent_triangle_id].verts = [quad.v4, quad.v3, quad.v2];
 
     triangles[adjacent_triangle_id].neighbors = [
         Some(triangle_id),
@@ -721,8 +713,8 @@ fn swap_quad_diagonal(
         triangles[triangle_id].neighbor31(),
     ];
 
-    triangles[triangle_id].set_neighbor23(triangle_3_id);
-    triangles[triangle_id].set_neighbor31(Some(adjacent_triangle_id));
+    triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
+    triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
 
     (triangle_3_id, triangle_4_id)
 }
@@ -825,9 +817,9 @@ fn swap_quad_diagonal_to_edge(
             triangles,
         );
 
-        triangles[triangle_id].set_verts([quad.v4, quad.v1, quad.v3]);
+        triangles[triangle_id].verts = [quad.v4, quad.v1, quad.v3];
 
-        triangles[adjacent_triangle_id].set_verts([quad.v4, quad.v3, quad.v2]);
+        triangles[adjacent_triangle_id].verts = [quad.v4, quad.v3, quad.v2];
 
         triangles[adjacent_triangle_id].neighbors = [
             Some(triangle_id),
@@ -835,8 +827,8 @@ fn swap_quad_diagonal_to_edge(
             triangles[triangle_id].neighbor31(),
         ];
 
-        triangles[triangle_id].set_neighbor23(triangle_3_id);
-        triangles[triangle_id].set_neighbor31(Some(adjacent_triangle_id));
+        triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
+        triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
 
         swapped_quad_diagonal = true;
     }
