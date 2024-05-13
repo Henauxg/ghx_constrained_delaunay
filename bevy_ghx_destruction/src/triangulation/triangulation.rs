@@ -45,8 +45,6 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
     let mut vertices_2d = Vec::with_capacity(vertices.len());
     for vertex in vertices {
         vertices_2d.push(Vec2::new(vertex.dot(basis_1), vertex.dot(basis_3)));
-
-        //vertices_2d.push(vertex.xy());
     }
     vertices_2d
 }
@@ -91,11 +89,8 @@ pub(crate) fn search_enclosing_triangle(
     vertices: &Vec<Vec2>,
 ) -> Option<TriangleId> {
     let mut triangle_id = from;
-    #[cfg(feature = "debug_traces")]
-    info!("search_enclosing_triangle----------------------------------------------------------------------------");
-    for iter in 0..triangles.len() {
-        #[cfg(feature = "debug_traces")]
-        info!("inter{}", iter);
+
+    for _iter in 0..triangles.len() {
         let Some(current_triangle_id) = triangle_id else {
             break;
         };
@@ -105,34 +100,14 @@ pub(crate) fn search_enclosing_triangle(
         let v2 = vertices[triangles[current_triangle_id].v2];
         let v3 = vertices[triangles[current_triangle_id].v3];
 
-        #[cfg(feature = "debug_traces")]
-        info!("point to be placed {}", vertex);
-
         // Check if the point is inside the triangle, if not check the neighbours
         if !is_vertex_on_right_side_of_edge(v1, v2, vertex) {
-            #[cfg(feature = "debug_traces")]
-            info!(
-                "triangle{},v1{}, v2{}, vertex{} ",
-                current_triangle_id, v1, v2, vertex
-            );
             triangle_id = triangles[current_triangle_id].edge12;
         } else if !is_vertex_on_right_side_of_edge(v2, v3, vertex) {
-            #[cfg(feature = "debug_traces")]
-            info!(
-                "triangle{},v1{}, v2{}, vertex{} ",
-                current_triangle_id, v1, v2, vertex
-            );
             triangle_id = triangles[current_triangle_id].edge23;
         } else if !is_vertex_on_right_side_of_edge(v3, v1, vertex) {
-            #[cfg(feature = "debug_traces")]
-            info!(
-                "triangle{},v1{}, v2{}, vertex{} ",
-                current_triangle_id, v1, v2, vertex
-            );
             triangle_id = triangles[current_triangle_id].edge31;
         } else {
-            #[cfg(feature = "debug_traces")]
-            info!("current triangle{}", current_triangle_id);
             return Some(current_triangle_id);
         }
     }
@@ -210,7 +185,7 @@ pub(crate) fn wrap_and_triangulate_2d_vertices(
 pub(crate) fn remove_wrapping(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
-    mut debugger: &mut Vec<Vec<TriangleData>>,
+    debugger: &mut Vec<Vec<TriangleData>>,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
@@ -318,12 +293,6 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     triangles: &mut Vec<TriangleData>,
     vertices: &Vec<Vec2>,
 ) {
-    #[cfg(feature = "debug_traces")]
-    info!(
-        "split_triangle_in_three_at_vertex, vertex {}",
-        vertices[vertex_id]
-    );
-
     // Re-use the existing triangle id for the first triangle
     let triangle_1_id = triangle_id;
     // Create two new triangles for the other two

@@ -50,10 +50,6 @@ bevy-inspector-egui = "0.23"
 rand = "0.8.5"
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
 
-[features]
-debug_traces = []
-debug_constrained_traces = []
-
 [[example]]
 name = "tetgen"
 path = "src/tetgen/tetgen.rs"

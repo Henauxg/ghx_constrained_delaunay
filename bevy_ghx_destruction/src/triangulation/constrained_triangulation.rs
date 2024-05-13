@@ -42,8 +42,6 @@ fn triangulate_2d_vertices_constrained(
 
     let killed_triangles = marked_triangles_to_be_killed(&triangles, constrained_edges);
 
-    info!("killed_triangles {:?}", killed_triangles);
-
     let indices = remove_constrained_wrapping(
         &triangles,
         &container_triangle,
@@ -468,8 +466,6 @@ fn intersected_edges(
         let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2];
         let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3];
 
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("circle around constrained edge {:?}-----------------------------------------------------------", constrained_edge);
         (crossing, _, _) = constrained_edge_intersect_triangle(
             triangles,
             vertices,
@@ -479,18 +475,11 @@ fn intersected_edges(
         );
 
         if crossing {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!("end of circle around constrained edge {:?}-------------------------------------------------", constrained_edge);
             break;
         }
 
         // If the current triangle has already been visited, we go the right
         if visited_triangles[current_triangle_id] {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!(
-                "The triangle {:?} has already been visited",
-                current_triangle_id
-            );
             if triangle_vertex_1 == vertices[constrained_edge.0] {
                 match triangles[current_triangle_id].edge12 {
                     Some(neighbour_triangle_id) => current_triangle_id = neighbour_triangle_id,
@@ -580,9 +569,6 @@ fn intersected_edges(
     let mut arrived_to_constrained_edge_end = false;
 
     while !arrived_to_constrained_edge_end {
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("Check for corssing edges {:?} ------------------------------------------------------------------------", constrained_edge);
-
         visited_triangles[current_triangle_id] = true;
 
         // Vertices of the current triangle
@@ -603,13 +589,6 @@ fn intersected_edges(
             || triangle_vertex_2 == vertices[constrained_edge.1]
             || triangle_vertex_3 == vertices[constrained_edge.1]
         {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!(
-                "Triangle {:?} contains constrained edge final vertex {:?}",
-                current_triangle_id, constrained_edge
-            );
-            #[cfg(feature = "debug_constrained_traces")]
-            info!("End of checking for corssing edges {:?}----------------------------------------------------------------", constrained_edge);
             arrived_to_constrained_edge_end = true;
         } else {
             current_triangle_id = crossed_triangle.unwrap();
@@ -617,8 +596,6 @@ fn intersected_edges(
         }
     }
 
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("intersected edges: {:?}", intersected_edges);
     intersected_edges
 }
 
@@ -630,17 +607,8 @@ fn remove_crossing_edges(
 ) -> VecDeque<(usize, usize, (usize, usize))> {
     let mut new_edges_created = VecDeque::new();
 
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("removing crossing edges for constrained edge {:?}------------------------------------------------------", constrained_edge);
-
     while intersected_edges.len() != 0 {
         let (current_triangle_id, current_crossing_edge) = intersected_edges.pop_front().unwrap();
-
-        #[cfg(feature = "debug_constrained_traces")]
-        info!(
-            "crossing edge {:?}, inside triangle {:?}",
-            current_crossing_edge, current_triangle_id
-        );
 
         // Construct a quad from the current triangle and its edge by looking at the neighbour triangle of this edge
         let (quad, triangle_id, adjacent_triangle_id) = find_quad_from_triangle_and_crossing_edge(
@@ -649,27 +617,17 @@ fn remove_crossing_edges(
             triangles,
         );
 
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("quad created: {:?}", quad);
-
         let quad_diagonal_test = quad_diagonals_intersection_test(&quad, vertices);
-
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("quad test: {:?}", quad_diagonal_test);
 
         // If the quad is not convex or if an edge tip lie on the other edge, we skip this edge
         if quad_diagonal_test == EdgesIntersectionResult::None
             || quad_diagonal_test == EdgesIntersectionResult::OnEdgeTip
             || quad_diagonal_test == EdgesIntersectionResult::SharedEdges
         {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!("quad not convex");
             intersected_edges.push_back((current_triangle_id, current_crossing_edge));
         }
         // swap the diagonal of this strictly convex quadrilateral if the two diagonals cross normaly
         else {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!("quad merged");
             let (t3, t4) =
                 swap_quad_diagonal(quad.v4, adjacent_triangle_id, triangle_id, triangles); //quad.v2, triangle_id, adjacent_triangle_id, triangles pour 5.0, quad.v4, adjacent_triangle_id,triangle_id, triangles pour 1.3 mais pk ??? => edge orientée !! (1,3), (0,5)
 
@@ -688,17 +646,10 @@ fn remove_crossing_edges(
             {
                 intersected_edges.push_back((t3.unwrap(), (quad.v2, quad.v4)));
             } else {
-                #[cfg(feature = "debug_constrained_traces")]
-                info!("edge added: {:?}", (quad.v2, quad.v4));
                 new_edges_created.push_back((t3.unwrap(), t4.unwrap(), (quad.v2, quad.v4)));
             }
         }
     }
-
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("end of removing crossing edges for constrained edge {:?}------------------------------------------", constrained_edge);
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("new_edges_created {:?}", new_edges_created);
     new_edges_created
 }
 
@@ -784,22 +735,13 @@ fn restore_delaunay_triangulation_constrained(
     new_edges_created: &mut VecDeque<(usize, usize, (usize, usize))>,
 ) {
     while new_edges_created.len() != 0 {
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("restauring delaunay triangulation constrained--------------------");
         let (current_triangle_id_1, current_triangle_id_2, current_edge) =
             new_edges_created.pop_front().unwrap();
 
-        #[cfg(feature = "debug_constrained_traces")]
-        info!(
-            "triangle 1: {:?}, triangle 2 {:?}, current edge: {:?}",
-            current_triangle_id_1, current_triangle_id_2, current_edge
-        );
         // If the edge is equal to the constrained edge, then skip
         if (current_edge.0 == constrained_edge.0 && current_edge.1 == constrained_edge.1)
             || (current_edge.0 == constrained_edge.1 && current_edge.1 == constrained_edge.0)
         {
-            #[cfg(feature = "debug_constrained_traces")]
-            info!("edge skipped");
             continue;
         } else {
             let (quad_diag_swapped, t3, t4, edge_1, edge_2) = swap_quad_diagonal_to_edge(
@@ -936,9 +878,6 @@ fn find_quad_from_triangle_and_crossing_edge(
     let vertex_2 = triangles[triangle_id].v2;
     let vertex_3 = triangles[triangle_id].v3;
 
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("v1 :{:?},v2 :{:?},v3 :{:?}", vertex_1, vertex_2, vertex_3);
-
     // Quad coords
     let q1 = crossing_edge_v1;
     let q3 = crossing_edge_v2;
@@ -1030,13 +969,6 @@ fn constrained_edge_intersect_triangle(
     let triangle_vertex_2 = vertices[triangles[current_triangle_id].v2];
     let triangle_vertex_3 = vertices[triangles[current_triangle_id].v3];
 
-    #[cfg(feature = "debug_constrained_traces")]
-    info!(
-        "check for intersection inside triangle {}",
-        current_triangle_id
-    );
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("check edge 12 inside triangle {}", current_triangle_id);
     // Check if constrained edge cross v1-v2
     if egdes_intersect(
         constrained_edge_start,
@@ -1045,8 +977,6 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_2,
     ) == EdgesIntersectionResult::Crossing
     {
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("edge 12 is interected");
         let neighbour_triangle_id = triangles[current_triangle_id].edge12;
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
@@ -1064,8 +994,6 @@ fn constrained_edge_intersect_triangle(
             None => return (false, None, None), // TODO: not possible error,
         }
     }
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("check edge 23 inside triangle {}", current_triangle_id);
     // Check if constrained edge cross v2-v3
     if egdes_intersect(
         constrained_edge_start,
@@ -1074,8 +1002,6 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_3,
     ) == EdgesIntersectionResult::Crossing
     {
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("edge 23 is interected");
         let neighbour_triangle_id = triangles[current_triangle_id].edge23;
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
@@ -1088,16 +1014,11 @@ fn constrained_edge_intersect_triangle(
                         )),
                         triangles[current_triangle_id].edge23,
                     );
-                    #[cfg(feature = "debug_constrained_traces")]
-                    info!("SHOULD NOT PRINT")
                 }
             }
             None => return (false, None, None), // TODO: not possible error,
         }
     }
-
-    #[cfg(feature = "debug_constrained_traces")]
-    info!("check edge 31 inside triangle {}", current_triangle_id);
 
     // Check if constrained edge cross v3-v1
     if egdes_intersect(
@@ -1107,8 +1028,6 @@ fn constrained_edge_intersect_triangle(
         triangle_vertex_1,
     ) == EdgesIntersectionResult::Crossing
     {
-        #[cfg(feature = "debug_constrained_traces")]
-        info!("edge 31 is interected");
         let neighbour_triangle_id = triangles[current_triangle_id].edge31;
         match neighbour_triangle_id {
             Some(neighbour_triangle_id) => {
