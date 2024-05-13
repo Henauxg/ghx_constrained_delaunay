@@ -198,17 +198,17 @@ fn split_triangles(
     let mut index_buffer_top_slice = Vec::new();
     let mut index_buffer_bottom_slice = Vec::new();
 
-    let mut vertices_added = HashMap::new();
+    let mut vertices_added: HashMap<[OrderedFloat<f32>; 3], usize> = HashMap::new();
 
     for (index, vertex) in vertices.iter().enumerate() {
-        vertices_added.insert(
-            [
-                OrderedFloat(vertex[0]),
-                OrderedFloat(vertex[1]),
-                OrderedFloat(vertex[2]),
-            ],
-            main_mesh_vertices_index_buffer.,
-        )
+        let k = [
+            OrderedFloat(vertex[0]),
+            OrderedFloat(vertex[1]),
+            OrderedFloat(vertex[2]),
+        ];
+
+        let v = main_mesh_vertices_index_buffer.at(index);
+        vertices_added.insert(k, v);
     }
 
     for index in (0..main_mesh_vertices_index_buffer.len()).step_by(3) {
@@ -453,7 +453,7 @@ fn find_intersection_line_plane(
     let output = Vec3A::ZERO;
 
     let d = normal_vec.dot(origin_point);
-    if normal_vec.dot(line_direction) == f32::NAN {
+    if normal_vec.dot(line_direction).is_nan() {
         (false, output)
     } else {
         let x = (d - normal_vec.dot(line_point)) / normal_vec.dot(line_direction);
