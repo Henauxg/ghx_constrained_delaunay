@@ -4,7 +4,6 @@ pub mod triangulation;
 pub type VertexId = usize;
 pub type Neighbor = Option<VertexId>;
 pub type TriangleId = usize;
-pub type Edge = (VertexId, VertexId);
 
 pub type TriangleVertexIndex = usize;
 pub const VERT_1: TriangleVertexIndex = 0;
@@ -15,6 +14,27 @@ pub type TriangleEdgeIndex = usize;
 pub const EDGE_12: TriangleEdgeIndex = 0;
 pub const EDGE_23: TriangleEdgeIndex = 1;
 pub const EDGE_31: TriangleEdgeIndex = 2;
+
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub struct Edge {
+    pub from: VertexId,
+    pub to: VertexId,
+}
+impl Edge {
+    #[inline]
+    pub fn new(from: VertexId, to: VertexId) -> Self {
+        Self { from, to }
+    }
+
+    pub fn undirected_equals(&self, other: &Edge) -> bool {
+        self == other || (self.from == other.to && self.to == other.from)
+    }
+}
+impl From<(VertexId, VertexId)> for Edge {
+    fn from(vertices: (VertexId, VertexId)) -> Edge {
+        Edge::new(vertices.0, vertices.1)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TriangleData {
@@ -45,17 +65,17 @@ impl TriangleData {
 
     #[inline]
     pub fn edge12(&self) -> Edge {
-        (self.verts[VERT_1], self.verts[VERT_2])
+        Edge::new(self.verts[VERT_1], self.verts[VERT_2])
     }
 
     #[inline]
     pub fn edge23(&self) -> Edge {
-        (self.verts[VERT_2], self.verts[VERT_3])
+        Edge::new(self.verts[VERT_2], self.verts[VERT_3])
     }
 
     #[inline]
     pub fn edge31(&self) -> Edge {
-        (self.verts[VERT_3], self.verts[VERT_1])
+        Edge::new(self.verts[VERT_3], self.verts[VERT_1])
     }
 
     #[inline]
@@ -76,9 +96,9 @@ impl TriangleData {
     #[inline]
     pub fn edges(&self) -> [Edge; 3] {
         [
-            (self.verts[VERT_1], self.verts[VERT_2]),
-            (self.verts[VERT_2], self.verts[VERT_3]),
-            (self.verts[VERT_3], self.verts[VERT_1]),
+            Edge::new(self.verts[VERT_1], self.verts[VERT_2]),
+            Edge::new(self.verts[VERT_2], self.verts[VERT_3]),
+            Edge::new(self.verts[VERT_3], self.verts[VERT_1]),
         ]
     }
 }

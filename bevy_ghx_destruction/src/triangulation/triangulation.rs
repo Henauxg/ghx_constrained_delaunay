@@ -3,6 +3,8 @@ use bevy::{
     utils::hashbrown::HashSet,
 };
 
+use crate::utils::is_point_on_right_side_of_edge;
+
 use super::{Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
 
 const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
@@ -28,11 +30,12 @@ pub fn triangulation_from_3d_planar_vertices(
 pub fn triangulation_from_2d_vertices(
     vertices: &mut Vec<Vec2>,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
-    let (triangles, container_triangle, mut debugger) = wrap_and_triangulate_2d_vertices(vertices);
+    let (triangles, container_triangle, mut debug_data) =
+        wrap_and_triangulate_2d_vertices(vertices);
 
-    let indices = remove_wrapping(&triangles, &container_triangle, &mut debugger);
+    let indices = remove_wrapping(&triangles, &container_triangle, &mut debug_data);
 
-    (indices, debugger)
+    (indices, debug_data)
 }
 
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
@@ -101,7 +104,7 @@ pub(crate) fn search_enclosing_triangle(
         let mut inside_triangle = true;
 
         for (triangle_edge_index, edge) in triangle.edges().iter().enumerate() {
-            if !is_vertex_on_right_side_of_edge(vertices[edge.0], vertices[edge.1], vertex) {
+            if !is_point_on_right_side_of_edge(vertices[edge.from], vertices[edge.to], vertex) {
                 triangle_id = triangle.neighbors[triangle_edge_index];
                 inside_triangle = false;
                 break;
@@ -139,7 +142,7 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vec2>) -> Trian
 pub(crate) fn wrap_and_triangulate_2d_vertices(
     vertices: &mut Vec<Vec2>,
 ) -> (Vec<TriangleData>, TriangleData, Vec<Vec<TriangleData>>) {
-    let mut debugger: Vec<Vec<TriangleData>> = Vec::new();
+    let mut debug_data: Vec<Vec<TriangleData>> = Vec::new();
 
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     normalize_vertices_coordinates(vertices);
@@ -157,7 +160,7 @@ pub(crate) fn wrap_and_triangulate_2d_vertices(
     // Id of the triangle we are looking at
     let mut triangle_id = Some(0);
 
-    debugger.push(triangles.clone());
+    debug_data.push(triangles.clone());
 
     // Loop over all the input vertices
     for sorted_vertex in partitioned_vertices.iter() {
@@ -175,16 +178,16 @@ pub(crate) fn wrap_and_triangulate_2d_vertices(
             }
             None => (),
         }
-        debugger.push(triangles.clone());
+        debug_data.push(triangles.clone());
     }
 
-    (triangles, container_triangle, debugger)
+    (triangles, container_triangle, debug_data)
 }
 
 pub(crate) fn remove_wrapping(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
-    debugger: &mut Vec<Vec<TriangleData>>,
+    debug_data: &mut Vec<Vec<TriangleData>>,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
@@ -205,7 +208,7 @@ pub(crate) fn remove_wrapping(
             filtered_debug_triangles.push(triangle.clone());
         }
     }
-    debugger.push(filtered_debug_triangles);
+    debug_data.push(filtered_debug_triangles);
 
     indices
 }
@@ -277,12 +280,6 @@ impl VertexBinSort {
             (y + 1) * self.bins_per_row - x - 1
         }
     }
-}
-
-fn is_vertex_on_right_side_of_edge(v1: Vec2, v2: Vec2, p: Vec2) -> bool {
-    // Cross product of vectors v1-v2 and v1-p
-    //((v2.x - v1.x) * (p.y - v1.y) - (v2.y - v1.y) * (p.x - v1.x)) <= 0.
-    ((p.x - v1.x) * (v2.y - v1.y) - (p.y - v1.y) * (v2.x - v1.x)) >= 0.
 }
 
 pub(crate) fn split_triangle_in_three_at_vertex(

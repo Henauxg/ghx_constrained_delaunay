@@ -1,6 +1,8 @@
 use bevy::{prelude::*, utils::hashbrown::HashSet};
 
-use bevy_ghx_destruction::triangulation::constrained_triangulation::constrained_triangulation_from_3d_planar_vertices;
+use bevy_ghx_destruction::triangulation::{
+    constrained_triangulation::constrained_triangulation_from_3d_planar_vertices, Edge,
+};
 use bevy_mod_billboard::plugin::BillboardPlugin;
 use examples::{
     debug_utils::{
@@ -44,21 +46,21 @@ fn setup(mut commands: Commands) {
     vertices.push([4., 4., 0.]);
     vertices.push([2., 4., 0.]);
 
-    let mut constrained_edges = HashSet::new();
-    constrained_edges.insert((0, 1));
-    constrained_edges.insert((1, 2));
-    constrained_edges.insert((2, 3));
-    constrained_edges.insert((3, 0));
+    let mut constrained_edges: HashSet<Edge> = HashSet::new();
+    constrained_edges.insert(Edge::new(0, 1));
+    constrained_edges.insert(Edge::new(1, 2));
+    constrained_edges.insert(Edge::new(2, 3));
+    constrained_edges.insert(Edge::new(3, 0));
 
-    constrained_edges.insert((4, 7));
-    constrained_edges.insert((7, 6));
-    constrained_edges.insert((6, 5));
-    constrained_edges.insert((5, 4));
+    constrained_edges.insert(Edge::new(4, 7));
+    constrained_edges.insert(Edge::new(7, 6));
+    constrained_edges.insert(Edge::new(6, 5));
+    constrained_edges.insert(Edge::new(5, 4));
 
-    constrained_edges.insert((8, 9));
-    constrained_edges.insert((9, 10));
-    constrained_edges.insert((10, 11));
-    constrained_edges.insert((11, 8));
+    constrained_edges.insert(Edge::new(8, 9));
+    constrained_edges.insert(Edge::new(9, 10));
+    constrained_edges.insert(Edge::new(10, 11));
+    constrained_edges.insert(Edge::new(11, 8));
 
     let plane_normal = Vec3::Z;
     let (_, debug_data) = constrained_triangulation_from_3d_planar_vertices(
