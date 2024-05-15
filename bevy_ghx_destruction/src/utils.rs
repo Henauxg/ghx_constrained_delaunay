@@ -1,6 +1,8 @@
 use bevy::math::{Vec2, Vec3A};
 use rand::Rng;
 
+use crate::triangulation::EdgeVertices;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EdgesIntersectionResult {
     None,
@@ -16,38 +18,40 @@ pub enum Orientation {
     CounterClockwise,
 }
 
-// source: https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
-pub fn egdes_intersect(p1: Vec2, q1: Vec2, p2: Vec2, q2: Vec2) -> EdgesIntersectionResult {
-    if p1 == p2 || p1 == q2 || q1 == p2 || q1 == q2 {
+// source: https://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf
+pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesIntersectionResult {
+    if edge_1.0 == edge_2.0 || edge_1.0 == edge_2.1 || edge_1.1 == edge_2.0 || edge_1.1 == edge_2.1
+    {
         return EdgesIntersectionResult::SharedEdges;
     }
 
-    let orientation_1 = triplet_orientation(p1, q1, p2);
-    let orientation_2 = triplet_orientation(p1, q1, q2);
-    let orientation_3 = triplet_orientation(p2, q2, p1);
-    let orientation_4 = triplet_orientation(p2, q2, q1);
+    let orientation_1 = triplet_orientation(edge_1.0, edge_1.1, edge_2.0);
+    let orientation_2 = triplet_orientation(edge_1.0, edge_1.1, edge_2.1);
+    let orientation_3 = triplet_orientation(edge_2.0, edge_2.1, edge_1.0);
+    let orientation_4 = triplet_orientation(edge_2.0, edge_2.1, edge_1.1);
 
     // Special Cases
-    // p1, q1 and p2 are collinear and p2 lies on segment p1q1
-    if orientation_1 == Orientation::Colinear && on_segment(p1, p2, q1) {
+    // edge_1.0, edge_1.1 and edge_2.0 are collinear and edge_2.0 lies on segment edge_1.0edge_1.1
+    if orientation_1 == Orientation::Colinear && on_segment(edge_1.0, edge_2.0, edge_1.1) {
         return EdgesIntersectionResult::OnEdgeTip;
     }
 
-    // p1, q1 and q2 are collinear and q2 lies on segment p1q1
-    if orientation_2 == Orientation::Colinear && on_segment(p1, q2, q1) {
+    // edge_1.0, edge_1.1 and edge_2.1 are collinear and edge_2.1 lies on segment edge_1.0edge_1.1
+    if orientation_2 == Orientation::Colinear && on_segment(edge_1.0, edge_2.1, edge_1.1) {
         return EdgesIntersectionResult::OnEdgeTip;
     }
 
-    // p2, q2 and p1 are collinear and p1 lies on segment p2q2
-    if orientation_3 == Orientation::Colinear && on_segment(p2, p1, q2) {
+    // edge_2.0, edge_2.1 and edge_1.0 are collinear and edge_1.0 lies on segment edge_2.0edge_2.1
+    if orientation_3 == Orientation::Colinear && on_segment(edge_2.0, edge_1.0, edge_2.1) {
         return EdgesIntersectionResult::OnEdgeTip;
     }
 
-    // p2, q2 and q1 are collinear and q1 lies on segment p2q2
-    if orientation_4 == Orientation::Colinear && on_segment(p2, q1, q2) {
+    // edge_2.0, edge_2.1 and edge_1.1 are collinear and edge_1.1 lies on segment edge_2.0edge_2.1
+    if orientation_4 == Orientation::Colinear && on_segment(edge_2.0, edge_1.1, edge_2.1) {
         return EdgesIntersectionResult::OnEdgeTip;
     }
 
+    // TODO General case should be the fastest one to be compted and thus should be at the top.
     // General case
     if orientation_1 != orientation_2 && orientation_3 != orientation_4 {
         return EdgesIntersectionResult::Crossing;

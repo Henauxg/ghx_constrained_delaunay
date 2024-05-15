@@ -5,7 +5,7 @@ use bevy::{
 
 use crate::utils::is_point_on_right_side_of_edge;
 
-use super::{Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
+use super::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
 
 const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
 
@@ -362,8 +362,7 @@ pub(crate) fn update_triangle_neighbour(
 ) {
     match triangle_id {
         Some(triangle_id) => {
-            let triangle = &mut triangles[triangle_id];
-            for neighbor in triangle.neighbors.iter_mut() {
+            for neighbor in triangles[triangle_id].neighbors.iter_mut() {
                 if *neighbor == old_neighbour_id {
                     *neighbor = new_neighbour_id;
                     break;
@@ -380,7 +379,7 @@ fn restore_delaunay_triangulation(
     triangles_to_check: [TriangleId; 3],
     vertices: &Vec<Vec2>,
 ) {
-    let mut stack = Vec::<(TriangleId, Option<TriangleId>)>::new();
+    let mut stack = Vec::<(TriangleId, Neighbor)>::new();
 
     for &triangle_id in &triangles_to_check {
         stack.push((triangle_id, triangles[triangle_id].neighbor23()));
@@ -423,34 +422,34 @@ pub fn check_and_swap_quad_diagonal(
     let (quad, triangle_3_id, triangle_4_id) =
         if adjacent_triangle.neighbor12() == Some(triangle_id) {
             (
-                Quad {
-                    v1: adjacent_triangle.v2(),
-                    v2: adjacent_triangle.v1(),
-                    v3: adjacent_triangle.v3(),
-                    v4: vertex_id,
-                },
+                Quad::new([
+                    adjacent_triangle.v2(),
+                    adjacent_triangle.v1(),
+                    adjacent_triangle.v3(),
+                    vertex_id,
+                ]),
                 adjacent_triangle.neighbor23(),
                 adjacent_triangle.neighbor31(),
             )
         } else if adjacent_triangle.neighbor23() == Some(triangle_id) {
             (
-                Quad {
-                    v1: adjacent_triangle.v3(),
-                    v2: adjacent_triangle.v2(),
-                    v3: adjacent_triangle.v1(),
-                    v4: vertex_id,
-                },
+                Quad::new([
+                    adjacent_triangle.v3(),
+                    adjacent_triangle.v2(),
+                    adjacent_triangle.v1(),
+                    vertex_id,
+                ]),
                 adjacent_triangle.neighbor31(),
                 adjacent_triangle.neighbor12(),
             )
         } else {
             (
-                Quad {
-                    v1: adjacent_triangle.v1(),
-                    v2: adjacent_triangle.v3(),
-                    v3: adjacent_triangle.v2(),
-                    v4: vertex_id,
-                },
+                Quad::new([
+                    adjacent_triangle.v1(),
+                    adjacent_triangle.v3(),
+                    adjacent_triangle.v2(),
+                    vertex_id,
+                ]),
                 adjacent_triangle.neighbor12(),
                 adjacent_triangle.neighbor23(),
             )
@@ -458,9 +457,9 @@ pub fn check_and_swap_quad_diagonal(
 
     // Check if the vertex is on the circumcircle of the adjacent triangle:
     let swapped_quad_diagonal = if is_vertex_in_triangle_circumcircle(
-        vertices[quad.v1],
-        vertices[quad.v2],
-        vertices[quad.v3],
+        vertices[quad.v1()],
+        vertices[quad.v2()],
+        vertices[quad.v3()],
         vertices[vertex_id],
     ) {
         // The triangle containing P as a vertex and the unstacked triangle form a convex quadrilateral whose diagonal is drawn in the wrong direction.
@@ -478,9 +477,9 @@ pub fn check_and_swap_quad_diagonal(
             triangles,
         );
 
-        triangles[triangle_id].verts = [quad.v4, quad.v1, quad.v3];
+        triangles[triangle_id].verts = [quad.v4(), quad.v1(), quad.v3()];
 
-        triangles[adjacent_triangle_id].verts = [quad.v4, quad.v3, quad.v2];
+        triangles[adjacent_triangle_id].verts = [quad.v4(), quad.v3(), quad.v2()];
 
         triangles[adjacent_triangle_id].neighbors = [
             Some(triangle_id),
