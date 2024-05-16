@@ -3,7 +3,7 @@ use bevy::{
     utils::hashbrown::HashSet,
 };
 
-use crate::utils::is_point_on_right_side_of_edge;
+use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle};
 
 use super::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
 
@@ -15,7 +15,7 @@ pub fn triangulation_from_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
 ) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
-    // TODO See what we need for input data format of `triangulate`
+    // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
     for v in vertices {
         vertices_data.push(Vec3A::from_array(*v));
@@ -88,10 +88,10 @@ pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
 
 pub(crate) fn search_enclosing_triangle(
     vertex: Vec2,
-    from: Option<TriangleId>,
+    from: Neighbor,
     triangles: &Vec<TriangleData>,
     vertices: &Vec<Vec2>,
-) -> Option<TriangleId> {
+) -> Neighbor {
     let mut triangle_id = from;
 
     for _ in 0..triangles.len() {
@@ -355,9 +355,9 @@ pub(crate) fn split_triangle_in_three_at_vertex(
 }
 
 pub(crate) fn update_triangle_neighbour(
-    triangle_id: Option<TriangleId>,
-    old_neighbour_id: Option<TriangleId>,
-    new_neighbour_id: Option<TriangleId>,
+    triangle_id: Neighbor,
+    old_neighbour_id: Neighbor,
+    new_neighbour_id: Neighbor,
     triangles: &mut Vec<TriangleData>,
 ) {
     match triangle_id {
@@ -382,6 +382,7 @@ fn restore_delaunay_triangulation(
     let mut stack = Vec::<(TriangleId, Neighbor)>::new();
 
     for &triangle_id in &triangles_to_check {
+        // Opposite edge of the center point (`vertex_id`) of the 3 new triangles
         stack.push((triangle_id, triangles[triangle_id].neighbor23()));
     }
 
@@ -398,7 +399,7 @@ fn restore_delaunay_triangulation(
             adjacent_triangle_id,
         );
         if quad_diag_swapped == QuadSwapResult::Swapped {
-            // Place any triangles which are now opposite P on the stack.
+            // Place any triangles which are now opposite `vertex_id` on the stack.
             stack.push((triangle_id, t3));
             stack.push((adjacent_triangle_id, t4));
         }
@@ -411,13 +412,14 @@ pub enum QuadSwapResult {
     Swapped,
 }
 
+// TODO Clean: Use to_quad + is_vertex_in_triangle_circumcircle + swap_quad_diagonal
 pub fn check_and_swap_quad_diagonal(
     triangles: &mut Vec<TriangleData>,
     vertices: &Vec<Vec2>,
     vertex_id: VertexId,
     triangle_id: TriangleId,
     adjacent_triangle_id: TriangleId,
-) -> (QuadSwapResult, Option<TriangleId>, Option<TriangleId>) {
+) -> (QuadSwapResult, Neighbor, Neighbor) {
     let adjacent_triangle = &triangles[adjacent_triangle_id];
     let (quad, triangle_3_id, triangle_4_id) =
         if adjacent_triangle.neighbor12() == Some(triangle_id) {
@@ -456,93 +458,40 @@ pub fn check_and_swap_quad_diagonal(
         };
 
     // Check if the vertex is on the circumcircle of the adjacent triangle:
-    let swapped_quad_diagonal = if is_vertex_in_triangle_circumcircle(
-        vertices[quad.v1()],
-        vertices[quad.v2()],
-        vertices[quad.v3()],
-        vertices[vertex_id],
-    ) {
-        // The triangle containing P as a vertex and the unstacked triangle form a convex quadrilateral whose diagonal is drawn in the wrong direction.
-        // Swap this diagonal so that two old triangles are replaced by two new triangles and the structure of the Delaunay triangulation is locally restored.
-        update_triangle_neighbour(
-            triangle_3_id,
-            Some(adjacent_triangle_id),
-            Some(triangle_id),
-            triangles,
-        );
-        update_triangle_neighbour(
-            triangles[triangle_id].neighbor31(),
-            Some(triangle_id),
-            Some(adjacent_triangle_id),
-            triangles,
-        );
+    let quad_vertices = quad.to_vertices(vertices);
+    let swapped_quad_diagonal =
+        if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
+            // The triangle containing P as a vertex and the unstacked triangle form a convex quadrilateral whose diagonal is drawn in the wrong direction.
+            // Swap this diagonal so that two old triangles are replaced by two new triangles and the structure of the Delaunay triangulation is locally restored.
+            update_triangle_neighbour(
+                triangle_3_id,
+                Some(adjacent_triangle_id),
+                Some(triangle_id),
+                triangles,
+            );
+            update_triangle_neighbour(
+                triangles[triangle_id].neighbor31(),
+                Some(triangle_id),
+                Some(adjacent_triangle_id),
+                triangles,
+            );
 
-        triangles[triangle_id].verts = [quad.v4(), quad.v1(), quad.v3()];
+            triangles[triangle_id].verts = [quad.v4(), quad.v1(), quad.v3()];
 
-        triangles[adjacent_triangle_id].verts = [quad.v4(), quad.v3(), quad.v2()];
+            triangles[adjacent_triangle_id].verts = [quad.v4(), quad.v3(), quad.v2()];
 
-        triangles[adjacent_triangle_id].neighbors = [
-            Some(triangle_id),
-            triangle_4_id,
-            triangles[triangle_id].neighbor31(),
-        ];
+            triangles[adjacent_triangle_id].neighbors = [
+                Some(triangle_id),
+                triangle_4_id,
+                triangles[triangle_id].neighbor31(),
+            ];
 
-        triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
-        triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
+            triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
+            triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
 
-        QuadSwapResult::Swapped
-    } else {
-        QuadSwapResult::NotSwapped
-    };
+            QuadSwapResult::Swapped
+        } else {
+            QuadSwapResult::NotSwapped
+        };
     (swapped_quad_diagonal, triangle_3_id, triangle_4_id)
-}
-
-/// See ref: Cline and Renka [5]
-/// The algo is sensitive to the order of the given vertices. In order:
-///
-/// n3 --------------------- n2
-/// |                       /|
-/// |                     /  |
-/// |                   /    |
-/// |                 /      |
-/// |               /        |
-/// |             /          |
-/// |           /            |
-/// |         /              |
-/// |       /                |
-/// |     /                  |
-/// |   /                    |
-/// | /                      |
-/// n1 ---------------------- p
-///
-/// where n1, n2 and n3 are the given vertices of the given triangle and p the vertex to be check
-///
-pub(crate) fn is_vertex_in_triangle_circumcircle(
-    triangle_v1: Vec2,
-    triangle_v2: Vec2,
-    triangle_v3: Vec2,
-    vertex: Vec2,
-) -> bool {
-    let x13 = triangle_v1.x - triangle_v3.x;
-    let x23 = triangle_v2.x - triangle_v3.x;
-    let y13 = triangle_v1.y - triangle_v3.y;
-    let y23 = triangle_v2.y - triangle_v3.y;
-    let x14 = triangle_v1.x - vertex.x;
-    let x24 = triangle_v2.x - vertex.x;
-    let y14 = triangle_v1.y - vertex.y;
-    let y24 = triangle_v2.y - vertex.y;
-
-    let cos_a = x13 * x23 + y13 * y23;
-    let cos_b = x24 * x14 + y24 * y14;
-
-    if cos_a >= 0. && cos_b >= 0. {
-        false
-    } else if cos_a < 0. && cos_b < 0. {
-        true
-    } else {
-        let sin_a = x13 * y23 - x23 * y13;
-        let sin_b = x24 * y14 - x14 * y24;
-        let sin_ab = sin_a * cos_b + sin_b * cos_a;
-        sin_ab < 0.
-    }
 }

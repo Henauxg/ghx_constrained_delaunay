@@ -20,6 +20,23 @@ pub const EDGE_12: TriangleEdgeIndex = 0;
 pub const EDGE_23: TriangleEdgeIndex = 1;
 pub const EDGE_31: TriangleEdgeIndex = 2;
 
+/// From a TriangleEdgeIndex, gives the next edge index in a clockwise order
+pub const NEXT_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
+/// From a TriangleEdgeIndex, gives the next edge index in a counter-clockwise order
+pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
+/// From a TriangleEdgeIndex, gives the corresponding pair of TriangleVertexIndex
+pub const EDGE_TO_VERTS: [[TriangleVertexIndex; 2]; 3] =
+    [[VERT_1, VERT_2], [VERT_2, VERT_3], [VERT_3, VERT_1]];
+
+/// From a TriangleVertexIndex, gives the opposite edge index
+pub const OPPOSITE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
+/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
+pub const NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
+    [EDGE_12, EDGE_23, EDGE_31];
+/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
+pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
+    [EDGE_31, EDGE_12, EDGE_23];
+
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct Edge {
     pub from: VertexId,
@@ -31,14 +48,17 @@ impl Edge {
         Self { from, to }
     }
 
+    #[inline]
     pub fn undirected_equals(&self, other: &Edge) -> bool {
         self == other || (self.from == other.to && self.to == other.from)
     }
 
+    #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vec2>) -> EdgeVertices {
         (vertices[self.from], vertices[self.to])
     }
 
+    #[inline]
     pub fn contains(&self, vert: VertexId) -> bool {
         self.from == vert || self.to == vert
     }
@@ -110,13 +130,17 @@ impl TriangleData {
     }
 
     #[inline]
-    pub fn edge(&self, edge: TriangleEdgeIndex) -> Edge {
-        Edge::new(self.verts[edge], self.verts[(edge + 1) % 3])
+    pub fn edge(&self, edge_index: TriangleEdgeIndex) -> Edge {
+        let vert_indexes = EDGE_TO_VERTS[edge_index];
+        Edge::new(self.verts[vert_indexes[0]], self.verts[vert_indexes[1]])
     }
 
     #[inline]
-    pub fn other_edges(&self, edge: TriangleEdgeIndex) -> [Edge; 2] {
-        [self.edge((edge + 1) % 3), self.edge((edge + 2) % 3)]
+    pub fn other_edges(&self, edge_index: TriangleEdgeIndex) -> [Edge; 2] {
+        [
+            self.edge(NEXT_CLOCKWISE_EDGE_INDEX[edge_index]),
+            self.edge(NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index]),
+        ]
     }
 
     #[inline]
@@ -140,8 +164,8 @@ impl TriangleData {
 
     /// `vertex` MUST be a vertex of the triangle
     #[inline]
-    pub fn get_opposite_edge_index_from_vertex(&self, vertex: VertexId) -> TriangleEdgeIndex {
-        TriangleData::get_opposite_edge_index(self.vertex_index(vertex).unwrap())
+    pub fn opposite_edge_index_from_vertex(&self, vertex: VertexId) -> TriangleEdgeIndex {
+        opposite_edge_index(self.vertex_index(vertex).unwrap())
     }
 
     /// `edge` MUST be an edge of the triangle
@@ -157,33 +181,31 @@ impl TriangleData {
     }
 }
 
-impl TriangleData {
-    // vert_index: index of the constrained edge start vertex in the current triangle
-    // Left -> second_vertex_index = (vert_index + 1) % 3 => edge_index
-    // 0 -> 1 => 0
-    // 1 -> 2 => 1
-    // 2 -> 0 => 2
-    // Right -> second_vertex_index = (vert_index + 2) % 3  => edge_index
-    // 0 -> 2 => 2
-    // 1 -> 0 => 0
-    // 2 -> 1 => 1
-    #[inline]
-    pub fn get_left_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-        vert_index
-    }
-    #[inline]
-    pub fn get_right_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-        (vert_index + 2) % 3
-    }
+#[inline]
+pub fn next_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
+    NEXT_CLOCKWISE_EDGE_INDEX[edge_index]
+}
 
-    // Opposite -> edge_index = (vert_index + 1) % 3
-    // 0 -> 1
-    // 1 -> 2
-    // 2 -> 0
-    #[inline]
-    pub fn get_opposite_edge_index(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-        (vert_index + 1) % 3
-    }
+#[inline]
+pub fn next_counter_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
+    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index]
+}
+
+#[inline]
+pub fn next_clockwise_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index]
+}
+
+#[inline]
+pub fn next_counter_clockwise_edge_index_around(
+    vert_index: TriangleVertexIndex,
+) -> TriangleEdgeIndex {
+    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index]
+}
+
+#[inline]
+pub fn opposite_edge_index(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    OPPOSITE_EDGE_INDEX[vert_index]
 }
 
 pub type QuadVertexIndex = usize;
@@ -253,6 +275,7 @@ impl QuadVertices {
         self.0[QUAD_4]
     }
 
+    #[inline]
     pub fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
         egdes_intersect(
             &(self.0[QUAD_1], self.0[QUAD_3]),

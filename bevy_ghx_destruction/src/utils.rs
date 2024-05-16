@@ -90,3 +90,48 @@ pub fn is_point_on_right_side_of_edge(e0: Vec2, e1: Vec2, p: Vec2) -> bool {
 pub fn on_segment(p: Vec2, q: Vec2, r: Vec2) -> bool {
     q.x <= p.x.max(r.x) && q.x >= p.x.min(r.x) && q.y <= p.y.max(r.y) && q.y >= p.y.min(r.y)
 }
+
+/// Cheks if vertex `p` is inside the circumcircle of the triangle formed by the first three vertices in `triangle`
+/// - `triangle` are the vertices of the triangle.
+///     - length of `triangle` **MUST** be >= 3.
+///     - `triangle` vertices must be in a counter-clockwise order
+/// - `p` vertex to check
+///
+/// v3 --------- v2
+/// |          / |
+/// |        /   |
+/// |      /     |
+/// |    /       |
+/// |  /         |
+/// v1 --------- p
+///
+/// where v1, v2 and v3 are the vertices of the given triangle and p the vertex to check
+///
+/// See: A. K. Cline and R. Renka,
+/// A storage efficient method for construction of a Thiessen triangulation.
+/// Rocky Mounfain J. Math. 14, 119-139 (1984)
+///
+pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vec2], p: Vec2) -> bool {
+    let x13 = triangle[0].x - triangle[2].x;
+    let x23 = triangle[1].x - triangle[2].x;
+    let y13 = triangle[0].y - triangle[2].y;
+    let y23 = triangle[1].y - triangle[2].y;
+    let x14 = triangle[0].x - p.x;
+    let x24 = triangle[1].x - p.x;
+    let y14 = triangle[0].y - p.y;
+    let y24 = triangle[1].y - p.y;
+
+    let cos_a = x13 * x23 + y13 * y23;
+    let cos_b = x24 * x14 + y24 * y14;
+
+    if cos_a >= 0. && cos_b >= 0. {
+        false
+    } else if cos_a < 0. && cos_b < 0. {
+        true
+    } else {
+        let sin_a = x13 * y23 - x23 * y13;
+        let sin_b = x24 * y14 - x14 * y24;
+        let sin_ab = sin_a * cos_b + sin_b * cos_a;
+        sin_ab < 0.
+    }
+}
