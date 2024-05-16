@@ -2,6 +2,7 @@
 
 # Bevy Ghx Destruction
 
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 [![bevy_ghx_destruction on crates.io](https://img.shields.io/crates/v/bevy_ghx_destruction)](https://crates.io/crates/bevy_ghx_destruction)
 [![bevy_ghx_destruction on doc.rs](https://docs.rs/bevy_ghx_destruction/badge.svg)](https://docs.rs/bevy_ghx_destruction)
 
