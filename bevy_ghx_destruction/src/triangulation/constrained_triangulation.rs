@@ -51,7 +51,7 @@ pub fn constrained_triangulation_from_2d_vertices(
     // TODO Debug: consider adding debug support to this function
     apply_constraints(vertices, &mut triangles, constrained_edges);
 
-    let indices = remove_wrapping_and_unconstrained_domains(
+    let indices = unholy_triangles_to_be_purify(
         &triangles,
         &container_triangle,
         constrained_edges,
@@ -79,7 +79,9 @@ pub fn constrained_triangulation_from_2d_vertices(
 /// --------------->-------------------------------------
 ///
 /// - visited_triangles: List of every triangles already checked. Pre-allocated by the caller. Reinitialized at the beginning of this function.
-fn remove_wrapping_and_unconstrained_domains(
+///
+/// remove_wrapping_and_unconstrained_domains
+fn unholy_triangles_to_be_purify(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
     constrained_edges: &HashSet<Edge>,
