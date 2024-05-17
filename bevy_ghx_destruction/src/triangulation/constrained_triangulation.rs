@@ -51,6 +51,8 @@ pub fn constrained_triangulation_from_2d_vertices(
     // TODO Debug: consider adding debug support to this function
     apply_constraints(vertices, &mut triangles, constrained_edges);
 
+    debug_data.push(triangles.clone());
+
     let indices = unholy_triangles_to_be_purify(
         &triangles,
         &container_triangle,
