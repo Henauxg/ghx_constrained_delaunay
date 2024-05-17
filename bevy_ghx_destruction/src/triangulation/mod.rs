@@ -256,6 +256,7 @@ impl Quad {
 pub type EdgeVertices = (Vec2, Vec2);
 pub type TriangleVertices = (Vec2, Vec2, Vec2);
 
+#[derive(Debug)]
 pub struct QuadVertices(pub [Vec2; 4]);
 impl QuadVertices {
     #[inline]
@@ -278,8 +279,8 @@ impl QuadVertices {
     #[inline]
     pub fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
         egdes_intersect(
-            &(self.0[QUAD_1], self.0[QUAD_3]),
-            &(self.0[QUAD_2], self.0[QUAD_4]),
+            &(self.0[QUAD_1], self.0[QUAD_2]),
+            &(self.0[QUAD_3], self.0[QUAD_4]),
         )
     }
 }
