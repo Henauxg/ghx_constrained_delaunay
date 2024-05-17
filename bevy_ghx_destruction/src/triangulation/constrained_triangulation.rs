@@ -395,8 +395,8 @@ fn register_intersected_edges(
     intersections
 }
 
-#[derive(Clone)]
-struct EdgeData {
+#[derive(Clone, Debug)]
+pub(crate) struct EdgeData {
     from_triangle_id: TriangleId,
     to_triangle_id: TriangleId,
     edge: Edge,
@@ -506,7 +506,7 @@ fn get_next_triangle_edge_intersection(
 /// Tt: triangle to
 /// c1, c2: crossed edge
 /// q1, q2, q3, q4: quad coords
-fn swap_quad_diagonal(
+pub(crate) fn swap_quad_diagonal(
     triangles: &mut Vec<TriangleData>,
     vertex_to_triangle: &mut Vec<TriangleId>,
     edges_data_collections: &mut [&mut VecDeque<EdgeData>],
@@ -526,7 +526,7 @@ fn swap_quad_diagonal(
     let tf_left_edge_index = triangles[from].opposite_edge_index_from_vertex(quad.v1());
     let tf_left_neighbor = triangles[from].neighbors[tf_left_edge_index];
     let tf_right_neighbor =
-        triangles[from].neighbors[next_counter_clockwise_edge_index(tt_left_edge_index)];
+        triangles[from].neighbors[next_counter_clockwise_edge_index(tf_left_edge_index)];
 
     triangles[from].verts = [quad.v4(), quad.v2(), quad.v3()];
     triangles[to].verts = [quad.v4(), quad.v3(), quad.v1()];
