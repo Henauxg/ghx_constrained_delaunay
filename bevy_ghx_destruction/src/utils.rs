@@ -135,3 +135,94 @@ pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vec2], p: Vec2) -> bool {
         sin_ab < 0.
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::math::Vec2;
+
+    use crate::utils::{
+        egdes_intersect, is_point_on_right_side_of_edge, on_segment, EdgesIntersectionResult,
+    };
+
+    #[test]
+    fn edge_intersect_none() {
+        let edge1 = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let edge2 = (Vec2::new(0., 3.), Vec2::new(3., 3.));
+
+        let intersect = egdes_intersect(&edge1, &edge2);
+
+        assert_eq!(EdgesIntersectionResult::None, intersect);
+    }
+
+    #[test]
+    fn edge_intersect_crossing() {
+        let edge1 = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let edge2 = (Vec2::new(1., -2.), Vec2::new(1., 3.));
+
+        let intersect = egdes_intersect(&edge1, &edge2);
+
+        assert_eq!(EdgesIntersectionResult::Crossing, intersect);
+    }
+
+    #[test]
+    fn edge_intersect_on_edge_tip() {
+        let edge1 = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let edge2 = (Vec2::new(1., 0.), Vec2::new(3., 3.));
+
+        let intersect = egdes_intersect(&edge1, &edge2);
+
+        assert_eq!(EdgesIntersectionResult::OnEdgeTip, intersect);
+    }
+
+    #[test]
+    fn edge_intersect_shared_edge() {
+        let edge1 = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let edge2 = (Vec2::new(0., 0.), Vec2::new(3., 3.));
+
+        let intersect = egdes_intersect(&edge1, &edge2);
+
+        assert_eq!(EdgesIntersectionResult::SharedEdges, intersect);
+    }
+
+    #[test]
+    fn point_edge_orientatiion_left() {
+        let edge = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let p = Vec2::new(0., 3.);
+
+        let orientation = is_point_on_right_side_of_edge(edge.0, edge.1, p);
+
+        assert_eq!(false, orientation);
+    }
+
+    #[test]
+    fn point_edge_orientation_right() {
+        let edge = (Vec2::new(0., 0.), Vec2::new(3., 0.));
+        let p = Vec2::new(0., -3.);
+
+        let orientation = is_point_on_right_side_of_edge(edge.0, edge.1, p);
+
+        assert_eq!(true, orientation);
+    }
+
+    #[test]
+    fn point_inside_segment() {
+        let p = Vec2::new(0., 3.);
+        let r = Vec2::new(0., -3.);
+        let q = Vec2::new(0., 0.);
+
+        let orientation = on_segment(p, q, r);
+
+        assert_eq!(true, orientation);
+    }
+
+    #[test]
+    fn point_outside_segment() {
+        let p = Vec2::new(0., 3.);
+        let r = Vec2::new(0., -3.);
+        let q = Vec2::new(8., 0.);
+
+        let orientation = on_segment(p, q, r);
+
+        assert_eq!(false, orientation);
+    }
+}

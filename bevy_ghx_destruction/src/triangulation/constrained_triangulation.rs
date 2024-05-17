@@ -664,3 +664,62 @@ fn restore_delaunay_triangulation_constrained(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use bevy::math::Vec2;
+
+    use crate::triangulation::{Edge, Quad, TriangleData};
+
+    use super::{swap_quad_diagonal, EdgeData};
+
+    #[test]
+    fn swap_quad_diag_constrained() {
+        let mut vertices = Vec::<Vec2>::new();
+        vertices.push(Vec2::new(0.5, 3.));
+        vertices.push(Vec2::new(-2., -2.));
+        vertices.push(Vec2::new(1., -4.));
+        vertices.push(Vec2::new(3., -2.));
+
+        let triangle_1 = TriangleData {
+            verts: [0, 1, 3],
+            neighbors: [None, Some(1), None],
+        };
+
+        let triangle_2 = TriangleData {
+            verts: [1, 2, 3],
+            neighbors: [None, None, Some(0)],
+        };
+
+        let mut triangles = vec![triangle_1, triangle_2];
+
+        let mut vertex_to_triangle = vec![0; vertices.len()];
+        for (index, triangle) in triangles.iter().enumerate() {
+            vertex_to_triangle[triangle.v1()] = index;
+            vertex_to_triangle[triangle.v2()] = index;
+            vertex_to_triangle[triangle.v3()] = index;
+        }
+
+        let mut new_diagonals_created = VecDeque::new();
+
+        let intersection = EdgeData::new(0, 1, Edge::new(1, 3));
+
+        let mut edge_data_collection = [&mut new_diagonals_created];
+
+        let quad = Quad::new([1, 3, 0, 2]);
+
+        swap_quad_diagonal(
+            &mut triangles,
+            &mut vertex_to_triangle,
+            &mut edge_data_collection,
+            &intersection,
+            &quad,
+        );
+
+        assert_eq!(2, triangles.len());
+        assert_eq!([2, 3, 0], triangles[0].verts);
+        assert_eq!([2, 0, 1], triangles[1].verts);
+    }
+}

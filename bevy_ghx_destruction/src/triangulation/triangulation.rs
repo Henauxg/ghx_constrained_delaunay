@@ -406,7 +406,7 @@ fn restore_delaunay_triangulation(
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum QuadSwapResult {
     NotSwapped,
     Swapped,
@@ -494,4 +494,155 @@ pub fn check_and_swap_quad_diagonal(
             QuadSwapResult::NotSwapped
         };
     (swapped_quad_diagonal, triangle_3_id, triangle_4_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::math::{Vec2, Vec3A};
+
+    use crate::triangulation::{
+        triangulation::{
+            check_and_swap_quad_diagonal, normalize_vertices_coordinates,
+            split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
+            QuadSwapResult,
+        },
+        TriangleData,
+    };
+
+    #[test]
+    fn triangulation_normalize_set_of_vertices() {
+        let mut vertices = Vec::<[f32; 2]>::new();
+
+        vertices.push([3.0, 2.0]);
+        vertices.push([-1.0, 2.0]);
+        vertices.push([-1.0, -2.0]);
+        vertices.push([3.0, -2.0]);
+
+        let mut planar_vertices = Vec::with_capacity(vertices.len());
+        for v in &vertices {
+            planar_vertices.push(Vec2::from_array(*v));
+        }
+
+        normalize_vertices_coordinates(&mut planar_vertices);
+
+        assert_eq!(
+            Vec::from([
+                Vec2::from([1., 1.]),
+                Vec2::from([0., 1.]),
+                Vec2::from([0., 0.]),
+                Vec2::from([1., 0.])
+            ]),
+            planar_vertices
+        );
+    }
+
+    #[test]
+    fn triangulation_set_to_2d_plane_vertices() {
+        let mut vertices = Vec::<[f32; 3]>::new();
+
+        vertices.push([-3., 2., 0.]);
+        vertices.push([1., 2., 0.]);
+        vertices.push([1., -2., 0.]);
+        vertices.push([-3., -2., 0.]);
+
+        let plane_normal = Vec3A::Z;
+
+        let mut vertices_data = Vec::with_capacity(vertices.len());
+        for v in &vertices {
+            vertices_data.push(Vec3A::from_array(*v));
+        }
+
+        let planar_vertices =
+            transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
+
+        assert_eq!(
+            Vec::from([
+                Vec2::from([3.0, 2.0]),
+                Vec2::from([-1.0, 2.0]),
+                Vec2::from([-1.0, -2.0]),
+                Vec2::from([3.0, -2.0])
+            ]),
+            planar_vertices
+        );
+    }
+
+    #[test]
+    fn split_in_three_triangle() {
+        let mut vertices = Vec::<Vec2>::new();
+        vertices.push(Vec2::new(0., 0.)); // vertex to be added
+
+        // container triangle to be splited by the vertex
+        let container_triangle = TriangleData {
+            verts: [vertices.len(), vertices.len() + 1, vertices.len() + 2],
+            neighbors: [None, None, None],
+        };
+
+        // vertices of the container triangle
+        vertices.push(Vec2::new(1., 1.));
+        vertices.push(Vec2::new(1., -2.));
+        vertices.push(Vec2::new(-3., 2.));
+
+        let mut triangles = Vec::<TriangleData>::new();
+        triangles.push(container_triangle);
+
+        split_triangle_in_three_at_vertex(0, 0, &mut triangles, &vertices);
+
+        assert_eq!(3, triangles.len());
+    }
+
+    #[test]
+    fn no_swap() {
+        let mut vertices = Vec::<Vec2>::new();
+        vertices.push(Vec2::new(0.5, 3.));
+        vertices.push(Vec2::new(-2., -2.));
+        vertices.push(Vec2::new(1., -4.));
+        vertices.push(Vec2::new(3., -2.));
+
+        let triangle_1 = TriangleData {
+            verts: [3, 1, 0],
+            neighbors: [None, None, Some(1)],
+        };
+
+        let triangle_2 = TriangleData {
+            verts: [1, 2, 3],
+            neighbors: [None, None, Some(0)],
+        };
+
+        let mut triangles = Vec::<TriangleData>::new();
+        triangles.push(triangle_1);
+        triangles.push(triangle_2);
+
+        let (quad_swap, _, _) = check_and_swap_quad_diagonal(&mut triangles, &vertices, 1, 0, 1);
+
+        assert_eq!(QuadSwapResult::NotSwapped, quad_swap);
+        assert_eq!(2, triangles.len());
+    }
+
+    #[test]
+    fn swap() {
+        let mut vertices = Vec::<Vec2>::new();
+        vertices.push(Vec2::new(0.5, 3.));
+        vertices.push(Vec2::new(-2., -2.));
+        vertices.push(Vec2::new(1., -4.));
+        vertices.push(Vec2::new(3., -2.));
+
+        let triangle_1 = TriangleData {
+            verts: [0, 1, 2],
+            neighbors: [None, None, Some(1)],
+        };
+
+        let triangle_2 = TriangleData {
+            verts: [2, 3, 0],
+            neighbors: [None, None, Some(0)],
+        };
+
+        let mut triangles = Vec::<TriangleData>::new();
+        triangles.push(triangle_1);
+        triangles.push(triangle_2);
+
+        let (quad_swap, _, _) = check_and_swap_quad_diagonal(&mut triangles, &vertices, 1, 0, 1);
+
+        assert_eq!(QuadSwapResult::Swapped, quad_swap);
+        assert_eq!(2, triangles.len());
+    }
 }
