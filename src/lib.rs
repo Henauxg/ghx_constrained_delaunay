@@ -1,13 +1,16 @@
-pub mod slicing;
+pub mod constrained_triangulation;
 pub mod triangulation;
+pub mod types;
 pub mod utils;
+
 #[cfg(test)]
 mod tests {
-    use bevy::{math::Vec3, utils::hashbrown::HashSet};
+    use bevy_math::Vec3;
+    use hashbrown::HashSet;
 
-    use crate::triangulation::{
+    use crate::{
         constrained_triangulation::constrained_triangulation_from_3d_planar_vertices,
-        triangulation::triangulation_from_3d_planar_vertices, Edge,
+        triangulation::triangulation_from_3d_planar_vertices, types::Edge,
     };
 
     #[test]
@@ -224,7 +227,6 @@ mod tests {
 
     #[test]
     fn constrained_delaunay_level_4() {
-        
         let mut vertices = Vec::<[f32; 3]>::new();
 
         vertices.push([-4., 3., 0.]);

@@ -1,15 +1,51 @@
-[workspace]
-resolver = "2"
+[package]
+name = "ghx_constrained_delaunay"
+version = "0.1.0"
+edition = "2021"
 
-members = [
-	"bevy_ghx_destruction", # Bevy plugin
-	"examples",             # Bevy plugin examples
-]
+[dependencies]
+# External dependencies
+ordered-float = "4.2.0"
+bevy_math = { version = "0.13" }
+hashbrown = "0.14.5"
+log = "0.4.21"
 
-# Enable a small amount of optimization in debug mode
-[profile.dev]
-opt-level = 1
+# Examples
 
-# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
-[profile.dev.package."*"]
-opt-level = 3
+[[example]]
+name = "triangulation"
+path = "examples/triangulation.rs"
+
+[[example]]
+name = "constrained_triangulation"
+path = "examples/constrained_triangulation.rs"
+
+[dev-dependencies]
+bevy_ghx_utils = { version = "0.3.0", default-features = true }
+
+# External dependencies
+bevy = { version = "0.13", default-features = false, features = [
+    # Default features:
+
+    "bevy_core_pipeline", # Common rendering abstractions
+    "bevy_gilrs",         # Adds gamepad support
+    "bevy_gizmos",        # Adds support for rendering gizmos
+    "bevy_render",        # Rendering framework core
+    "bevy_pbr",           # 3D (physically-based) rendering
+    "bevy_scene",         # Provides scene functionality
+    "bevy_text",          # Text/font rendering
+    "bevy_ui",            # UI toolkit
+    "bevy_winit",         # winit window and input backend
+    "default_font",       # Embed a minimal default font for text/UI
+    "multi-threaded",     # Run with multithreading
+    "tonemapping_luts",   # Support different camera Tonemapping modes (enables KTX2+zstd)
+
+    # Platform-specific:
+    "x11", # Linux: Support X11 windowing system
+
+    # Non-default features:
+
+    # Platform-specific:
+    "wayland", # (Linux) Support Wayland windowing system
+] }
+bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }

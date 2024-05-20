@@ -1,51 +1,30 @@
 <div align="center">
 
-# Bevy Ghx Destruction
+# Constrained Delaunay Triangulation
 
-[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
-[![bevy_ghx_destruction on crates.io](https://img.shields.io/crates/v/bevy_ghx_destruction)](https://crates.io/crates/bevy_ghx_destruction)
-[![bevy_ghx_destruction on doc.rs](https://docs.rs/bevy_ghx_destruction/badge.svg)](https://docs.rs/bevy_ghx_destruction)
+[![ghx_constrained_delaunay on crates.io](https://img.shields.io/crates/v/ghx_constrained_delaunay)](https://crates.io/crates/ghx_constrained_delaunay)
+[![ghx_constrained_delaunay on doc.rs](https://docs.rs/ghx_constrained_delaunay/badge.svg)](https://docs.rs/ghx_constrained_delaunay)
 
 </div>
 
-A Rust library for 3D dynamic destruction of meshes for the [`Bevy`](https://github.com/bevyengine/bevy) engine.
+A Rust library for 2D constrained Delaunay triangulation
 
 # Examples
 
-<details>
-  <summary>Sandbox</summary>
-
-```
-cargo run --example sandbox
-```
-
-Simple standalone example to test the crate features.
-
-</details>
-
-<details>
-  <summary>Ashbox</summary>
-
-```
-cargo run --example ashbox
-```
-
-Simple standalone example to test the crate features.
-
-</details>
-
+- triangulation `cargo run --example triangulation`
+- constrained_triangulation `cargo run --example constrained_triangulation`
 
 # Misc
 
 #### Why "ghx" ?
 
-- It serves as a namespace to avoid picking cargo names such as `destruction` or `bevy_destruction`
+- It serves as a namespace to avoid picking cargo names such as `delaunay_triangulation`
 
 # License
 
 ### Code
 
-bevy_ghx_destruction is free and open source. All code in this repository is dual-licensed under either:
+This crate is free and open source. All code in this repository is dual-licensed under either:
 
 * MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 * Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))

@@ -1,9 +1,45 @@
-use bevy::prelude::*;
-
-use bevy_ghx_destruction::triangulation::TriangleData;
+use bevy::{
+    ecs::{
+        component::Component,
+        entity::Entity,
+        event::{Event, EventReader, EventWriter},
+        query::With,
+        system::{Commands, Query, Res, ResMut, Resource},
+    },
+    gizmos::gizmos::Gizmos,
+    hierarchy::DespawnRecursiveExt,
+    input::{keyboard::KeyCode, ButtonInput},
+    render::color::Color,
+    text::{Text, TextSection, TextStyle},
+    transform::components::Transform,
+    utils::default,
+};
+use bevy_math::Vec3;
 use bevy_mod_billboard::BillboardTextBundle;
+use ghx_constrained_delaunay::types::TriangleData;
 
 pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
+
+pub const COLORS: &'static [Color] = &[
+    Color::GREEN,
+    Color::BLUE,
+    Color::BLACK,
+    Color::RED,
+    Color::YELLOW,
+    Color::MAROON,
+    Color::PURPLE,
+    Color::SALMON,
+    Color::ORANGE,
+    Color::CYAN,
+    Color::NAVY,
+    Color::OLIVE,
+    Color::PINK,
+    Color::ALICE_BLUE,
+    Color::CRIMSON,
+    Color::TURQUOISE,
+    Color::YELLOW_GREEN,
+    Color::TEAL,
+];
 
 #[derive(Event)]
 pub struct TriangleDebugDataUpdated;
@@ -29,7 +65,6 @@ pub fn create_displayed_vertices(vertices: Vec<[f32; 3]>, plane_normal: Vec3) ->
 #[derive(Resource, Debug, Default)]
 pub struct TrianglesDebugData {
     pub vertices: Vec<Vec3>,
-    // indices: Vec<usize>,
     pub triangles_buffers: Vec<Vec<TriangleData>>,
     pub current_buffer_index: usize,
 }
@@ -143,24 +178,3 @@ pub fn draw_triangles_debug_data(mut gizmos: Gizmos, debug_vert_data: Res<Triang
         gizmos.linestrip(vec![v1, v2, v3, v1], color);
     }
 }
-
-pub const COLORS: &'static [Color] = &[
-    Color::GREEN,
-    Color::BLUE,
-    Color::BLACK,
-    Color::RED,
-    Color::YELLOW,
-    Color::MAROON,
-    Color::PURPLE,
-    Color::SALMON,
-    Color::ORANGE,
-    Color::CYAN,
-    Color::NAVY,
-    Color::OLIVE,
-    Color::PINK,
-    Color::ALICE_BLUE,
-    Color::CRIMSON,
-    Color::TURQUOISE,
-    Color::YELLOW_GREEN,
-    Color::TEAL,
-];

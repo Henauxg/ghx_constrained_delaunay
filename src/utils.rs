@@ -1,7 +1,6 @@
-use bevy::math::{Vec2, Vec3A};
-use rand::Rng;
+use bevy_math::Vec2;
 
-use crate::triangulation::EdgeVertices;
+use crate::types::EdgeVertices;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EdgesIntersectionResult {
@@ -73,12 +72,6 @@ pub fn triplet_orientation(p: Vec2, q: Vec2, r: Vec2) -> Orientation {
     }
 }
 
-#[inline]
-pub fn get_random_normalized_vec() -> Vec3A {
-    let mut rng = rand::thread_rng();
-    Vec3A::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>()).normalize()
-}
-
 /// Cross product of vectors e0e1 and e1p
 #[inline]
 pub fn is_point_on_right_side_of_edge(e0: Vec2, e1: Vec2, p: Vec2) -> bool {
@@ -136,9 +129,15 @@ pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vec2], p: Vec2) -> bool {
     }
 }
 
+///////////////////////////////////////////////////////////
+///                                                     ///
+///                        Tests                        ///
+///                                                     ///
+///////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests {
-    use bevy::math::Vec2;
+    use bevy_math::Vec2;
 
     use crate::utils::{
         egdes_intersect, is_point_on_right_side_of_edge, on_segment, EdgesIntersectionResult,

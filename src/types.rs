@@ -1,9 +1,6 @@
-use bevy::math::Vec2;
+use bevy_math::Vec2;
 
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
-
-pub mod constrained_triangulation;
-pub mod triangulation;
 
 pub type VertexId = usize;
 pub type Neighbor = Option<VertexId>;

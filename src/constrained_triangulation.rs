@@ -1,19 +1,19 @@
 use std::collections::VecDeque;
 
-use bevy::{
-    log::error,
-    math::{Vec2, Vec3A},
-    utils::hashbrown::HashSet,
-};
+use bevy_math::{Vec2, Vec3A};
+use hashbrown::HashSet;
+use log::error;
 
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
-use super::{
-    next_clockwise_edge_index, next_clockwise_edge_index_around, next_counter_clockwise_edge_index,
-    next_counter_clockwise_edge_index_around, opposite_edge_index,
+use crate::{
     triangulation::{self, wrap_and_triangulate_2d_vertices},
-    Edge, EdgeVertices, Neighbor, Quad, TriangleData, TriangleId, TriangleVertexIndex,
-    TriangleVertices, VertexId,
+    types::{
+        next_clockwise_edge_index, next_clockwise_edge_index_around,
+        next_counter_clockwise_edge_index, next_counter_clockwise_edge_index_around,
+        opposite_edge_index, Edge, EdgeVertices, Neighbor, Quad, TriangleData, TriangleId,
+        TriangleVertexIndex, TriangleVertices, VertexId,
+    },
 };
 
 /// - `plane_normal` **MUST** be normalized
@@ -53,7 +53,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 
     debug_data.push(triangles.clone());
 
-    let indices = unholy_triangles_to_be_purify(
+    let indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
         &container_triangle,
         constrained_edges,
@@ -83,7 +83,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 /// - visited_triangles: List of every triangles already checked. Pre-allocated by the caller. Reinitialized at the beginning of this function.
 ///
 /// remove_wrapping_and_unconstrained_domains
-fn unholy_triangles_to_be_purify(
+fn remove_wrapping_and_unconstrained_domains(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
     constrained_edges: &HashSet<Edge>,
@@ -671,9 +671,9 @@ fn restore_delaunay_triangulation_constrained(
 mod tests {
     use std::collections::VecDeque;
 
-    use bevy::math::Vec2;
+    use bevy_math::Vec2;
 
-    use crate::triangulation::{Edge, Quad, TriangleData};
+    use crate::types::{Edge, Quad, TriangleData};
 
     use super::{swap_quad_diagonal, EdgeData};
 

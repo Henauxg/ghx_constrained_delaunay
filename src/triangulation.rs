@@ -1,11 +1,8 @@
-use bevy::{
-    math::{Vec2, Vec3A},
-    utils::hashbrown::HashSet,
-};
+use bevy_math::{Vec2, Vec3A};
+use hashbrown::HashSet;
 
+use crate::types::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
 use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle};
-
-use super::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
 
 const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
 
@@ -498,15 +495,15 @@ pub fn check_and_swap_quad_diagonal(
 
 #[cfg(test)]
 mod tests {
-    use bevy::math::{Vec2, Vec3A};
+    use bevy_math::{Vec2, Vec3A};
 
-    use crate::triangulation::{
+    use crate::{
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
             QuadSwapResult,
         },
-        TriangleData,
+        types::TriangleData,
     };
 
     #[test]
