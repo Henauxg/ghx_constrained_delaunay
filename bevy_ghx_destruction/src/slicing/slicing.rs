@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bevy_rapier3d::prelude::*;
+use bevy_rapier3d::{na::ComplexField, prelude::*};
 
 use bevy::{
     math::Vec3A,
@@ -176,7 +176,9 @@ fn split_triangles(
     let mut index_buffer_top_slice = Vec::new();
     let mut index_buffer_bottom_slice = Vec::new();
 
-    let mut vertices_added: HashMap<[OrderedFloat<f32>; 3], usize> = HashMap::new();
+    let mut vertices_added: HashMap<[OrderedFloat<f32>; 3], VertexId> = HashMap::new();
+
+    let mut cut_face_vertices: Vec<Vec3A> = Vec::new();
 
     for (index, vertex) in vertices.iter().enumerate() {
         let k = [
@@ -221,6 +223,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     true,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
 
@@ -236,6 +239,7 @@ fn split_triangles(
                     vertex_indexe_2,
                     true,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
 
@@ -251,6 +255,7 @@ fn split_triangles(
                     vertex_indexe_1,
                     true,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
 
@@ -267,6 +272,7 @@ fn split_triangles(
                     vertex_indexe_1,
                     false,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
 
@@ -282,6 +288,7 @@ fn split_triangles(
                     vertex_indexe_2,
                     false,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
 
@@ -297,6 +304,7 @@ fn split_triangles(
                     vertex_indexe_3,
                     false,
                     &mut vertices_added,
+                    &mut cut_face_vertices,
                 );
             }
         }
@@ -305,6 +313,7 @@ fn split_triangles(
     info!("index_buffer_top_slice {:?}", index_buffer_top_slice);
     info!("index_buffer_bottom_slice {:?}", index_buffer_bottom_slice);
     info!("vertices len {:?}", vertices);
+    info!("cut face vertices {:?}", cut_face_vertices);
 
     (index_buffer_top_slice, index_buffer_bottom_slice)
 }
@@ -339,6 +348,7 @@ fn split_small_triangles(
     vertex_indexe_3: usize,
     two_edges_on_top: bool,
     vertices_added: &mut HashMap<[OrderedFloat<f32>; 3], VertexId>,
+    cut_face_vertices: &mut Vec<Vec3A>,
 ) {
     // vertices of the current triangle crossed by the slice plane
     let v1 = Vec3A::from_array(*vertices.get(vertex_indexe_1).unwrap());
@@ -346,78 +356,85 @@ fn split_small_triangles(
     let v3 = Vec3A::from_array(*vertices.get(vertex_indexe_3).unwrap());
 
     // check if the two edges of the triangle are crossed
-    let (intersec_13, v13) = find_intersection_line_plane(v1, v1 - v3, *origin_point, *normal_vec);
-    let (intersec_23, v23) = find_intersection_line_plane(v2, v2 - v3, *origin_point, *normal_vec);
+    match (
+        find_intersection_line_plane(v1, v1 - v3, *origin_point, *normal_vec),
+        find_intersection_line_plane(v2, v2 - v3, *origin_point, *normal_vec),
+    ) {
+        // Check if the cut plane do intersect the triangle
+        (None, None) => (),
+        (None, Some(_)) => (),
+        (Some(_), None) => (),
+        (Some(v13), Some(v23)) => {
+            // /!\ Interpolate normals and UV coordinates
 
-    // Check if the cut plane do intersect the triangle
-    if intersec_13 && intersec_23 {
-        // /!\ Interpolate normals and UV coordinates
+            // /!\ Add vertices/normals/uv for the intersection points to each mesh
 
-        // /!\ Add vertices/normals/uv for the intersection points to each mesh
+            let ordered_v13: [OrderedFloat<f32>; 3] = [
+                OrderedFloat(v13.x),
+                OrderedFloat(v13.y),
+                OrderedFloat(v13.z),
+            ];
+            let ordered_v23 = [
+                OrderedFloat(v23.x),
+                OrderedFloat(v23.y),
+                OrderedFloat(v23.z),
+            ];
 
-        let ordered_v13: [OrderedFloat<f32>; 3] = [
-            OrderedFloat(v13.x),
-            OrderedFloat(v13.y),
-            OrderedFloat(v13.z),
-        ];
-        let ordered_v23 = [
-            OrderedFloat(v23.x),
-            OrderedFloat(v23.y),
-            OrderedFloat(v23.z),
-        ];
+            // create the indices
+            let mut index13 = vertices.len() - 2;
+            let mut index23 = vertices.len() - 1;
 
-        // create the indices
-        let mut index13 = vertices.len() - 2;
-        let mut index23 = vertices.len() - 1;
+            if !vertices_added.contains_key(&ordered_v13) {
+                // add the new vertices in the hash map
+                vertices_added.insert(ordered_v13, index13);
 
-        if !vertices_added.contains_key(&ordered_v13) {
-            // add the new vertices in the hash map
-            vertices_added.insert(ordered_v13, index13);
+                // add the new vertices in the list
+                vertices.push(v13.to_array());
+                cut_face_vertices.push(v13);
+            } else {
+                index13 = *vertices_added.get(&ordered_v13).unwrap();
+            }
 
-            // add the new vertices in the list
-            vertices.push(v13.to_array());
-        } else {
-            index13 = *vertices_added.get(&ordered_v13).unwrap();
-        }
+            if !vertices_added.contains_key(&ordered_v23) {
+                // add the new vertices in the hash map
+                vertices_added.insert(ordered_v23, index23);
 
-        if !vertices_added.contains_key(&ordered_v23) {
-            // add the new vertices in the hash map
-            vertices_added.insert(ordered_v23, index23);
+                // add the new vertices in the list
+                vertices.push(v23.to_array());
+                cut_face_vertices.push(v23);
+            } else {
+                index23 = *vertices_added.get(&ordered_v23).unwrap();
+            }
 
-            // add the new vertices in the list
-            vertices.push(v23.to_array());
-        } else {
-            index23 = *vertices_added.get(&ordered_v23).unwrap();
-        }
+            if two_edges_on_top {
+                // add two triangles on top
+                index_buffer_top_slice.push(index23);
+                index_buffer_top_slice.push(index13);
+                index_buffer_top_slice.push(vertex_indexe_2);
 
-        if two_edges_on_top {
-            // add two triangles on top
-            index_buffer_top_slice.push(index23);
-            index_buffer_top_slice.push(index13);
-            index_buffer_top_slice.push(vertex_indexe_2);
+                index_buffer_top_slice.push(index13);
+                index_buffer_top_slice.push(vertex_indexe_1);
+                index_buffer_top_slice.push(vertex_indexe_2);
 
-            index_buffer_top_slice.push(index13);
-            index_buffer_top_slice.push(vertex_indexe_1);
-            index_buffer_top_slice.push(vertex_indexe_2);
+                // and one bellow
+                index_buffer_bottom_slice.push(vertex_indexe_3);
+                index_buffer_bottom_slice.push(index13);
+                index_buffer_bottom_slice.push(index23);
+            } else {
+                // add two triangles bellow
+                index_buffer_bottom_slice.push(vertex_indexe_1);
+                index_buffer_bottom_slice.push(vertex_indexe_2);
+                index_buffer_bottom_slice.push(index13);
 
-            // and one bellow
-            index_buffer_bottom_slice.push(vertex_indexe_3);
-            index_buffer_bottom_slice.push(index13);
-            index_buffer_bottom_slice.push(index23);
-        } else {
-            // add two triangles bellow
-            index_buffer_bottom_slice.push(vertex_indexe_1);
-            index_buffer_bottom_slice.push(vertex_indexe_2);
-            index_buffer_bottom_slice.push(index13);
+                index_buffer_bottom_slice.push(vertex_indexe_2);
+                index_buffer_bottom_slice.push(index23);
+                index_buffer_bottom_slice.push(index13);
 
-            index_buffer_bottom_slice.push(vertex_indexe_2);
-            index_buffer_bottom_slice.push(index23);
-            index_buffer_bottom_slice.push(index13);
-
-            // and one on top
-            index_buffer_top_slice.push(index13);
-            index_buffer_top_slice.push(index23);
-            index_buffer_top_slice.push(vertex_indexe_3);
+                // and one on top
+                index_buffer_top_slice.push(index13);
+                index_buffer_top_slice.push(index23);
+                index_buffer_top_slice.push(vertex_indexe_3);
+            }
         }
     }
 }
@@ -427,16 +444,42 @@ fn find_intersection_line_plane(
     line_direction: Vec3A,
     origin_point: Vec3A,
     normal_vec: Vec3A,
-) -> (bool, Vec3A) {
-    let output = Vec3A::ZERO;
+) -> Option<Vec3A> {
+    Some(
+        line_point
+            - line_direction * (line_point - origin_point).dot(normal_vec)
+                / line_direction.dot(normal_vec),
+    )
 
-    let d = normal_vec.dot(origin_point);
-    if normal_vec.dot(line_direction).is_nan() {
-        (false, output)
-    } else {
-        let x = (d - normal_vec.dot(line_point)) / normal_vec.dot(line_direction);
-        (true, line_point + line_direction.normalize() * x)
-    }
+    // if normal_vec.dot(line_direction.normalize()).is_nan() {
+    //     return None;
+    // }
+
+    // let t = (normal_vec.dot(origin_point) - normal_vec.dot(line_point))
+    //     / normal_vec.dot(line_direction.normalize());
+    // Some(line_point + line_direction.normalize() * t)
+
+    // let eps = 1e-6;
+    // let d = normal_vec.dot(line_direction);
+
+    // if d.abs() > eps {
+    //     let w = line_point - origin_point;
+    //     let fac = -normal_vec.dot(w) / d;
+    //     let u = origin_point + line_direction * fac;
+    //     return Some(u);
+    // }
+
+    // None
+
+    // let output = Vec3A::ZERO;
+
+    // let d = normal_vec.dot(origin_point);
+    // if normal_vec.dot(line_direction).is_nan() {
+    //     (false, output)
+    // } else {
+    //     let x = (d - normal_vec.dot(line_point)) / normal_vec.dot(line_direction);
+    //     (true, line_point + line_direction.normalize() * x)
+    // }
 }
 
 fn spawn_fragments(
