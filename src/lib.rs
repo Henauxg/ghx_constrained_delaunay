@@ -5,7 +5,7 @@ pub mod utils;
 
 #[cfg(test)]
 mod tests {
-    use bevy_math::Vec3;
+    use glam::Vec3;
     use hashbrown::HashSet;
 
     use crate::{

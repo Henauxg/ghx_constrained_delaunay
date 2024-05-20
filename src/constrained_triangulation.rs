@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use bevy_math::{Vec2, Vec3A};
+use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
 use log::error;
 
@@ -671,7 +671,7 @@ fn restore_delaunay_triangulation_constrained(
 mod tests {
     use std::collections::VecDeque;
 
-    use bevy_math::Vec2;
+    use glam::Vec2;
 
     use crate::types::{Edge, Quad, TriangleData};
 

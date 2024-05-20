@@ -2,16 +2,22 @@
 name = "ghx_constrained_delaunay"
 version = "0.1.0"
 edition = "2021"
+description = "2d constrained Delaunay triangulation"
+repository = "https://github.com/Henauxg/ghx_constrained_delaunay"
+documentation = "https://docs.rs/ghx_constrained_delaunay"
+license = "MIT OR Apache-2.0"
+keywords = ["gamedev", "triangulation", "delaunay", "2d"]
+categories = ["algorithms", "game-development"]
+readme = "README.md"
+exclude = ["assets/"]
 
 [dependencies]
-# External dependencies
+glam = { version = ">=0.21, <=0.27" }
 ordered-float = "4.2.0"
-bevy_math = { version = "0.13" }
 hashbrown = "0.14.5"
 log = "0.4.21"
 
 # Examples
-
 [[example]]
 name = "triangulation"
 path = "examples/triangulation.rs"
@@ -20,10 +26,9 @@ path = "examples/triangulation.rs"
 name = "constrained_triangulation"
 path = "examples/constrained_triangulation.rs"
 
+# Examples dependencies
 [dev-dependencies]
 bevy_ghx_utils = { version = "0.3.0", default-features = true }
-
-# External dependencies
 bevy = { version = "0.13", default-features = false, features = [
     # Default features:
 

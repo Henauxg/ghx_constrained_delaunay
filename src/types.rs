@@ -1,4 +1,4 @@
-use bevy_math::Vec2;
+use glam::Vec2;
 
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 

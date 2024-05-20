@@ -1,4 +1,4 @@
-use bevy_math::{Vec2, Vec3A};
+use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
 
 use crate::types::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
@@ -495,7 +495,7 @@ pub fn check_and_swap_quad_diagonal(
 
 #[cfg(test)]
 mod tests {
-    use bevy_math::{Vec2, Vec3A};
+    use glam::{Vec2, Vec3A};
 
     use crate::{
         triangulation::{

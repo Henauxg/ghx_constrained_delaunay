@@ -1,4 +1,4 @@
-use bevy_math::Vec2;
+use glam::Vec2;
 
 use crate::types::EdgeVertices;
 
@@ -137,7 +137,8 @@ pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vec2], p: Vec2) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use bevy_math::Vec2;
+
+    use glam::Vec2;
 
     use crate::utils::{
         egdes_intersect, is_point_on_right_side_of_edge, on_segment, EdgesIntersectionResult,

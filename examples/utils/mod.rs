@@ -14,9 +14,9 @@ use bevy::{
     transform::components::Transform,
     utils::default,
 };
-use bevy_math::Vec3;
 use bevy_mod_billboard::BillboardTextBundle;
 use ghx_constrained_delaunay::types::TriangleData;
+use glam::Vec3;
 
 pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
 
