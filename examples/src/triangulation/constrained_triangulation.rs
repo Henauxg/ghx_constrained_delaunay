@@ -30,37 +30,43 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    let mut vertices = Vec::<[f32; 3]>::new();
-    vertices.push([0., 0., 0.]);
-    vertices.push([0., 6., 0.]);
-    vertices.push([6., 6., 0.]);
-    vertices.push([6., 0., 0.]);
-
-    vertices.push([1., 1., 0.]);
-    vertices.push([5., 1., 0.]);
-    vertices.push([5., 5., 0.]);
-    vertices.push([1., 5., 0.]);
-
-    vertices.push([2., 2., 0.]);
-    vertices.push([4., 2., 0.]);
-    vertices.push([4., 4., 0.]);
-    vertices.push([2., 4., 0.]);
+    let vertices = vec![
+        [0., 0., 0.],
+        [2., 0., 0.],
+        [2., 2., 0.],
+        [2., 4., 0.],
+        [11., 4., 0.],
+        [11., 1., 0.],
+        [7., -1., 0.],
+        [1., -2., 0.],
+        [-5., 0., 0.],
+        [-7., 4., 0.],
+        [-4., 6., 0.],
+        [0., 6., 0.],
+        [6., 1., 0.],
+        [8., 3., 0.],
+        [-3., 1., 0.],
+        [-4., 4., 0.],
+    ];
 
     let mut constrained_edges: HashSet<Edge> = HashSet::new();
-    constrained_edges.insert(Edge::new(0, 1));
-    constrained_edges.insert(Edge::new(1, 2));
-    constrained_edges.insert(Edge::new(2, 3));
-    constrained_edges.insert(Edge::new(3, 0));
 
-    constrained_edges.insert(Edge::new(4, 7));
+    constrained_edges.insert(Edge::new(0, 11));
+    constrained_edges.insert(Edge::new(11, 10));
+    constrained_edges.insert(Edge::new(10, 9));
+    constrained_edges.insert(Edge::new(9, 8));
+    constrained_edges.insert(Edge::new(8, 7));
     constrained_edges.insert(Edge::new(7, 6));
     constrained_edges.insert(Edge::new(6, 5));
     constrained_edges.insert(Edge::new(5, 4));
+    constrained_edges.insert(Edge::new(4, 3));
+    constrained_edges.insert(Edge::new(3, 2));
+    constrained_edges.insert(Edge::new(2, 1));
+    constrained_edges.insert(Edge::new(1, 0));
 
-    constrained_edges.insert(Edge::new(8, 9));
-    constrained_edges.insert(Edge::new(9, 10));
-    constrained_edges.insert(Edge::new(10, 11));
-    constrained_edges.insert(Edge::new(11, 8));
+    constrained_edges.insert(Edge::new(12, 13));
+
+    constrained_edges.insert(Edge::new(14, 15));
 
     let plane_normal = Vec3::Z;
     let (_, debug_data) = constrained_triangulation_from_3d_planar_vertices(
