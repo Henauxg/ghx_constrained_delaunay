@@ -493,6 +493,12 @@ pub fn check_and_swap_quad_diagonal(
     (swapped_quad_diagonal, triangle_3_id, triangle_4_id)
 }
 
+///////////////////////////////////////////////////////////
+///                                                     ///
+///                        Tests                        ///
+///                                                     ///
+///////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests {
     use glam::{Vec2, Vec3A};

@@ -63,8 +63,12 @@ pub fn constrained_triangulation_from_2d_vertices(
     (indices, debug_data)
 }
 
-/// Mark triangles that should be removed due to the input domains constraints
+/// Filter triangles that should be removed due to the input domains constraints or due to being part of
+/// the container triangle.
+///
 /// This supposes that all groups of constrained edges are cycles, and oriented, as shown below:
+///
+/// ```text
 ///
 /// ---------------<-------------------------------------
 /// |                        keep                       |
@@ -80,9 +84,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 /// |                                                   |
 /// --------------->-------------------------------------
 ///
-/// - visited_triangles: List of every triangles already checked. Pre-allocated by the caller. Reinitialized at the beginning of this function.
-///
-/// remove_wrapping_and_unconstrained_domains
+/// ```
 fn remove_wrapping_and_unconstrained_domains(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
@@ -422,19 +424,24 @@ impl EdgeData {
     }
 }
 
+/// Represents an edge between two triangles
+///
+/// ```text
 ///               q4
 ///              /  \
 ///            /  Tt  \
 ///          /          \
-///      q2=c2 -------- q1=c1
+///      q2=e2 -------- q1=e1
 ///          \          /
 ///            \  Tf  /
 ///              \  /
 ///               q3
+/// ```
+///
 /// where:
 /// Tf: from triangle
 /// Tt: to triangle
-/// c1, c2: crossed edge
+/// e1, e2: edge vertices
 /// q1, q2, q3, q4: quad coords
 impl EdgeData {
     pub fn to_quad(&self, triangles: &Vec<TriangleData>) -> Quad {
@@ -482,6 +489,9 @@ fn get_next_triangle_edge_intersection(
     None
 }
 
+/// Swap diagonals of a quad like in the following diagram:
+///
+/// ```text
 ///               q4
 ///              /  \
 ///      Ttl   /  Tt  \    Ttr
@@ -503,6 +513,8 @@ fn get_next_triangle_edge_intersection(
 ///            \   |   /
 ///      Tfl     \ | /     Tfr
 ///               q3
+/// ```
+///
 /// where:
 /// Tf: triangle from
 /// Tt: triangle to
@@ -666,6 +678,12 @@ fn restore_delaunay_triangulation_constrained(
         }
     }
 }
+
+///////////////////////////////////////////////////////////
+///                                                     ///
+///                        Tests                        ///
+///                                                     ///
+///////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
