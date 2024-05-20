@@ -1,5 +1,9 @@
-use bevy::prelude::*;
-
+use bevy::{
+    app::{App, Startup},
+    ecs::system::Commands,
+    math::Vec3,
+    DefaultPlugins,
+};
 use ghx_constrained_delaunay::triangulation::triangulation_from_3d_planar_vertices;
 use utils::{create_displayed_vertices, ExamplesPlugin, TriangleDebugPlugin, TrianglesDebugData};
 

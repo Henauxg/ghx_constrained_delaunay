@@ -1,9 +1,15 @@
-use bevy::{prelude::*, utils::hashbrown::HashSet};
+use bevy::{
+    app::{App, Startup},
+    ecs::system::Commands,
+    utils::hashbrown::HashSet,
+    DefaultPlugins,
+};
 
 use ghx_constrained_delaunay::{
     constrained_triangulation::constrained_triangulation_from_3d_planar_vertices, types::Edge,
 };
 
+use glam::Vec3;
 use utils::{create_displayed_vertices, ExamplesPlugin, TriangleDebugPlugin, TrianglesDebugData};
 
 mod utils;
