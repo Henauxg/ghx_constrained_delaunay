@@ -84,12 +84,13 @@ pub fn on_segment(p: Vec2, q: Vec2, r: Vec2) -> bool {
     q.x <= p.x.max(r.x) && q.x >= p.x.min(r.x) && q.y <= p.y.max(r.y) && q.y >= p.y.min(r.y)
 }
 
-/// Cheks if vertex `p` is inside the circumcircle of the triangle formed by the first three vertices in `triangle`
-/// - `triangle` are the vertices of the triangle.
+/// Checks if vertex `p` is inside the circumcircle of the triangle formed by the first three vertices in `triangle`
+/// - `triangle` contains the vertices of the triangle.
 ///     - length of `triangle` **MUST** be >= 3.
 ///     - `triangle` vertices must be in a counter-clockwise order
 /// - `p` vertex to check
 ///
+/// ```text
 /// v3 --------- v2
 /// |          / |
 /// |        /   |
@@ -97,6 +98,7 @@ pub fn on_segment(p: Vec2, q: Vec2, r: Vec2) -> bool {
 /// |    /       |
 /// |  /         |
 /// v1 --------- p
+/// ```
 ///
 /// where v1, v2 and v3 are the vertices of the given triangle and p the vertex to check
 ///
