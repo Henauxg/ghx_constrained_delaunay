@@ -3,6 +3,15 @@ pub mod triangulation;
 pub mod types;
 pub mod utils;
 
+pub use glam;
+
+pub use constrained_triangulation::{
+    constrained_triangulation_from_2d_vertices, constrained_triangulation_from_3d_planar_vertices,
+};
+pub use triangulation::{
+    triangulation_from_2d_vertices, triangulation_from_3d_planar_vertices, Triangulation,
+};
+
 ///////////////////////////////////////////////////////////
 ///                                                     ///
 ///                        Tests                        ///
@@ -35,11 +44,11 @@ mod tests {
         vertices.push([5., 0., 0.]);
 
         let plane_normal = Vec3::Z;
-        let (vertex_id, _) = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
+        let triangulation = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
 
         let mut constrained_vertices = Vec::new();
 
-        for vertexid in vertex_id {
+        for vertexid in triangulation.vert_indices {
             constrained_vertices.push(vertices[vertexid]);
         }
 
@@ -80,11 +89,11 @@ mod tests {
         vertices.push([5., 10., 0.]);
 
         let plane_normal = Vec3::Z;
-        let (vertex_id, _) = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
+        let triangulation = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
 
         let mut constrained_vertices = Vec::new();
 
-        for vertexid in vertex_id {
+        for vertexid in triangulation.vert_indices {
             constrained_vertices.push(vertices[vertexid]);
         }
 
@@ -175,7 +184,7 @@ mod tests {
         constrained_edges.insert(Edge::new(13, 12));
 
         let plane_normal = Vec3::Z;
-        let (vertex_id, _) = constrained_triangulation_from_3d_planar_vertices(
+        let triangulation = constrained_triangulation_from_3d_planar_vertices(
             &vertices,
             plane_normal.into(),
             &constrained_edges,
@@ -183,7 +192,7 @@ mod tests {
 
         let mut constrained_vertices = Vec::new();
 
-        for vertexid in vertex_id {
+        for vertexid in triangulation.vert_indices {
             constrained_vertices.push(vertices[vertexid]);
         }
 
@@ -285,7 +294,7 @@ mod tests {
         constrained_edges.insert(Edge::new(13, 12));
 
         let plane_normal = Vec3::Z;
-        let (vertex_id, _) = constrained_triangulation_from_3d_planar_vertices(
+        let triangulation = constrained_triangulation_from_3d_planar_vertices(
             &vertices,
             plane_normal.into(),
             &constrained_edges,
@@ -293,7 +302,7 @@ mod tests {
 
         let mut constrained_vertices = Vec::new();
 
-        for vertexid in vertex_id {
+        for vertexid in triangulation.vert_indices {
             constrained_vertices.push(vertices[vertexid]);
         }
 

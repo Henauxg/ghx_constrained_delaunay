@@ -59,12 +59,15 @@ fn setup(mut commands: Commands) {
     ]);
 
     let plane_normal = Vec3::Z;
-    let (_, debug_data) = constrained_triangulation_from_3d_planar_vertices(
+    let triangulation = constrained_triangulation_from_3d_planar_vertices(
         &vertices,
         plane_normal.into(),
         &constrained_edges,
     );
 
     let displayed_vertices = create_displayed_vertices(vertices, plane_normal);
-    commands.insert_resource(TrianglesDebugData::new(displayed_vertices, debug_data))
+    commands.insert_resource(TrianglesDebugData::new(
+        displayed_vertices,
+        triangulation.debug_context.triangle_buffers,
+    ))
 }

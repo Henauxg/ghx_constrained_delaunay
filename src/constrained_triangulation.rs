@@ -4,10 +4,14 @@ use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
 use log::error;
 
+use crate::triangulation::{normalize_vertices_coordinates, Triangulation};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
+#[cfg(feature = "debug_buffers")]
+use crate::triangulation::DebugContext;
+
 use crate::{
-    triangulation::{self, wrap_and_triangulate_2d_vertices},
+    triangulation::{self, wrap_and_triangulate_2d_normalized_vertices},
     types::{
         next_clockwise_edge_index, next_clockwise_edge_index_around,
         next_counter_clockwise_edge_index, next_counter_clockwise_edge_index_around,
@@ -25,7 +29,7 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
     constrained_edges: &HashSet<Edge>,
-) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
+) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
     for v in vertices {
@@ -42,25 +46,40 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
 ///     - be oriented: vi -> vj
 ///     - not contain edges with v0==v1
 pub fn constrained_triangulation_from_2d_vertices(
-    vertices: &mut Vec<Vec2>,
+    vertices: &Vec<Vec2>,
     constrained_edges: &HashSet<Edge>,
-) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
-    let (mut triangles, container_triangle, mut debug_data) =
-        wrap_and_triangulate_2d_vertices(vertices);
+) -> Triangulation {
+    #[cfg(feature = "debug_buffers")]
+    let mut debug_context = DebugContext::new();
+
+    // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
+    let mut normalized_vertices = normalize_vertices_coordinates(vertices);
+
+    let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
+        &mut normalized_vertices,
+        #[cfg(feature = "debug_buffers")]
+        &mut debug_context,
+    );
 
     // TODO Debug: consider adding debug support to this function
-    apply_constraints(vertices, &mut triangles, constrained_edges);
+    apply_constraints(&normalized_vertices, &mut triangles, constrained_edges);
 
-    debug_data.push(triangles.clone());
+    #[cfg(feature = "debug_buffers")]
+    debug_context.triangle_buffers.push(triangles.clone());
 
-    let indices = remove_wrapping_and_unconstrained_domains(
+    let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
         &container_triangle,
         constrained_edges,
-        &mut debug_data,
+        #[cfg(feature = "debug_buffers")]
+        &mut debug_context,
     );
 
-    (indices, debug_data)
+    Triangulation {
+        vert_indices,
+        #[cfg(feature = "debug_buffers")]
+        debug_context,
+    }
 }
 
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
@@ -89,7 +108,7 @@ fn remove_wrapping_and_unconstrained_domains(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
     constrained_edges: &HashSet<Edge>,
-    debug_data: &mut Vec<Vec<TriangleData>>,
+    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
 ) -> Vec<VertexId> {
     let mut visited_triangles = vec![false; triangles.len()];
 
@@ -98,7 +117,7 @@ fn remove_wrapping_and_unconstrained_domains(
     let mut triangles_to_explore = Vec::new();
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
 
-    // TODO: Debug-only
+    #[cfg(feature = "debug_buffers")]
     let mut filtered_debug_triangles = Vec::new();
 
     // Loop over all triangles
@@ -119,6 +138,7 @@ fn remove_wrapping_and_unconstrained_domains(
                 &mut indices,
                 triangle,
                 &container_verts,
+                #[cfg(feature = "debug_buffers")]
                 &mut filtered_debug_triangles,
             );
             for (edge_index, is_constrained) in triangle_edge_is_constrained.iter().enumerate() {
@@ -140,6 +160,7 @@ fn remove_wrapping_and_unconstrained_domains(
                                 &mut indices,
                                 triangle,
                                 &container_verts,
+                                #[cfg(feature = "debug_buffers")]
                                 &mut filtered_debug_triangles,
                             );
                             visited_triangles[triangle_index] = true;
@@ -160,7 +181,10 @@ fn remove_wrapping_and_unconstrained_domains(
         }
     }
 
-    debug_data.push(filtered_debug_triangles);
+    #[cfg(feature = "debug_buffers")]
+    debug_context
+        .triangle_buffers
+        .push(filtered_debug_triangles);
 
     indices
 }
@@ -169,7 +193,7 @@ fn register_triangle(
     indices: &mut Vec<VertexId>,
     triangle: &TriangleData,
     container_verts: &HashSet<VertexId>,
-    filtered_debug_triangles: &mut Vec<TriangleData>,
+    #[cfg(feature = "debug_buffers")] filtered_debug_triangles: &mut Vec<TriangleData>,
 ) {
     let mut filtered = false;
     for vert in triangle.verts.iter() {
@@ -181,6 +205,7 @@ fn register_triangle(
         indices.push(triangle.v1());
         indices.push(triangle.v2());
         indices.push(triangle.v3());
+        #[cfg(feature = "debug_buffers")]
         filtered_debug_triangles.push(triangle.clone());
     }
 }

@@ -11,7 +11,7 @@ const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
 pub fn triangulation_from_3d_planar_vertices(
     vertices: &Vec<[f32; 3]>,
     plane_normal: Vec3A,
-) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
+) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
     for v in vertices {
@@ -23,16 +23,51 @@ pub fn triangulation_from_3d_planar_vertices(
 
     triangulation_from_2d_vertices(&mut planar_vertices)
 }
+pub struct Triangulation {
+    pub vert_indices: Vec<VertexId>,
+    #[cfg(feature = "debug_buffers")]
+    pub debug_context: DebugContext,
+}
 
-pub fn triangulation_from_2d_vertices(
-    vertices: &mut Vec<Vec2>,
-) -> (Vec<VertexId>, Vec<Vec<TriangleData>>) {
-    let (triangles, container_triangle, mut debug_data) =
-        wrap_and_triangulate_2d_vertices(vertices);
+#[cfg(feature = "debug_buffers")]
+pub struct DebugContext {
+    pub triangle_buffers: Vec<Vec<TriangleData>>,
+}
 
-    let indices = remove_wrapping(&triangles, &container_triangle, &mut debug_data);
+#[cfg(feature = "debug_buffers")]
+impl DebugContext {
+    pub(crate) fn new() -> Self {
+        Self {
+            triangle_buffers: Vec::new(),
+        }
+    }
+}
 
-    (indices, debug_data)
+pub fn triangulation_from_2d_vertices(vertices: &Vec<Vec2>) -> Triangulation {
+    #[cfg(feature = "debug_buffers")]
+    let mut debug_context = DebugContext::new();
+
+    // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
+    let mut normalized_vertices = normalize_vertices_coordinates(vertices);
+
+    let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
+        &mut normalized_vertices,
+        #[cfg(feature = "debug_buffers")]
+        &mut debug_context,
+    );
+
+    let vert_indices = remove_wrapping(
+        &triangles,
+        &container_triangle,
+        #[cfg(feature = "debug_buffers")]
+        &mut debug_context,
+    );
+
+    Triangulation {
+        vert_indices,
+        #[cfg(feature = "debug_buffers")]
+        debug_context,
+    }
 }
 
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
@@ -57,7 +92,8 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
 
 /// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
 /// The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
-pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
+pub(crate) fn normalize_vertices_coordinates(vertices: &Vec<Vec2>) -> Vec<Vec2> {
+    let mut normalized_vertices = Vec::with_capacity(vertices.len());
     let (mut x_min, mut y_min, mut x_max, mut y_max) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
 
     for vertex in vertices.iter() {
@@ -77,10 +113,13 @@ pub(crate) fn normalize_vertices_coordinates(vertices: &mut Vec<Vec2>) {
 
     let scale_factor = (x_max - x_min).max(y_max - y_min);
 
-    for vertex in vertices.iter_mut() {
-        vertex.x = (vertex.x - x_min) / scale_factor;
-        vertex.y = (vertex.y - y_min) / scale_factor;
+    for vertex in vertices.iter() {
+        normalized_vertices.push(Vec2 {
+            x: (vertex.x - x_min) / scale_factor,
+            y: (vertex.y - y_min) / scale_factor,
+        })
     }
+    normalized_vertices
 }
 
 pub(crate) fn search_enclosing_triangle(
@@ -136,20 +175,16 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vec2>) -> Trian
     container_triangle
 }
 
-pub(crate) fn wrap_and_triangulate_2d_vertices(
-    vertices: &mut Vec<Vec2>,
-) -> (Vec<TriangleData>, TriangleData, Vec<Vec<TriangleData>>) {
-    let mut debug_data: Vec<Vec<TriangleData>> = Vec::new();
-
-    // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
-    normalize_vertices_coordinates(vertices);
-
+pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
+    normalized_vertices: &mut Vec<Vec2>,
+    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
+) -> (Vec<TriangleData>, TriangleData) {
     // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
     // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
-    let partitioned_vertices = VertexBinSort::sort(&vertices, 0.5);
+    let partitioned_vertices = VertexBinSort::sort(&normalized_vertices, 0.5);
 
-    let container_triangle = add_container_triangle_vertices(vertices);
+    let container_triangle = add_container_triangle_vertices(normalized_vertices);
 
     let mut triangles = Vec::<TriangleData>::new();
     triangles.push(container_triangle.clone());
@@ -157,37 +192,46 @@ pub(crate) fn wrap_and_triangulate_2d_vertices(
     // Id of the triangle we are looking at
     let mut triangle_id = Some(0);
 
-    debug_data.push(triangles.clone());
+    #[cfg(feature = "debug_buffers")]
+    debug_context.triangle_buffers.push(triangles.clone());
 
     // Loop over all the input vertices
     for sorted_vertex in partitioned_vertices.iter() {
         // Find an existing triangle which encloses P
-        match search_enclosing_triangle(sorted_vertex.vertex, triangle_id, &triangles, &vertices) {
+        match search_enclosing_triangle(
+            sorted_vertex.vertex,
+            triangle_id,
+            &triangles,
+            &normalized_vertices,
+        ) {
             Some(enclosing_triangle_id) => {
                 // Delete this triangle and form three new triangles by connecting P to each of its vertices.
                 split_triangle_in_three_at_vertex(
                     enclosing_triangle_id,
                     sorted_vertex.original_id,
                     &mut triangles,
-                    &vertices,
+                    &normalized_vertices,
                 );
                 triangle_id = Some(triangles.len() - 1);
             }
             None => (),
         }
-        debug_data.push(triangles.clone());
+        #[cfg(feature = "debug_buffers")]
+        debug_context.triangle_buffers.push(triangles.clone());
     }
 
-    (triangles, container_triangle, debug_data)
+    (triangles, container_triangle)
 }
 
 pub(crate) fn remove_wrapping(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
-    debug_data: &mut Vec<Vec<TriangleData>>,
+    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
+
+    #[cfg(feature = "debug_buffers")]
     let mut filtered_debug_triangles = Vec::new();
 
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
@@ -202,10 +246,14 @@ pub(crate) fn remove_wrapping(
             indices.push(triangle.v1());
             indices.push(triangle.v2());
             indices.push(triangle.v3());
+            #[cfg(feature = "debug_buffers")]
             filtered_debug_triangles.push(triangle.clone());
         }
     }
-    debug_data.push(filtered_debug_triangles);
+    #[cfg(feature = "debug_buffers")]
+    debug_context
+        .triangle_buffers
+        .push(filtered_debug_triangles);
 
     indices
 }

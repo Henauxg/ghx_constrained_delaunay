@@ -17,14 +17,20 @@ ordered-float = "4.2.0"
 hashbrown = "0.14.5"
 log = "0.4.21"
 
+[features]
+# Register debug data (triangle) in buffers during the execution of the triangulation
+debug_buffers = []
+
 # Examples
 [[example]]
 name = "triangulation"
 path = "examples/triangulation.rs"
+required-features = ["debug_buffers"]
 
 [[example]]
 name = "constrained_triangulation"
 path = "examples/constrained_triangulation.rs"
+required-features = ["debug_buffers"]
 
 # Examples dependencies
 [dev-dependencies]
