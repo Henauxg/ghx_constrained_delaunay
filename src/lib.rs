@@ -4,6 +4,7 @@ pub mod types;
 pub mod utils;
 
 pub use glam;
+pub use hashbrown;
 
 pub use constrained_triangulation::{
     constrained_triangulation_from_2d_vertices, constrained_triangulation_from_3d_planar_vertices,
