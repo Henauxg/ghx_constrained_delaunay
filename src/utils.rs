@@ -50,7 +50,7 @@ pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesInt
         return EdgesIntersectionResult::OnEdgeTip;
     }
 
-    // TODO General case should be the fastest one to be compted and thus should be at the top.
+    // TODO Performance: General case should be the fastest one to be compted and thus should be at the top.
     // General case
     if orientation_1 != orientation_2 && orientation_3 != orientation_4 {
         return EdgesIntersectionResult::Crossing;
@@ -143,8 +143,31 @@ mod tests {
     use glam::Vec2;
 
     use crate::utils::{
-        egdes_intersect, is_point_on_right_side_of_edge, on_segment, EdgesIntersectionResult,
+        egdes_intersect, is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle,
+        on_segment, EdgesIntersectionResult,
     };
+
+    #[test]
+    fn vertex_in_triangle_circumcircle() {
+        let unit_circle = [Vec2::new(-1., 0.), Vec2::new(1., 0.), Vec2::new(0., 1.)];
+
+        let step = 100;
+        for i in -step..step {
+            for j in -step..step {
+                let p = Vec2::new(i as f32 / step as f32, j as f32 / step as f32);
+                let p_length = p.length();
+                let p_in_circle = is_vertex_in_triangle_circumcircle(&unit_circle, p);
+                if p_length < 1. {
+                    assert_eq!(true, p_in_circle, "p_length < 1, p should be in the circle");
+                } else if p_length > 1. {
+                    assert_eq!(
+                        false, p_in_circle,
+                        "p_length > 1, p should be out of the circle"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn edge_intersect_none() {
