@@ -72,10 +72,12 @@ pub fn triplet_orientation(p: Vec2, q: Vec2, r: Vec2) -> Orientation {
     }
 }
 
-/// Cross product of vectors e0e1 and e1p
+/// Returns `true` if and only if the point `p` is on the right side of the oriented edge `e`
+///
+/// Uses the ross product of vectors e0.e1 and e1.p
 #[inline]
-pub fn is_point_on_right_side_of_edge(e0: Vec2, e1: Vec2, p: Vec2) -> bool {
-    ((p.x - e0.x) * (e1.y - e0.y) - (p.y - e0.y) * (e1.x - e0.x)) >= 0.
+pub fn is_point_on_right_side_of_edge(e: EdgeVertices, p: Vec2) -> bool {
+    ((p.x - e.0.x) * (e.1.y - e.0.y) - (p.y - e.0.y) * (e.1.x - e.0.x)) >= 0.
 }
 
 /// Given three collinear points p, q, r, the function checks if point `q` lies on line segment 'pr'
@@ -214,7 +216,7 @@ mod tests {
         let edge = (Vec2::new(0., 0.), Vec2::new(3., 0.));
         let p = Vec2::new(0., 3.);
 
-        let orientation = is_point_on_right_side_of_edge(edge.0, edge.1, p);
+        let orientation = is_point_on_right_side_of_edge(edge, p);
 
         assert_eq!(false, orientation);
     }
@@ -224,7 +226,7 @@ mod tests {
         let edge = (Vec2::new(0., 0.), Vec2::new(3., 0.));
         let p = Vec2::new(0., -3.);
 
-        let orientation = is_point_on_right_side_of_edge(edge.0, edge.1, p);
+        let orientation = is_point_on_right_side_of_edge(edge, p);
 
         assert_eq!(true, orientation);
     }
