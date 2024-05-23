@@ -4,10 +4,10 @@ use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
 use log::error;
 
-use crate::triangulation::{normalize_vertices_coordinates, Triangulation};
+use crate::triangulation::{normalize_vertices_coordinates, Triangulation, TriangulationPhase};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
-#[cfg(feature = "debug_buffers")]
+#[cfg(feature = "debug_context")]
 use crate::triangulation::DebugContext;
 
 use crate::{
@@ -49,35 +49,36 @@ pub fn constrained_triangulation_from_2d_vertices(
     vertices: &Vec<Vec2>,
     constrained_edges: &HashSet<Edge>,
 ) -> Triangulation {
-    #[cfg(feature = "debug_buffers")]
-    let mut debug_context = DebugContext::new();
-
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
-    let mut normalized_vertices = normalize_vertices_coordinates(vertices);
+    let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
+        normalize_vertices_coordinates(vertices);
+
+    #[cfg(feature = "debug_context")]
+    let mut debug_context = DebugContext::new(_scale_factor, _x_min, _y_min);
 
     let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     // TODO Debug: consider adding debug support to this function
     apply_constraints(&normalized_vertices, &mut triangles, constrained_edges);
 
-    #[cfg(feature = "debug_buffers")]
-    debug_context.triangle_buffers.push(triangles.clone());
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(TriangulationPhase::AfterConstraints, &triangles, &[0], &[]);
 
     let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
         &container_triangle,
         constrained_edges,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     Triangulation {
         vert_indices,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         debug_context,
     }
 }
@@ -108,7 +109,7 @@ fn remove_wrapping_and_unconstrained_domains(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
     constrained_edges: &HashSet<Edge>,
-    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<VertexId> {
     let mut visited_triangles = vec![false; triangles.len()];
 
@@ -117,7 +118,7 @@ fn remove_wrapping_and_unconstrained_domains(
     let mut triangles_to_explore = Vec::new();
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
 
-    #[cfg(feature = "debug_buffers")]
+    #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Vec::new();
 
     // Loop over all triangles
@@ -138,7 +139,7 @@ fn remove_wrapping_and_unconstrained_domains(
                 &mut indices,
                 triangle,
                 &container_verts,
-                #[cfg(feature = "debug_buffers")]
+                #[cfg(feature = "debug_context")]
                 &mut filtered_debug_triangles,
             );
             for (edge_index, is_constrained) in triangle_edge_is_constrained.iter().enumerate() {
@@ -160,7 +161,7 @@ fn remove_wrapping_and_unconstrained_domains(
                                 &mut indices,
                                 triangle,
                                 &container_verts,
-                                #[cfg(feature = "debug_buffers")]
+                                #[cfg(feature = "debug_context")]
                                 &mut filtered_debug_triangles,
                             );
                             visited_triangles[triangle_index] = true;
@@ -181,10 +182,8 @@ fn remove_wrapping_and_unconstrained_domains(
         }
     }
 
-    #[cfg(feature = "debug_buffers")]
-    debug_context
-        .triangle_buffers
-        .push(filtered_debug_triangles);
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(TriangulationPhase::RemoveWrapping, &triangles, &[0], &[]);
 
     indices
 }
@@ -193,7 +192,7 @@ fn register_triangle(
     indices: &mut Vec<VertexId>,
     triangle: &TriangleData,
     container_verts: &HashSet<VertexId>,
-    #[cfg(feature = "debug_buffers")] filtered_debug_triangles: &mut Vec<TriangleData>,
+    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Vec<TriangleData>,
 ) {
     let mut filtered = false;
     for vert in triangle.verts.iter() {
@@ -205,7 +204,7 @@ fn register_triangle(
         indices.push(triangle.v1());
         indices.push(triangle.v2());
         indices.push(triangle.v3());
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         filtered_debug_triangles.push(triangle.clone());
     }
 }
@@ -573,8 +572,8 @@ pub(crate) fn swap_quad_diagonal(
     triangles[from].neighbors = [tt_left_neighbor, tf_left_neighbor, Some(to)];
     triangles[to].neighbors = [Some(from), tf_right_neighbor, tt_right_neighbor];
 
-    triangulation::update_triangle_neighbour(tt_left_neighbor, Some(to), Some(from), triangles);
-    triangulation::update_triangle_neighbour(tf_right_neighbor, Some(from), Some(to), triangles);
+    triangulation::update_triangle_neighbor(tt_left_neighbor, Some(to), Some(from), triangles);
+    triangulation::update_triangle_neighbor(tf_right_neighbor, Some(from), Some(to), triangles);
 
     vertex_to_triangle[quad.v1()] = to;
     vertex_to_triangle[quad.v2()] = from;

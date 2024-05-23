@@ -1,10 +1,26 @@
 use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
+use log::{error, info};
 
-use crate::types::{Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_23, EDGE_31};
+use crate::types::{
+    Neighbor, Quad, TriangleData, TriangleId, VertexId, EDGE_12, EDGE_23, EDGE_31, VERT_1, VERT_2,
+    VERT_3,
+};
 use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle};
 
-const CONTAINER_TRIANGLE_COORDINATE: f32 = 100.;
+pub const CONTAINER_TRIANGLE_COORDINATE: f32 = 5.;
+
+pub const CONTAINER_TRIANGLE_VERTICES: [Vec2; 3] = [
+    Vec2::new(
+        -CONTAINER_TRIANGLE_COORDINATE,
+        -CONTAINER_TRIANGLE_COORDINATE,
+    ),
+    Vec2::new(0., CONTAINER_TRIANGLE_COORDINATE),
+    Vec2::new(
+        CONTAINER_TRIANGLE_COORDINATE,
+        -CONTAINER_TRIANGLE_COORDINATE,
+    ),
+];
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
@@ -25,47 +41,123 @@ pub fn triangulation_from_3d_planar_vertices(
 }
 pub struct Triangulation {
     pub vert_indices: Vec<VertexId>,
-    #[cfg(feature = "debug_buffers")]
+    #[cfg(feature = "debug_context")]
     pub debug_context: DebugContext,
 }
 
-#[cfg(feature = "debug_buffers")]
-pub struct DebugContext {
-    pub triangle_buffers: Vec<Vec<TriangleData>>,
+pub struct DebugSnapshot {
+    pub step: usize,
+    pub triangulation_phase: TriangulationPhase,
+    pub changed_ids: Vec<TriangleId>,
+    pub triangles: Vec<TriangleData>,
 }
-
-#[cfg(feature = "debug_buffers")]
-impl DebugContext {
-    pub(crate) fn new() -> Self {
+impl DebugSnapshot {
+    pub(crate) fn new(
+        step: usize,
+        triangulation_phase: TriangulationPhase,
+        triangles: Vec<TriangleData>,
+        changed_ids: Vec<TriangleId>,
+    ) -> Self {
         Self {
-            triangle_buffers: Vec::new(),
+            step,
+            triangulation_phase,
+            triangles,
+            changed_ids,
         }
     }
 }
 
-pub fn triangulation_from_2d_vertices(vertices: &Vec<Vec2>) -> Triangulation {
-    #[cfg(feature = "debug_buffers")]
-    let mut debug_context = DebugContext::new();
+#[cfg(feature = "debug_context")]
+pub struct DebugContext {
+    // TODO Could return container triangle vertices as world coordinates
+    pub scale_factor: f32,
+    pub x_min: f32,
+    pub y_min: f32,
 
+    pub snapshots: Vec<DebugSnapshot>,
+    pub curent_step: usize,
+}
+#[cfg(feature = "debug_context")]
+impl DebugContext {
+    pub(crate) fn new(scale_factor: f32, x_min: f32, y_min: f32) -> Self {
+        Self {
+            snapshots: Vec::new(),
+            scale_factor,
+            x_min,
+            y_min,
+            curent_step: 0,
+        }
+    }
+
+    pub(crate) fn push_snapshot(
+        &mut self,
+        phase: TriangulationPhase,
+        triangles: &Vec<TriangleData>,
+        triangle_ids: &[TriangleId],
+        opt_neighbor_ids: &[Neighbor],
+    ) {
+        if self.curent_step <= 337110 {
+            return;
+        }
+
+        let mut step_changes = Vec::with_capacity(triangle_ids.len() + opt_neighbor_ids.len());
+        step_changes.extend(triangle_ids);
+        // TODO May consider neighbors differently
+        step_changes.extend(
+            opt_neighbor_ids
+                .iter()
+                .filter(|o| o.is_some())
+                .map(|o| o.unwrap())
+                .collect::<Vec<TriangleId>>(),
+        );
+
+        self.snapshots.push(DebugSnapshot::new(
+            self.curent_step,
+            phase,
+            triangles.clone(),
+            step_changes,
+        ));
+    }
+
+    pub(crate) fn set_step(&mut self, step: usize) {
+        self.curent_step = step;
+    }
+}
+#[cfg(feature = "debug_context")]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TriangulationPhase {
+    ContainerVerticesInsertion,
+    SplitTriangle,
+    SwapQuadDiagonal,
+    RemoveWrapping,
+    //
+    AfterConstraints,
+}
+
+pub fn triangulation_from_2d_vertices(vertices: &Vec<Vec2>) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
-    let mut normalized_vertices = normalize_vertices_coordinates(vertices);
+    let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
+        normalize_vertices_coordinates(vertices);
+
+    #[cfg(feature = "debug_context")]
+    let mut debug_context = DebugContext::new(_scale_factor, _x_min, _y_min);
 
     let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     let vert_indices = remove_wrapping(
         &triangles,
         &container_triangle,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     Triangulation {
         vert_indices,
-        #[cfg(feature = "debug_buffers")]
+        #[cfg(feature = "debug_context")]
         debug_context,
     }
 }
@@ -92,7 +184,7 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
 
 /// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
 /// The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
-pub(crate) fn normalize_vertices_coordinates(vertices: &Vec<Vec2>) -> Vec<Vec2> {
+pub(crate) fn normalize_vertices_coordinates(vertices: &Vec<Vec2>) -> (Vec<Vec2>, f32, f32, f32) {
     let mut normalized_vertices = Vec::with_capacity(vertices.len());
     let (mut x_min, mut y_min, mut x_max, mut y_max) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
 
@@ -117,9 +209,10 @@ pub(crate) fn normalize_vertices_coordinates(vertices: &Vec<Vec2>) -> Vec<Vec2> 
         normalized_vertices.push(Vec2 {
             x: (vertex.x - x_min) / scale_factor,
             y: (vertex.y - y_min) / scale_factor,
-        })
+        });
     }
-    normalized_vertices
+
+    (normalized_vertices, scale_factor, x_min, y_min)
 }
 
 pub(crate) fn search_enclosing_triangle(
@@ -130,27 +223,29 @@ pub(crate) fn search_enclosing_triangle(
 ) -> Neighbor {
     let mut triangle_id = from;
 
+    let mut enclosing_triangle = None;
+    // We use `triangles.len()` as an upper bound on the number of triangles
     for _ in 0..triangles.len() {
         let Some(current_triangle_id) = triangle_id else {
             break;
         };
         let triangle = &triangles[current_triangle_id];
+        let (v1, v2, v3) = triangle.to_vertices(vertices);
 
         // Check if the point is inside the triangle, if not check the neighbours
-        let mut inside_triangle = true;
-
-        for (triangle_edge_index, edge) in triangle.edges().iter().enumerate() {
-            if !is_point_on_right_side_of_edge(vertices[edge.from], vertices[edge.to], vertex) {
-                triangle_id = triangle.neighbors[triangle_edge_index];
-                inside_triangle = false;
-                break;
-            }
-        }
-        if inside_triangle {
-            return Some(current_triangle_id);
+        if !is_point_on_right_side_of_edge((v1, v2), vertex) {
+            triangle_id = triangle.neighbors[EDGE_12];
+        } else if !is_point_on_right_side_of_edge((v2, v3), vertex) {
+            triangle_id = triangle.neighbors[EDGE_23];
+        } else if !is_point_on_right_side_of_edge((v3, v1), vertex) {
+            triangle_id = triangle.neighbors[EDGE_31];
+        } else {
+            enclosing_triangle = triangle_id;
+            break;
         }
     }
-    None
+
+    enclosing_triangle
 }
 
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
@@ -161,30 +256,21 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vec2>) -> Trian
         verts: [vertices.len(), vertices.len() + 1, vertices.len() + 2],
         neighbors: [None, None, None],
     };
-
-    vertices.push(Vec2::new(
-        -CONTAINER_TRIANGLE_COORDINATE,
-        -CONTAINER_TRIANGLE_COORDINATE,
-    ));
-    vertices.push(Vec2::new(0., CONTAINER_TRIANGLE_COORDINATE));
-    vertices.push(Vec2::new(
-        CONTAINER_TRIANGLE_COORDINATE,
-        -CONTAINER_TRIANGLE_COORDINATE,
-    ));
-
+    vertices.extend(CONTAINER_TRIANGLE_VERTICES.clone());
     container_triangle
 }
 
+/// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
-    normalized_vertices: &mut Vec<Vec2>,
-    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
+    vertices: &mut Vec<Vec2>,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> (Vec<TriangleData>, TriangleData) {
     // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
     // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
-    let partitioned_vertices = VertexBinSort::sort(&normalized_vertices, 0.5);
+    let partitioned_vertices = VertexBinSort::sort(&vertices, 0.5);
 
-    let container_triangle = add_container_triangle_vertices(normalized_vertices);
+    let container_triangle = add_container_triangle_vertices(vertices);
 
     let mut triangles = Vec::<TriangleData>::new();
     triangles.push(container_triangle.clone());
@@ -192,32 +278,65 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     // Id of the triangle we are looking at
     let mut triangle_id = Some(0);
 
-    #[cfg(feature = "debug_buffers")]
-    debug_context.triangle_buffers.push(triangles.clone());
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(
+        TriangulationPhase::ContainerVerticesInsertion,
+        &triangles,
+        &[0],
+        &[],
+    );
 
     // Loop over all the input vertices
-    for sorted_vertex in partitioned_vertices.iter() {
+    for (step, sorted_vertex) in partitioned_vertices.iter().enumerate() {
+        #[cfg(feature = "debug_context")]
+        debug_context.set_step(step);
+
         // Find an existing triangle which encloses P
-        match search_enclosing_triangle(
-            sorted_vertex.vertex,
-            triangle_id,
-            &triangles,
-            &normalized_vertices,
-        ) {
+        match search_enclosing_triangle(sorted_vertex.vertex, triangle_id, &triangles, &vertices) {
             Some(enclosing_triangle_id) => {
-                // Delete this triangle and form three new triangles by connecting P to each of its vertices.
-                split_triangle_in_three_at_vertex(
-                    enclosing_triangle_id,
-                    sorted_vertex.original_id,
+                let vertex_id = sorted_vertex.original_id;
+
+                // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
+                let new_triangles = split_triangle_in_three_at_vertex(
                     &mut triangles,
-                    &normalized_vertices,
+                    enclosing_triangle_id,
+                    vertex_id,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
                 );
+
+                restore_delaunay_triangulation(
+                    &mut triangles,
+                    vertices,
+                    vertex_id,
+                    new_triangles,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
+                );
+
+                if step % 1001 == 1000 {
+                    let progress = 100. * step as f32 / partitioned_vertices.len() as f32;
+                    info!(
+                        "Progress {}%: {}/{}",
+                        progress,
+                        step,
+                        partitioned_vertices.len()
+                    );
+                }
+
+                // We'll start the search for the next enclosing triangle from the last created triangle.
+                // This is a pretty good heuristic since the vertices were spatially partitionned
                 triangle_id = Some(triangles.len() - 1);
             }
-            None => (),
+            None => {
+                // TODO Error
+                error!(
+                    "Found no triangle enclosing vertex {:?}, step {}",
+                    sorted_vertex, step
+                );
+                break;
+            }
         }
-        #[cfg(feature = "debug_buffers")]
-        debug_context.triangle_buffers.push(triangles.clone());
     }
 
     (triangles, container_triangle)
@@ -226,12 +345,12 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 pub(crate) fn remove_wrapping(
     triangles: &Vec<TriangleData>,
     container_triangle: &TriangleData,
-    #[cfg(feature = "debug_buffers")] debug_context: &mut DebugContext,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<VertexId> {
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.len());
 
-    #[cfg(feature = "debug_buffers")]
+    #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Vec::new();
 
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
@@ -246,14 +365,18 @@ pub(crate) fn remove_wrapping(
             indices.push(triangle.v1());
             indices.push(triangle.v2());
             indices.push(triangle.v3());
-            #[cfg(feature = "debug_buffers")]
+            #[cfg(feature = "debug_context")]
             filtered_debug_triangles.push(triangle.clone());
         }
     }
-    #[cfg(feature = "debug_buffers")]
-    debug_context
-        .triangle_buffers
-        .push(filtered_debug_triangles);
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(
+        TriangulationPhase::RemoveWrapping,
+        &filtered_debug_triangles,
+        &[],
+        &[],
+    );
 
     indices
 }
@@ -327,79 +450,56 @@ impl VertexBinSort {
     }
 }
 
+/// Splits `triangle_id` into 3 triangles (re-using the existing triangle id)
+///
+/// All the resulting triangles will share `vertex_id` as their first vertex, and will be oriented in a CW order
 pub(crate) fn split_triangle_in_three_at_vertex(
+    triangles: &mut Vec<TriangleData>,
     triangle_id: TriangleId,
     vertex_id: VertexId,
-    triangles: &mut Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
-) {
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+) -> [TriangleId; 3] {
     // Re-use the existing triangle id for the first triangle
-    let triangle_1_id = triangle_id;
+    let t1 = triangle_id;
     // Create two new triangles for the other two
-    let triangle_2_id = triangles.len();
-    let triangle_3_id = triangles.len() + 1;
+    let t2 = triangles.len();
+    let t3 = triangles.len() + 1;
 
+    // t2
     triangles.push(TriangleData {
-        verts: [
-            vertex_id,
-            triangles[triangle_id].v2(),
-            triangles[triangle_id].v3(),
-        ],
-        neighbors: [
-            Some(triangle_3_id),
-            triangles[triangle_id].neighbor23(),
-            Some(triangle_1_id),
-        ],
+        verts: [vertex_id, triangles[t1].v2(), triangles[t1].v3()],
+        neighbors: [Some(t3), triangles[t1].neighbor23(), Some(t1)],
     });
+    // t3
     triangles.push(TriangleData {
-        verts: [
-            vertex_id,
-            triangles[triangle_id].v1(),
-            triangles[triangle_id].v2(),
-        ],
-        neighbors: [
-            Some(triangle_1_id),
-            triangles[triangle_id].neighbor12(),
-            Some(triangle_2_id),
-        ],
+        verts: [vertex_id, triangles[t1].v1(), triangles[t1].v2()],
+        neighbors: [Some(t1), triangles[t1].neighbor12(), Some(t2)],
     });
 
     // Update triangle indexes
-    update_triangle_neighbour(
-        triangles[triangle_id].neighbor12(),
-        Some(triangle_id),
-        Some(triangle_3_id),
-        triangles,
-    );
-    update_triangle_neighbour(
-        triangles[triangle_id].neighbor23(),
-        Some(triangle_id),
-        Some(triangle_2_id),
-        triangles,
+    update_triangle_neighbor(triangles[t1].neighbor12(), Some(t1), Some(t3), triangles);
+    update_triangle_neighbor(triangles[t1].neighbor23(), Some(t1), Some(t2), triangles);
+
+    triangles[t1].verts[VERT_2] = triangles[t1].v3();
+    triangles[t1].verts[VERT_3] = triangles[t1].v1();
+    triangles[t1].verts[VERT_1] = vertex_id;
+
+    triangles[t1].neighbors[EDGE_23] = triangles[t1].neighbor31();
+    triangles[t1].neighbors[EDGE_12] = Some(t2);
+    triangles[t1].neighbors[EDGE_31] = Some(t3);
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(
+        TriangulationPhase::SplitTriangle,
+        &triangles,
+        &[t1, t2, t3],
+        &[triangles[t1].neighbor12(), triangles[t1].neighbor23()],
     );
 
-    // Replace id_triangle with id_triangle_1
-    triangles[triangle_1_id].verts = [
-        vertex_id,
-        triangles[triangle_id].v3(),
-        triangles[triangle_id].v1(),
-    ];
-
-    triangles[triangle_1_id].neighbors = [
-        Some(triangle_2_id),
-        triangles[triangle_id].neighbor31(),
-        Some(triangle_3_id),
-    ];
-
-    restore_delaunay_triangulation(
-        triangles,
-        vertex_id,
-        [triangle_1_id, triangle_2_id, triangle_3_id],
-        vertices,
-    );
+    [t1, t2, t3]
 }
 
-pub(crate) fn update_triangle_neighbour(
+pub(crate) fn update_triangle_neighbor(
     triangle_id: Neighbor,
     old_neighbour_id: Neighbor,
     new_neighbour_id: Neighbor,
@@ -420,125 +520,162 @@ pub(crate) fn update_triangle_neighbour(
 
 fn restore_delaunay_triangulation(
     triangles: &mut Vec<TriangleData>,
-    vertex_id: VertexId,
-    triangles_to_check: [TriangleId; 3],
     vertices: &Vec<Vec2>,
+    from_vertex_id: VertexId,
+    new_triangles: [TriangleId; 3],
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
-    let mut stack = Vec::<(TriangleId, Neighbor)>::new();
+    let mut quads_to_check = Vec::<(TriangleId, Neighbor)>::new();
 
-    for &triangle_id in &triangles_to_check {
-        // Opposite edge of the center point (`vertex_id`) of the 3 new triangles
-        stack.push((triangle_id, triangles[triangle_id].neighbor23()));
+    for &from_triangle_id in &new_triangles {
+        // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
+        quads_to_check.push((from_triangle_id, triangles[from_triangle_id].neighbor23()));
     }
 
-    while let Some((triangle_id, adjacent_triangle_id)) = stack.pop() {
-        let Some(adjacent_triangle_id) = adjacent_triangle_id else {
+    while let Some((from_triangle_id, opposite_triangle_id)) = quads_to_check.pop() {
+        let Some(opposite_triangle_id) = opposite_triangle_id else {
             continue;
         };
 
-        let (quad_diag_swapped, t3, t4) = check_and_swap_quad_diagonal(
+        match check_and_swap_quad_diagonal(
             triangles,
             vertices,
-            vertex_id,
-            triangle_id,
-            adjacent_triangle_id,
-        );
-        if quad_diag_swapped == QuadSwapResult::Swapped {
-            // Place any triangles which are now opposite `vertex_id` on the stack.
-            stack.push((triangle_id, t3));
-            stack.push((adjacent_triangle_id, t4));
+            from_vertex_id,
+            from_triangle_id,
+            opposite_triangle_id,
+            #[cfg(feature = "debug_context")]
+            debug_context,
+        ) {
+            QuadSwapResult::Swapped(pairs) => {
+                // Place any new triangles pairs which are now opposite `vertex_id` on the stack, to be checked
+                quads_to_check.extend(pairs);
+            }
+            QuadSwapResult::NotSwapped => (),
         }
     }
 }
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum QuadSwapResult {
+    /// Contains the new triangle pairs to check
+    Swapped([(TriangleId, Neighbor); 2]),
     NotSwapped,
-    Swapped,
 }
 
-// TODO Clean: Use to_quad + is_vertex_in_triangle_circumcircle + swap_quad_diagonal
 pub fn check_and_swap_quad_diagonal(
     triangles: &mut Vec<TriangleData>,
     vertices: &Vec<Vec2>,
-    vertex_id: VertexId,
-    triangle_id: TriangleId,
-    adjacent_triangle_id: TriangleId,
-) -> (QuadSwapResult, Neighbor, Neighbor) {
-    let adjacent_triangle = &triangles[adjacent_triangle_id];
+    from_vertex_id: VertexId,
+    from_triangle_id: TriangleId,
+    opposite_triangle_id: TriangleId,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+) -> QuadSwapResult {
+    let opposite_triangle = &triangles[opposite_triangle_id];
+
+    // ```text
+    //                q3
+    //         t3   /    \   t4
+    //            /   To   \
+    //          /            \
+    //         q1 ---------- q2
+    //          \ 2        3 /
+    //            \   Tf   /
+    //              \ 1  /
+    //                q4
+    // ```
     let (quad, triangle_3_id, triangle_4_id) =
-        if adjacent_triangle.neighbor12() == Some(triangle_id) {
+        if opposite_triangle.neighbor12() == Some(from_triangle_id) {
             (
                 Quad::new([
-                    adjacent_triangle.v2(),
-                    adjacent_triangle.v1(),
-                    adjacent_triangle.v3(),
-                    vertex_id,
+                    opposite_triangle.v2(),
+                    opposite_triangle.v1(),
+                    opposite_triangle.v3(),
+                    from_vertex_id,
                 ]),
-                adjacent_triangle.neighbor23(),
-                adjacent_triangle.neighbor31(),
+                opposite_triangle.neighbor23(),
+                opposite_triangle.neighbor31(),
             )
-        } else if adjacent_triangle.neighbor23() == Some(triangle_id) {
+        } else if opposite_triangle.neighbor23() == Some(from_triangle_id) {
             (
                 Quad::new([
-                    adjacent_triangle.v3(),
-                    adjacent_triangle.v2(),
-                    adjacent_triangle.v1(),
-                    vertex_id,
+                    opposite_triangle.v3(),
+                    opposite_triangle.v2(),
+                    opposite_triangle.v1(),
+                    from_vertex_id,
                 ]),
-                adjacent_triangle.neighbor31(),
-                adjacent_triangle.neighbor12(),
+                opposite_triangle.neighbor31(),
+                opposite_triangle.neighbor12(),
             )
         } else {
             (
                 Quad::new([
-                    adjacent_triangle.v1(),
-                    adjacent_triangle.v3(),
-                    adjacent_triangle.v2(),
-                    vertex_id,
+                    opposite_triangle.v1(),
+                    opposite_triangle.v3(),
+                    opposite_triangle.v2(),
+                    from_vertex_id,
                 ]),
-                adjacent_triangle.neighbor12(),
-                adjacent_triangle.neighbor23(),
+                opposite_triangle.neighbor12(),
+                opposite_triangle.neighbor23(),
             )
         };
 
-    // Check if the vertex is on the circumcircle of the adjacent triangle:
     let quad_vertices = quad.to_vertices(vertices);
-    let swapped_quad_diagonal =
-        if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
-            // The triangle containing P as a vertex and the unstacked triangle form a convex quadrilateral whose diagonal is drawn in the wrong direction.
-            // Swap this diagonal so that two old triangles are replaced by two new triangles and the structure of the Delaunay triangulation is locally restored.
-            update_triangle_neighbour(
-                triangle_3_id,
-                Some(adjacent_triangle_id),
-                Some(triangle_id),
-                triangles,
-            );
-            update_triangle_neighbour(
-                triangles[triangle_id].neighbor31(),
-                Some(triangle_id),
-                Some(adjacent_triangle_id),
-                triangles,
-            );
 
-            triangles[triangle_id].verts = [quad.v4(), quad.v1(), quad.v3()];
+    // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
+    if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
+        // The two triangles form a convex quadrilateral whose diagonal is drawn in the wrong direction.
+        // Swap this diagonal to form two new triangles so that the structure of the Delaunay triangulation
+        // is locally restored.
+        // The quad becomes
+        // ```text
+        //               q3
+        //         t3  / 3|2 \   t4
+        //           /    |    \
+        //         /      |      \
+        //        q1 2  Tf|To   3 q2
+        //         \      |      /
+        //           \    |    /
+        //             \ 1|1 /
+        //               q4
+        // ```
+        update_triangle_neighbor(
+            triangle_3_id,
+            Some(opposite_triangle_id),
+            Some(from_triangle_id),
+            triangles,
+        );
+        update_triangle_neighbor(
+            triangles[from_triangle_id].neighbor31(),
+            Some(from_triangle_id),
+            Some(opposite_triangle_id),
+            triangles,
+        );
 
-            triangles[adjacent_triangle_id].verts = [quad.v4(), quad.v3(), quad.v2()];
+        triangles[from_triangle_id].verts = [quad.v4(), quad.v1(), quad.v3()];
+        triangles[opposite_triangle_id].verts = [quad.v4(), quad.v3(), quad.v2()];
+        triangles[opposite_triangle_id].neighbors = [
+            Some(from_triangle_id),
+            triangle_4_id,
+            triangles[from_triangle_id].neighbor31(),
+        ];
+        triangles[from_triangle_id].neighbors[EDGE_23] = triangle_3_id;
+        triangles[from_triangle_id].neighbors[EDGE_31] = Some(opposite_triangle_id);
 
-            triangles[adjacent_triangle_id].neighbors = [
-                Some(triangle_id),
-                triangle_4_id,
-                triangles[triangle_id].neighbor31(),
-            ];
+        #[cfg(feature = "debug_context")]
+        debug_context.push_snapshot(
+            TriangulationPhase::SwapQuadDiagonal,
+            &triangles,
+            &[from_triangle_id, opposite_triangle_id],
+            &[triangle_3_id, triangles[from_triangle_id].neighbor31()],
+        );
 
-            triangles[triangle_id].neighbors[EDGE_23] = triangle_3_id;
-            triangles[triangle_id].neighbors[EDGE_31] = Some(adjacent_triangle_id);
-
-            QuadSwapResult::Swapped
-        } else {
-            QuadSwapResult::NotSwapped
-        };
-    (swapped_quad_diagonal, triangle_3_id, triangle_4_id)
+        QuadSwapResult::Swapped([
+            (from_triangle_id, triangle_3_id),
+            (opposite_triangle_id, triangle_4_id),
+        ])
+    } else {
+        QuadSwapResult::NotSwapped
+    }
 }
 
 ///////////////////////////////////////////////////////////
@@ -555,7 +692,7 @@ mod tests {
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
-            QuadSwapResult,
+            DebugContext, QuadSwapResult,
         },
         types::TriangleData,
     };
@@ -636,7 +773,15 @@ mod tests {
         let mut triangles = Vec::<TriangleData>::new();
         triangles.push(container_triangle);
 
-        split_triangle_in_three_at_vertex(0, 0, &mut triangles, &vertices);
+        #[cfg(feature = "debug_context")]
+        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let _new_triangles = split_triangle_in_three_at_vertex(
+            &mut triangles,
+            0,
+            0,
+            #[cfg(feature = "debug_context")]
+            &mut debug_context,
+        );
 
         assert_eq!(3, triangles.len());
     }
@@ -663,7 +808,17 @@ mod tests {
         triangles.push(triangle_1);
         triangles.push(triangle_2);
 
-        let (quad_swap, _, _) = check_and_swap_quad_diagonal(&mut triangles, &vertices, 1, 0, 1);
+        #[cfg(feature = "debug_context")]
+        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let quad_swap = check_and_swap_quad_diagonal(
+            &mut triangles,
+            &vertices,
+            1,
+            0,
+            1,
+            #[cfg(feature = "debug_context")]
+            &mut debug_context,
+        );
 
         assert_eq!(QuadSwapResult::NotSwapped, quad_swap);
         assert_eq!(2, triangles.len());
@@ -691,9 +846,19 @@ mod tests {
         triangles.push(triangle_1);
         triangles.push(triangle_2);
 
-        let (quad_swap, _, _) = check_and_swap_quad_diagonal(&mut triangles, &vertices, 1, 0, 1);
+        #[cfg(feature = "debug_context")]
+        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let quad_swap = check_and_swap_quad_diagonal(
+            &mut triangles,
+            &vertices,
+            1,
+            0,
+            1,
+            #[cfg(feature = "debug_context")]
+            &mut debug_context,
+        );
 
-        assert_eq!(QuadSwapResult::Swapped, quad_swap);
+        assert_ne!(QuadSwapResult::NotSwapped, quad_swap);
         assert_eq!(2, triangles.len());
     }
 }
