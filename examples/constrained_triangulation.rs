@@ -10,7 +10,10 @@ use ghx_constrained_delaunay::{
 };
 
 use glam::Vec3;
-use utils::{create_displayed_vertices, ExamplesPlugin, TriangleDebugPlugin, TrianglesDebugData};
+use utils::{
+    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
+    TrianglesDebugData,
+};
 
 mod utils;
 
@@ -65,9 +68,16 @@ fn setup(mut commands: Commands) {
         &constrained_edges,
     );
 
-    let displayed_vertices = create_displayed_vertices(vertices, plane_normal);
+    let mut displayed_vertices = vertices.iter().map(|v| Vec3::from_slice(v)).collect();
+    extend_displayed_vertices_with_container_vertice(
+        &mut displayed_vertices,
+        plane_normal,
+        &triangulation.debug_context,
+        true,
+    );
     commands.insert_resource(TrianglesDebugData::new(
         displayed_vertices,
-        triangulation.debug_context.triangle_buffers,
+        triangulation.debug_context,
+        true,
     ))
 }
