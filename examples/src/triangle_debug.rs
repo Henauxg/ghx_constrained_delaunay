@@ -1,7 +1,6 @@
-use std::cmp::min;
-
 use bevy::{
-    app::{Plugin, Update},
+    app::{Plugin, Startup, Update},
+    asset::{Assets, Handle},
     ecs::{
         component::Component,
         entity::Entity,
@@ -12,11 +11,13 @@ use bevy::{
     },
     gizmos::gizmos::Gizmos,
     hierarchy::DespawnRecursiveExt,
-    input::{keyboard::KeyCode, ButtonInput},
+    input::{common_conditions::input_just_pressed, keyboard::KeyCode, ButtonInput},
     log::info,
+    pbr::{MaterialMeshBundle, MaterialPlugin},
+    prelude::default,
+    render::mesh::Mesh,
     text::{Text, TextSection, TextStyle},
     transform::components::Transform,
-    utils::default,
 };
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
@@ -25,18 +26,36 @@ use ghx_constrained_delaunay::{
 };
 use glam::Vec3;
 
+use crate::lines::{LineList, LineMaterial};
+
 use super::{COLORS, DEBUG_LABEL_FONT_SIZE};
 
-pub struct TriangleDebugPlugin;
+#[derive(Resource, Default, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum DrawMode {
+    #[default]
+    Gizmos,
+    MeshBatches {
+        batch_size: usize,
+    },
+}
+
+#[derive(Default)]
+pub struct TriangleDebugPlugin {
+    pub draw_mode: DrawMode,
+}
 impl Plugin for TriangleDebugPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_plugins(BillboardPlugin);
-        app.add_event::<TriangleDebugDataUpdated>().add_systems(
+        app.add_plugins((BillboardPlugin, MaterialPlugin::<LineMaterial>::default()));
+        app.insert_resource(self.draw_mode);
+        app.add_event::<TriangleDebugDataUpdated>();
+        app.add_systems(Startup, setup);
+        app.add_systems(
             Update,
             (
+                toggle_draw_mode.run_if(input_just_pressed(KeyCode::F4)),
                 update_triangles_debug_index,
-                update_triangles_debugs_entities,
-                draw_triangles_debug_data,
+                update_triangles_debug_entities,
+                draw_triangles_debug_data.run_if(gizmo_draw_mode),
             )
                 .chain(),
         );
@@ -51,7 +70,6 @@ pub fn extend_displayed_vertices_with_container_vertice(
 ) {
     // Add the container triangle positions to the debug view buffer
     // Calculate container triangle vertices position in world position
-
     let mut container_vertices: Vec<Vec3> = CONTAINER_TRIANGLE_VERTICES
         .iter()
         .map(|v| Vec3::new(v.x, v.y, 0.))
@@ -114,6 +132,19 @@ impl TrianglesDebugData {
     }
 }
 
+#[derive(Resource)]
+pub struct TriangleDebugAssets {
+    pub color_materials: Vec<Handle<LineMaterial>>,
+}
+
+pub fn setup(mut commands: Commands, mut materials: ResMut<Assets<LineMaterial>>) {
+    let mut color_materials = Vec::new();
+    for color in COLORS.iter() {
+        color_materials.push(materials.add(LineMaterial { color: *color }));
+    }
+    commands.insert_resource(TriangleDebugAssets { color_materials });
+}
+
 #[derive(Event)]
 pub struct TriangleDebugDataUpdated;
 
@@ -132,15 +163,18 @@ pub fn update_triangles_debug_index(
 }
 
 #[derive(Component)]
-pub struct TriangleDebugLabel;
+pub struct TriangleDebugEntity;
 
 pub const BILLBOARD_DEFAULT_SCALE: Vec3 = Vec3::splat(0.001);
 
-pub fn update_triangles_debugs_entities(
+pub fn update_triangles_debug_entities(
     mut commands: Commands,
-    query_labels: Query<Entity, With<TriangleDebugLabel>>,
+    draw_mode: Res<DrawMode>,
+    debug_assets: Res<TriangleDebugAssets>,
+    query_triangles: Query<Entity, With<TriangleDebugEntity>>,
     debug_vert_data: Res<TrianglesDebugData>,
     mut debug_data_updates_events: EventReader<TriangleDebugDataUpdated>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     if !debug_data_updates_events.is_empty() {
         info!(
@@ -156,8 +190,44 @@ pub fn update_triangles_debugs_entities(
     let triangles = debug_vert_data.current_triangles();
     let vertices = &debug_vert_data.vertices;
 
-    for label in query_labels.iter() {
-        commands.entity(label).despawn_recursive();
+    // Despawn all previous entities
+    for entity in query_triangles.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+
+    if let DrawMode::MeshBatches { batch_size } = *draw_mode {
+        let mut lines = Some(vec![]);
+        let mut batch_index = 0;
+        // TODO get diffs from the debugger and spawn the diffs?
+        for (index, t) in triangles.iter().enumerate() {
+            let (v1, v2, v3) = (vertices[t.v1()], vertices[t.v2()], vertices[t.v3()]);
+            lines
+                .as_mut()
+                .unwrap()
+                .extend(vec![(v1, v2), (v2, v3), (v3, v1)]);
+
+            if index % batch_size == batch_size - 1 {
+                commands.spawn((
+                    MaterialMeshBundle {
+                        mesh: meshes.add(LineList {
+                            lines: lines.take().unwrap(),
+                        }),
+                        material: debug_assets.color_materials[batch_index % COLORS.len()].clone(),
+                        ..default()
+                    },
+                    TriangleDebugEntity,
+                ));
+                lines = Some(vec![]);
+                batch_index += 1;
+            }
+        }
+        // TODO Spawn remaining batch
+
+        info!(
+            "Spawned all triangle meshes: {} triangles in {} batches",
+            triangles.len(),
+            batch_index
+        );
     }
 
     // Do not spawn labels entities if they are disabled
@@ -165,6 +235,7 @@ pub fn update_triangles_debugs_entities(
         return;
     }
 
+    // TODO Only for the diff would be interesting here
     for (index, t) in triangles.iter().enumerate() {
         let color = COLORS[index % COLORS.len()];
         let (v1, v2, v3) = (vertices[t.v1()], vertices[t.v2()], vertices[t.v3()]);
@@ -190,7 +261,7 @@ pub fn update_triangles_debugs_entities(
                 }]),
                 ..default()
             },
-            TriangleDebugLabel,
+            TriangleDebugEntity,
         ));
 
         for (v, label) in vec![(v1, "v1"), (v2, "v2"), (v3, "v3")] {
@@ -209,7 +280,7 @@ pub fn update_triangles_debugs_entities(
                     }]),
                     ..default()
                 },
-                TriangleDebugLabel,
+                TriangleDebugEntity,
             ));
         }
     }
@@ -229,4 +300,24 @@ pub fn draw_triangles_debug_data(mut gizmos: Gizmos, debug_vert_data: Res<Triang
         let color = COLORS[index % COLORS.len()];
         gizmos.linestrip(vec![v1, v2, v3, v1], color);
     }
+}
+
+pub fn gizmo_draw_mode(draw_mode: Option<Res<DrawMode>>) -> bool {
+    match draw_mode {
+        Some(mode) => *mode == DrawMode::Gizmos,
+        None => false,
+    }
+}
+
+pub const DEFAULT_TRIANGLES_BATCH_SIZE: usize = 15;
+
+pub fn toggle_draw_mode(mut draw_mode: ResMut<DrawMode>) {
+    match *draw_mode {
+        DrawMode::Gizmos => {
+            *draw_mode = DrawMode::MeshBatches {
+                batch_size: DEFAULT_TRIANGLES_BATCH_SIZE,
+            }
+        }
+        DrawMode::MeshBatches { batch_size: _ } => *draw_mode = DrawMode::Gizmos,
+    };
 }

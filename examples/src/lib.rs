@@ -6,6 +6,8 @@ pub use triangle_debug::*;
 mod example_setup;
 pub use example_setup::*;
 
+pub mod lines;
+
 pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
 
 pub const COLORS: &'static [Color] = &[
