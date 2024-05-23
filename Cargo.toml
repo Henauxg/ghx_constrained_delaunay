@@ -19,7 +19,7 @@ log = "0.4.21"
 
 [features]
 # Register debug data (triangle) in buffers during the execution of the triangulation
-debug_buffers = []
+debug_context = []
 
 [workspace]
 members = ["delaunay_compare", "examples"]
