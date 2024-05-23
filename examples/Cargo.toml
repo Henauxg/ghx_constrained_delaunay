@@ -25,7 +25,7 @@ path = "examples/constrained_triangulation.rs"
 # Examples dependencies
 [dependencies]
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
-    "debug_buffers",
+    "debug_context",
 ] }
 
 glam = { version = "0.25" }
