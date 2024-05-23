@@ -1,0 +1,26 @@
+[package]
+name = "delaunay_compare"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+
+
+[dependencies]
+num-traits = "0.2.14"
+cdt = "0.1"
+delaunator = "1.0.1"
+shapefile = "0.6.0"
+spade = "2.6.0"
+ghx_constrained_delaunay = { path = "../", version = "0.1.0" }
+tiny-skia = "0.11.4"
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+rand = "0.8"
+anyhow = "1.0.83"
+env_logger = "0.11.3"
+
+[[bench]]
+name = "delaunay_comparison"
+harness = false
