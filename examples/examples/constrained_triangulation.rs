@@ -5,21 +5,23 @@ use bevy::{
     DefaultPlugins,
 };
 
+use examples::{
+    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
+    TrianglesDebugData,
+};
 use ghx_constrained_delaunay::{
     constrained_triangulation::constrained_triangulation_from_3d_planar_vertices, types::Edge,
 };
 
 use glam::Vec3;
-use utils::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
-    TrianglesDebugData,
-};
-
-mod utils;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            ExamplesPlugin,
+            TriangleDebugPlugin::default(),
+        ))
         .add_systems(Startup, setup)
         .run();
 }

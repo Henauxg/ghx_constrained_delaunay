@@ -1,24 +1,22 @@
 use bevy::{
-    app::{App, Startup, Update},
+    app::{App, Startup},
     ecs::system::Commands,
-    gizmos::gizmos::Gizmos,
-    log::info,
-    math::{primitives::Direction3d, Vec3},
-    render::color::Color,
+    math::Vec3,
     DefaultPlugins,
 };
-use ghx_constrained_delaunay::triangulation::triangulation_from_3d_planar_vertices;
-use glam::{Quat, Vec2};
-use utils::{
+use examples::{
     extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
     TrianglesDebugData,
 };
-
-mod utils;
+use ghx_constrained_delaunay::triangulation::triangulation_from_3d_planar_vertices;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            ExamplesPlugin,
+            TriangleDebugPlugin::default(),
+        ))
         .add_systems(Startup, setup)
         .run();
 }

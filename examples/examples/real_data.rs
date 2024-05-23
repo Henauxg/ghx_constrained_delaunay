@@ -4,28 +4,26 @@ use bevy::{
     app::{App, Startup, Update},
     ecs::system::Commands,
     gizmos::gizmos::Gizmos,
-    log::info,
     math::{primitives::Direction3d, Vec3},
     render::color::Color,
     DefaultPlugins,
 };
-use ghx_constrained_delaunay::{
-    triangulation::{
-        triangulation_from_3d_planar_vertices, DebugContext, CONTAINER_TRIANGLE_COORDINATE,
-    },
-    Triangulation,
-};
-use glam::{Quat, Vec2};
-use utils::{
+use examples::{
     extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
     TrianglesDebugData,
 };
-
-mod utils;
+use ghx_constrained_delaunay::Triangulation;
+use glam::Vec2;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            ExamplesPlugin,
+            TriangleDebugPlugin {
+                draw_mode: examples::DrawMode::MeshBatches { batch_size: 15 },
+            },
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, draw_debug_circle)
         .run();
@@ -34,7 +32,7 @@ fn main() {
 const RESIZE_FACTOR: f32 = 0.001;
 
 fn setup(mut commands: Commands) {
-    let shape_file_path = "./delaunay_compare/examples/Europe_coastline.shp";
+    let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";
     println!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
     println!("Loaded!");
@@ -123,7 +121,6 @@ fn load_with_ghx_cdt_crate(vertices: &[Vec2], _edges: &[[usize; 2]]) -> Triangul
 }
 
 fn draw_debug_circle(mut gizmos: Gizmos) {
-    let unit_circle = [Vec2::new(-1., 0.), Vec2::new(0., 1.), Vec2::new(1., 0.)];
     gizmos.circle(
         Vec3::new(0., 0., 0.),
         Direction3d::Z,
