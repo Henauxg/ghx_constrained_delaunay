@@ -21,10 +21,18 @@ log = "0.4.21"
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_buffers = []
 
+[workspace]
+members = ["delaunay_compare"]
+
 # Examples
 [[example]]
 name = "triangulation"
 path = "examples/triangulation.rs"
+required-features = ["debug_buffers"]
+
+[[example]]
+name = "real_data"
+path = "examples/real_data.rs"
 required-features = ["debug_buffers"]
 
 [[example]]
@@ -61,3 +69,4 @@ bevy = { version = "0.13", default-features = false, features = [
     "wayland", # (Linux) Support Wayland windowing system
 ] }
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
+shapefile = "0.6.0"
