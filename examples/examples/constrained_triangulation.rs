@@ -6,8 +6,8 @@ use bevy::{
 };
 
 use examples::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, TriangleDebugPlugin,
-    TrianglesDebugData,
+    extend_displayed_vertices_with_container_vertice, DrawMode, ExamplesPlugin, LabelMode,
+    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::constrained_triangulation_from_3d_planar_vertices, types::Edge,
@@ -80,6 +80,9 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(TrianglesDebugData::new(
         displayed_vertices,
         triangulation.debug_context,
-        true,
-    ))
+    ));
+    commands.insert_resource(TrianglesDebugViewConfig::new(
+        LabelMode::All,
+        DrawMode::AllAsGizmos,
+    ));
 }
