@@ -1,14 +1,17 @@
 use std::collections::VecDeque;
 
-use glam::{Vec2, Vec3A};
 use hashbrown::HashSet;
 use log::error;
 
 use crate::triangulation::{normalize_vertices_coordinates, Triangulation, TriangulationPhase};
+use crate::types::{Float, Vector3A, Vertice};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
 use crate::triangulation::DebugContext;
+
+#[cfg(feature = "progress_log")]
+use log::info;
 
 use crate::{
     triangulation::{self, wrap_and_triangulate_2d_normalized_vertices},
@@ -26,14 +29,14 @@ use crate::{
 ///     - be oriented: vi -> vj
 ///     - not contain edges with v0==v1
 pub fn constrained_triangulation_from_3d_planar_vertices(
-    vertices: &Vec<[f32; 3]>,
-    plane_normal: Vec3A,
+    vertices: &Vec<[Float; 3]>,
+    plane_normal: Vector3A,
     constrained_edges: &HashSet<Edge>,
 ) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
     for v in vertices {
-        vertices_data.push(Vec3A::from_array(*v));
+        vertices_data.push(Vector3A::from_array(*v));
     }
 
     let mut planar_vertices =
@@ -46,7 +49,7 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
 ///     - be oriented: vi -> vj
 ///     - not contain edges with v0==v1
 pub fn constrained_triangulation_from_2d_vertices(
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     constrained_edges: &HashSet<Edge>,
 ) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -210,7 +213,7 @@ fn register_triangle(
 }
 
 fn apply_constraints(
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     triangles: &mut Vec<TriangleData>,
     constrained_edges: &HashSet<Edge>,
 ) {
@@ -227,7 +230,20 @@ fn apply_constraints(
         vertex_to_triangle[triangle.v3()] = index;
     }
 
-    for constrained_edge in constrained_edges {
+    for (_step, constrained_edge) in constrained_edges.iter().enumerate() {
+        #[cfg(feature = "progress_log")]
+        {
+            if _step % ((constrained_edges.len() / 50) + 1) == 0 {
+                let progress = 100. * _step as f32 / constrained_edges.len() as f32;
+                info!(
+                    "Constraints progress {}%: {}/{}",
+                    progress,
+                    _step,
+                    constrained_edges.len()
+                );
+            }
+        }
+
         // TODO Performance: Use vertex_to_triangle to quicken this search
         // -> this will probably be done by handling the SharedEdge case when testing intersection
         // from the start of a crossed edge in register_intersected_edges
@@ -235,6 +251,7 @@ fn apply_constraints(
             // Nothing to do for this edge
             continue;
         };
+
         let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
 
         // Stores all of the edges that cross the constrained edge
@@ -282,7 +299,7 @@ fn is_constrained_edge_inside_triangulation(
 
 fn loop_around_vertex_and_search_intersection(
     triangles: &Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     from_triangle_id: TriangleId,
     constrained_edge_vertex: VertexId,
     constrained_edge_verts: &EdgeVertices,
@@ -334,7 +351,7 @@ fn loop_around_vertex_and_search_intersection(
 /// - visited_triangles: List of every triangles already checked. Pre-allocated and initialized by the caller
 fn search_first_interstected_quad(
     triangles: &Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     constrained_edge_first_vertex: VertexId,
     constrained_edge: &EdgeVertices,
     start_triangle: TriangleId,
@@ -374,7 +391,7 @@ fn search_first_interstected_quad(
 /// - visited_triangles: List of every triangles already checked. Pre-allocated by the caller. Reinitialized at the beginning of this function.
 fn register_intersected_edges(
     triangles: &Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     constrained_edge: &Edge,
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
@@ -625,7 +642,7 @@ fn update_edges_data(
 
 fn remove_crossed_edges(
     triangles: &mut Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge_vertices: &EdgeVertices,
     mut intersections: VecDeque<EdgeData>,
@@ -673,7 +690,7 @@ fn remove_crossed_edges(
 
 fn restore_delaunay_triangulation_constrained(
     triangles: &mut Vec<TriangleData>,
-    vertices: &Vec<Vec2>,
+    vertices: &Vec<Vertice>,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge: &Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
@@ -713,19 +730,17 @@ fn restore_delaunay_triangulation_constrained(
 mod tests {
     use std::collections::VecDeque;
 
-    use glam::Vec2;
-
-    use crate::types::{Edge, Quad, TriangleData};
+    use crate::types::{Edge, Quad, TriangleData, Vertice};
 
     use super::{swap_quad_diagonal, EdgeData};
 
     #[test]
     fn swap_quad_diag_constrained() {
-        let mut vertices = Vec::<Vec2>::new();
-        vertices.push(Vec2::new(0.5, 3.));
-        vertices.push(Vec2::new(-2., -2.));
-        vertices.push(Vec2::new(1., -4.));
-        vertices.push(Vec2::new(3., -2.));
+        let mut vertices = Vec::<Vertice>::new();
+        vertices.push(Vertice::new(0.5, 3.));
+        vertices.push(Vertice::new(-2., -2.));
+        vertices.push(Vertice::new(1., -4.));
+        vertices.push(Vertice::new(3., -2.));
 
         let triangle_1 = TriangleData {
             verts: [0, 1, 3],

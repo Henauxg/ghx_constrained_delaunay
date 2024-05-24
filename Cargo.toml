@@ -13,13 +13,16 @@ exclude = ["assets/"]
 
 [dependencies]
 glam = { version = ">=0.21, <=0.27" }
-ordered-float = "4.2.0"
 hashbrown = "0.14.5"
 log = "0.4.21"
 
 [features]
+default = []
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_context = []
+progress_log = []
+# Uses f64 for the triangulation. Can be better for input data that require more precision.
+f64 = []
 
 [workspace]
 members = ["delaunay_compare", "examples"]
