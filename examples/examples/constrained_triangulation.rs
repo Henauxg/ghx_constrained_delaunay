@@ -6,14 +6,13 @@ use bevy::{
 };
 
 use examples::{
-    extend_displayed_vertices_with_container_vertice, DrawMode, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
+    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
+    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
 };
 use ghx_constrained_delaunay::{
-    constrained_triangulation::constrained_triangulation_from_3d_planar_vertices, types::Edge,
+    constrained_triangulation::constrained_triangulation_from_3d_planar_vertices,
+    types::{Edge, Vector3},
 };
-
-use glam::Vec3;
 
 fn main() {
     App::new()
@@ -63,14 +62,14 @@ fn setup(mut commands: Commands) {
         Edge::new(14, 15),
     ]);
 
-    let plane_normal = Vec3::Z;
+    let plane_normal = Vector3::Z;
     let triangulation = constrained_triangulation_from_3d_planar_vertices(
         &vertices,
         plane_normal.into(),
         &constrained_edges,
     );
 
-    let mut displayed_vertices = vertices.iter().map(|v| Vec3::from_slice(v)).collect();
+    let mut displayed_vertices = vertices.iter().map(|v| Vector3::from_slice(v)).collect();
     extend_displayed_vertices_with_container_vertice(
         &mut displayed_vertices,
         plane_normal,
@@ -83,6 +82,6 @@ fn setup(mut commands: Commands) {
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::All,
-        DrawMode::AllAsGizmos,
+        TrianglesDrawMode::AllAsGizmos,
     ));
 }
