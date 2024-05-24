@@ -26,7 +26,8 @@ mod tests {
 
     use crate::{
         constrained_triangulation::constrained_triangulation_from_3d_planar_vertices,
-        triangulation::triangulation_from_3d_planar_vertices, types::Edge,
+        triangulation::triangulation_from_3d_planar_vertices,
+        types::{Edge, Float},
     };
 
     #[test]
@@ -37,7 +38,7 @@ mod tests {
         // |        \    |
         // |           \ |
         // ---------------
-        let mut vertices = Vec::<[f32; 3]>::new();
+        let mut vertices = Vec::<[Float; 3]>::new();
 
         vertices.push([0., 0., 0.]);
         vertices.push([0., 5., 0.]);
@@ -80,7 +81,7 @@ mod tests {
         // |        \    |
         // |           \ |
         // ---------------
-        let mut vertices = Vec::<[f32; 3]>::new();
+        let mut vertices = Vec::<[Float; 3]>::new();
 
         vertices.push([0., 0., 0.]);
         vertices.push([0., 10., 0.]);
@@ -133,7 +134,7 @@ mod tests {
         // |   -----------<---------------------------------   |
         // |                                                   |
         // --------------->-------------------------------------
-        let mut vertices = Vec::<[f32; 3]>::new();
+        let mut vertices = Vec::<[Float; 3]>::new();
 
         vertices.push([-4., 3., 0.]);
         vertices.push([3., 3., 0.]);
@@ -243,7 +244,7 @@ mod tests {
 
     #[test]
     fn constrained_delaunay_level_4() {
-        let mut vertices = Vec::<[f32; 3]>::new();
+        let mut vertices = Vec::<[Float; 3]>::new();
 
         vertices.push([-4., 3., 0.]);
         vertices.push([3., 3., 0.]);

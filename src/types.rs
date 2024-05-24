@@ -1,6 +1,14 @@
-use glam::Vec2;
-
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
+
+#[cfg(not(feature = "f64"))]
+pub mod f32;
+#[cfg(not(feature = "f64"))]
+pub use f32::*;
+
+#[cfg(feature = "f64")]
+pub mod f64;
+#[cfg(feature = "f64")]
+pub use f64::*;
 
 pub type VertexId = usize;
 pub type Neighbor = Option<VertexId>;
@@ -51,7 +59,7 @@ impl Edge {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vec2>) -> EdgeVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> EdgeVertices {
         (vertices[self.from], vertices[self.to])
     }
 
@@ -141,7 +149,7 @@ impl TriangleData {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vec2>) -> TriangleVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> TriangleVertices {
         (
             vertices[self.verts[VERT_1]],
             vertices[self.verts[VERT_2]],
@@ -239,7 +247,7 @@ impl Quad {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vec2>) -> QuadVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> QuadVertices {
         QuadVertices([
             vertices[self.verts[QUAD_1]],
             vertices[self.verts[QUAD_2]],
@@ -250,26 +258,26 @@ impl Quad {
 }
 
 // TODO may change to structured arrays [Vec2;n]
-pub type EdgeVertices = (Vec2, Vec2);
-pub type TriangleVertices = (Vec2, Vec2, Vec2);
+pub type EdgeVertices = (Vertice, Vertice);
+pub type TriangleVertices = (Vertice, Vertice, Vertice);
 
 #[derive(Debug)]
-pub struct QuadVertices(pub [Vec2; 4]);
+pub struct QuadVertices(pub [Vertice; 4]);
 impl QuadVertices {
     #[inline]
-    pub fn q1(&self) -> Vec2 {
+    pub fn q1(&self) -> Vertice {
         self.0[QUAD_1]
     }
     #[inline]
-    pub fn q2(&self) -> Vec2 {
+    pub fn q2(&self) -> Vertice {
         self.0[QUAD_2]
     }
     #[inline]
-    pub fn q3(&self) -> Vec2 {
+    pub fn q3(&self) -> Vertice {
         self.0[QUAD_3]
     }
     #[inline]
-    pub fn q4(&self) -> Vec2 {
+    pub fn q4(&self) -> Vertice {
         self.0[QUAD_4]
     }
 
