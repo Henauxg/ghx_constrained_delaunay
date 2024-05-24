@@ -2,9 +2,12 @@ use std::time::Instant;
 
 use anyhow::{Context, Ok};
 use env_logger::Env;
-use ghx_constrained_delaunay::{glam::Vec2, hashbrown::HashSet, types::Edge};
+use ghx_constrained_delaunay::{
+    hashbrown::HashSet,
+    types::{Edge, Float, Vertice},
+};
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use tiny_skia::{Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
@@ -41,13 +44,13 @@ fn main() -> anyhow::Result<()> {
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
 
-    // load_with_spade(&vertices, &edges)?;
-    // println!();
+    load_with_spade(&vertices, &edges)?;
+    println!();
 
     load_with_ghx_cdt_crate(&vertices, &edges)?;
     println!();
 
-    // load_with_cdt_crate(&vertices, &edges)?;
+    load_with_cdt_crate(&vertices, &edges)?;
 
     Ok(())
 }
@@ -134,21 +137,21 @@ fn load_with_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow
 fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow::Result<()> {
     let vertices_clone = vertices
         .iter()
-        .map(|p| Vec2::new(p.x as f32, p.y as f32))
+        .map(|p| Vertice::new(p.x as Float, p.y as Float))
         .collect::<Vec<_>>();
 
-    // println!("Loading cdt (ghx_cdt crate)");
-    // let edges = edges
-    //     .iter()
-    //     .map(|[from, to]| Edge::new(*from, *to))
-    //     .collect::<HashSet<_>>();
-    // let now = Instant::now();
-    // ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(&vertices_clone, &edges);
-    // println!("Done!");
-    // println!(
-    //     "loading time (ghx_cdt crate with constraints): {}ms",
-    //     now.elapsed().as_millis()
-    // );
+    println!("Loading cdt (ghx_cdt crate)");
+    let edges = edges
+        .iter()
+        .map(|[from, to]| Edge::new(*from, *to))
+        .collect::<HashSet<_>>();
+    let now = Instant::now();
+    ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(&vertices_clone, &edges);
+    println!("Done!");
+    println!(
+        "loading time (ghx_cdt crate with constraints): {}ms",
+        now.elapsed().as_millis()
+    );
 
     let now = Instant::now();
     ghx_constrained_delaunay::triangulation_from_2d_vertices(&vertices_clone);

@@ -1,8 +1,8 @@
-use ghx_constrained_delaunay::glam::Vec2;
+use ghx_constrained_delaunay::types::Vertice;
 
 #[derive(Default)]
 pub struct GhxCDTCrate {
-    vertices: Vec<Vec2>,
+    vertices: Vec<Vertice>,
 }
 
 impl crate::DelaunayCrate for GhxCDTCrate {
@@ -10,7 +10,7 @@ impl crate::DelaunayCrate for GhxCDTCrate {
 
     fn init(&mut self, vertices: impl Iterator<Item = [f64; 2]>) {
         self.vertices = vertices
-            .map(|vertex| Vec2::new(vertex[0] as f32, vertex[1] as f32))
+            .map(|vertex| Vertice::new(vertex[0], vertex[1]))
             .collect();
     }
 
