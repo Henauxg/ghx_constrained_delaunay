@@ -3,6 +3,9 @@ pub mod triangulation;
 pub mod types;
 pub mod utils;
 
+#[cfg(feature = "debug_context")]
+pub mod debug;
+
 pub use glam;
 pub use hashbrown;
 
