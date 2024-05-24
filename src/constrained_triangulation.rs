@@ -3,12 +3,12 @@ use std::collections::VecDeque;
 use hashbrown::HashSet;
 use log::error;
 
-use crate::triangulation::{normalize_vertices_coordinates, Triangulation, TriangulationPhase};
+use crate::triangulation::{normalize_vertices_coordinates, Triangulation};
 use crate::types::{Float, Vector3A, Vertice};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
-use crate::triangulation::DebugContext;
+use crate::debug::{DebugContext, TriangulationPhase};
 
 #[cfg(feature = "progress_log")]
 use log::info;

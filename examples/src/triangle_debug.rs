@@ -22,7 +22,8 @@ use bevy::{
 };
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
-    triangulation::{DebugContext, DebugSnapshot, TriangulationPhase, CONTAINER_TRIANGLE_VERTICES},
+    debug::{DebugContext, DebugSnapshot, TriangulationPhase},
+    triangulation::CONTAINER_TRIANGLE_VERTICES,
     types::{Float, TriangleData, TriangleId, Vector3},
 };
 use glam::{DVec2, Quat, Vec2, Vec3};
