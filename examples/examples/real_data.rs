@@ -9,11 +9,15 @@ use bevy::{
     DefaultPlugins,
 };
 use examples::{
-    extend_displayed_vertices_with_container_vertice, DrawMode, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
+    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
+    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
 };
-use ghx_constrained_delaunay::Triangulation;
-use glam::Vec2;
+use ghx_constrained_delaunay::{
+    hashbrown::HashSet,
+    types::{Edge, Float, Vector3, Vertice},
+    Triangulation,
+};
+use ordered_float::OrderedFloat;
 
 fn main() {
     App::new()
@@ -23,7 +27,7 @@ fn main() {
         .run();
 }
 
-const RESIZE_FACTOR: f32 = 0.001;
+const RESIZE_FACTOR: Float = 1.0;
 
 fn setup(mut commands: Commands) {
     let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";
@@ -38,13 +42,19 @@ fn setup(mut commands: Commands) {
     for shape_record in reader.iter_shapes_and_records() {
         let (shape, _) = shape_record.unwrap();
 
+        let mut uniques: HashSet<[OrderedFloat<Float>; 2]> = HashSet::new();
         match shape {
             shapefile::Shape::Polyline(line) => {
                 for part in line.parts() {
                     let first_vertex = vertices.len();
-                    vertices.extend(part.iter().map(|p| {
-                        Vec2::new(RESIZE_FACTOR * p.x as f32, RESIZE_FACTOR * p.y as f32)
-                    }));
+                    for p in part.iter() {
+                        let x = RESIZE_FACTOR * p.x as Float;
+                        let y = RESIZE_FACTOR * p.y as Float;
+                        match uniques.insert([OrderedFloat(x), OrderedFloat(y)]) {
+                            true => vertices.push(Vertice::new(x, y)),
+                            false => (),
+                        }
+                    }
                     let last_vertex = vertices.len() - 1;
                     edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
                 }
@@ -69,8 +79,11 @@ fn setup(mut commands: Commands) {
     //     &triangulation.debug_context,
     // );
 
-    let plane_normal = Vec3::Z;
-    let mut displayed_vertices = vertices.iter().map(|v| Vec3::new(v.x, v.y, 0.)).collect();
+    let plane_normal = Vector3::Z;
+    let mut displayed_vertices = vertices
+        .iter()
+        .map(|v| Vector3::new(v.x, v.y, 0.))
+        .collect();
     extend_displayed_vertices_with_container_vertice(
         &mut displayed_vertices,
         plane_normal,
@@ -84,36 +97,36 @@ fn setup(mut commands: Commands) {
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::Changed,
-        DrawMode::ChangedAsGizmos,
+        TrianglesDrawMode::AllAsMeshBatches { batch_size: 150 },
     ));
 }
 
-fn load_with_ghx_cdt_crate(vertices: &[Vec2], _edges: &[[usize; 2]]) -> Triangulation {
-    let vertices_clone = vertices
+fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Triangulation {
+    let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
+
+    println!("Loading cdt (ghx_cdt crate)");
+    let edges = _edges
         .iter()
-        .map(|p| Vec2::new(p.x as f32, p.y as f32))
-        .collect::<Vec<_>>();
-
-    // println!("Loading cdt (ghx_cdt crate)");
-    // let edges = edges
-    //     .iter()
-    //     .map(|[from, to]| Edge::new(*from, *to))
-    //     .collect::<HashSet<_>>();
-    // let now = Instant::now();
-    // ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(&vertices_clone, &edges);
-    // println!("Done!");
-    // println!(
-    //     "loading time (ghx_cdt crate with constraints): {}ms",
-    //     now.elapsed().as_millis()
-    // );
-
+        .map(|[from, to]| Edge::new(*from, *to))
+        .collect::<HashSet<_>>();
     let now = Instant::now();
-    let triangulation = ghx_constrained_delaunay::triangulation_from_2d_vertices(&vertices_clone);
+    let triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
+        &vertices_clone,
+        &edges,
+    );
     println!("Done!");
     println!(
-        "loading time (ghx_cdt crate without constraints): {}ms",
+        "loading time (ghx_cdt crate with constraints): {}ms",
         now.elapsed().as_millis()
     );
+
+    // let now = Instant::now();
+    // let triangulation = ghx_constrained_delaunay::triangulation_from_2d_vertices(&vertices_clone);
+    // println!("Done!");
+    // println!(
+    //     "loading time (ghx_cdt crate without constraints): {}ms",
+    //     now.elapsed().as_millis()
+    // );
     triangulation
 }
 

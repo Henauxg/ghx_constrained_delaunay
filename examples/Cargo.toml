@@ -26,6 +26,8 @@ path = "examples/constrained_triangulation.rs"
 [dependencies]
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     "debug_context",
+    "f64",
+    "progress_log",
 ] }
 
 glam = { version = "0.25" }
@@ -55,4 +57,5 @@ bevy = { version = "0.13", default-features = false, features = [
     "wayland", # (Linux) Support Wayland windowing system
 ] }
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
+ordered-float = "4.2.0"
 shapefile = "0.6.0"
