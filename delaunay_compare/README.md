@@ -1,17 +1,23 @@
 # delaunay_compare
 
-Small benchmark suite for comparing different (constrained) Delaunay triangulation implementations in rust, cloned from the [spade](https://github.com/Stoeoef/spade/tree/master/delaunay_compare) crate comparison benchmark.
+Small benchmark suite for comparing different (constrained) Delaunay triangulation implementations in rust, modified from the [spade](https://github.com/Stoeoef/spade/tree/master/delaunay_compare) crate comparison benchmark.
+
+## Differences with the original benchmark
+
+- Added the [ghx_constrained_delaunay]("https://github.com/Henauxg/ghx_constrained_delaunay") crate
+- In the `real_data_benchmark`, duplicate input vertices are removed before being fed to all the crates algorithms.
 
 ## Crates under test
 
  - [delaunator 1.0.1](https://crates.io/crates/delaunator)
  - [cdt 0.1.0](https://crates.io/crates/cdt)
  - [spade 2.0](https://crates.io/crates/spade)
+ - [ghx_constrained_delaunay 0.1.0]("https://github.com/Henauxg/ghx_constrained_delaunay")
 
 For spade: Both insertion *with* a lookup structure ("hierarchy") and *without* are being tested.
 The look up structure allows efficient position lookup (e.g. for nearest neighbor searches) on the resulting triangulations but takes additional time to construct.
 
-For spade and cdt: This benchmark suite also contains a constrained Delaunay triangulation (CDT) benchmark that bulk loads a single real data set
+For spade, cdt and ghx_constrained_delaunay: This benchmark suite also contains a constrained Delaunay triangulation (CDT) benchmark that bulk loads a single real data set
 (Europe_coastline.shp) consisting of 2,912,812 input vertices and 2,837,094 constraint edges.
 
 ## Point distributions under test
@@ -40,18 +46,20 @@ The CDT bulk loading uses real world data consisting of roughly 2.9e6 input vert
 
 ### CDT Loading times
 
-For completeness, the dataset is both loaded with constraint edges and without (as if it was a regular Delaunay
-triangulation).
+The dataset is both loaded with constraint edges and without (as if it was a regular Delaunay triangulation).
 
-The benchmark also includes the stable bulk load variant for spade that keeps the relative vertex order consistent.
+The benchmark also includes a stable bulk load variant for spade that keeps the relative vertex order consistent.
 
-| CDT Bulk load            | Spade  | cdt crate |
-| ------------------------ | ------ | --------- |
-| With constraint edges    | 3668ms | 4032ms    |
-| Without constraint edges | 2897ms | 5668ms    |
-| With stable vertex order | 6502ms | -         |
+| CDT Bulk load            | ghx_constrained_delaunay | Spade  | cdt crate |
+| ------------------------ | ------------------------ | ------ | --------- |
+| With constraint edges    | TODO                     | 3647ms | 3493ms    |
+| Without constraint edges | 2721ms                   | 2976ms | 8571ms*   |
+| With stable vertex order | -                        | 5429ms | -         |
 
+_Results obtained on an i7-9750H CPU @ 2.60GHz_
+
+(*) It seems weird that the `cdt` crate takes less time with constraints than without. I need to look at the implementation.
 
 # Credits
 
-See the [spade](https://github.com/Stoeoef/spade) crate for the original benchmark. It was modified here to include results from `ghx_constrained_delaunay`.
+See the [spade](https://github.com/Stoeoef/spade) crate for the original benchmark.
