@@ -634,10 +634,11 @@ pub fn check_and_swap_quad_diagonal(
 #[cfg(test)]
 mod tests {
     use crate::{
+        debug::DebugContext,
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
-            DebugContext, QuadSwapResult,
+            QuadSwapResult,
         },
         types::{Float, TriangleData, Vector3A, Vertice},
     };
