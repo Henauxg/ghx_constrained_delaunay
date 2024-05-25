@@ -1,8 +1,5 @@
 use bevy::{
-    asset::Asset,
-    pbr::{Material, MaterialPipeline, MaterialPipelineKey},
-    reflect::TypePath,
-    render::{
+    asset::Asset, math::Vec3, pbr::{Material, MaterialPipeline, MaterialPipelineKey}, reflect::TypePath, render::{
         color::Color,
         mesh::{Mesh, MeshVertexBufferLayout, PrimitiveTopology},
         render_asset::RenderAssetUsages,
@@ -10,9 +7,8 @@ use bevy::{
             AsBindGroup, PolygonMode, RenderPipelineDescriptor, ShaderRef,
             SpecializedMeshPipelineError,
         },
-    },
+    }
 };
-use glam::Vec3;
 
 #[derive(Asset, TypePath, Default, AsBindGroup, Debug, Clone)]
 pub struct LineMaterial {

@@ -2,11 +2,11 @@ use bevy::{
     app::{App, Plugin, Startup, Update},
     core_pipeline::core_3d::Camera3dBundle,
     ecs::system::Commands,
+    math::Vec3,
     transform::components::Transform,
     utils::default,
 };
 use bevy_ghx_utils::camera::{update_pan_orbit_camera, PanOrbitCamera};
-use glam::Vec3;
 
 pub struct ExamplesPlugin;
 

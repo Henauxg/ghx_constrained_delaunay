@@ -26,7 +26,7 @@ use ghx_constrained_delaunay::{
     triangulation::CONTAINER_TRIANGLE_VERTICES,
     types::{Float, TriangleData, TriangleId, Vector3},
 };
-use glam::{DVec2, Quat, Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 
 use crate::lines::{LineList, LineMaterial};
 
@@ -303,13 +303,9 @@ pub fn update_triangles_debug_entities(
             }
         }
     }
-    let size = DVec2::new(x_max - x_min, y_max - y_min);
-    let pos = Vec3::new(
-        (x_min + size.x / 2.) as f32,
-        (y_min + size.y / 2.) as f32,
-        0.,
-    );
-    debug_vert_data.current_changes_bounds = (pos, size.as_vec2());
+    let size = Vec2::new((x_max - x_min) as f32, (y_max - y_min) as f32);
+    let pos = Vec3::new(x_min as f32 + size.x / 2., y_min as f32 + size.y / 2., 0.);
+    debug_vert_data.current_changes_bounds = (pos, size);
 }
 
 pub fn spawn_label(
