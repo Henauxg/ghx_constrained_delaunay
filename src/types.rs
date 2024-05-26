@@ -10,20 +10,36 @@ pub mod f64;
 #[cfg(feature = "f64")]
 pub use f64::*;
 
-pub type VertexId = usize;
+#[cfg(not(feature = "u64-indexes"))]
+pub mod u32;
+#[cfg(not(feature = "u64-indexes"))]
+pub use u32::IndexType;
+
+#[cfg(feature = "u64-indexes")]
+pub mod u64;
+#[cfg(feature = "u64-indexes")]
+pub use u64::IndexType;
+
+pub type VertexId = IndexType;
+pub type TriangleId = IndexType;
 pub type Neighbor = Option<VertexId>;
-pub type TriangleId = usize;
 
 // TODO New types to avoid some bugs
-pub type TriangleVertexIndex = usize;
+pub type TriangleVertexIndex = u8;
 pub const VERT_1: TriangleVertexIndex = 0;
 pub const VERT_2: TriangleVertexIndex = 1;
 pub const VERT_3: TriangleVertexIndex = 2;
 
-pub type TriangleEdgeIndex = usize;
+pub type TriangleEdgeIndex = u8;
 pub const EDGE_12: TriangleEdgeIndex = 0;
 pub const EDGE_23: TriangleEdgeIndex = 1;
 pub const EDGE_31: TriangleEdgeIndex = 2;
+
+pub type QuadVertexIndex = u8;
+pub const QUAD_1: QuadVertexIndex = 0;
+pub const QUAD_2: QuadVertexIndex = 1;
+pub const QUAD_3: QuadVertexIndex = 2;
+pub const QUAD_4: QuadVertexIndex = 3;
 
 /// From a TriangleEdgeIndex, gives the next edge index in a clockwise order
 pub const NEXT_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
@@ -60,7 +76,7 @@ impl Edge {
 
     #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> EdgeVertices {
-        (vertices[self.from], vertices[self.to])
+        (vertices[self.from as usize], vertices[self.to as usize])
     }
 
     #[inline]
@@ -86,74 +102,115 @@ pub struct TriangleData {
 }
 
 impl TriangleData {
+    pub(crate) fn new_container_triangle(first_index: TriangleId) -> Self {
+        TriangleData {
+            verts: [first_index, first_index + 1, first_index + 2],
+            neighbors: [None, None, None],
+        }
+    }
+
     #[inline]
     pub fn v1(&self) -> VertexId {
-        self.verts[VERT_1]
+        self.verts[VERT_1 as usize]
     }
     #[inline]
     pub fn v2(&self) -> VertexId {
-        self.verts[VERT_2]
+        self.verts[VERT_2 as usize]
     }
     #[inline]
     pub fn v3(&self) -> VertexId {
-        self.verts[VERT_3]
+        self.verts[VERT_3 as usize]
+    }
+
+    #[inline]
+    pub fn v1_mut(&mut self) -> &mut VertexId {
+        &mut self.verts[VERT_1 as usize]
+    }
+    #[inline]
+    pub fn v2_mut(&mut self) -> &mut VertexId {
+        &mut self.verts[VERT_2 as usize]
+    }
+    #[inline]
+    pub fn v3_mut(&mut self) -> &mut VertexId {
+        &mut self.verts[VERT_3 as usize]
     }
 
     #[inline]
     pub fn edge12(&self) -> Edge {
-        Edge::new(self.verts[VERT_1], self.verts[VERT_2])
+        Edge::new(self.verts[VERT_1 as usize], self.verts[VERT_2 as usize])
     }
     #[inline]
     pub fn edge23(&self) -> Edge {
-        Edge::new(self.verts[VERT_2], self.verts[VERT_3])
+        Edge::new(self.verts[VERT_2 as usize], self.verts[VERT_3 as usize])
     }
     #[inline]
     pub fn edge31(&self) -> Edge {
-        Edge::new(self.verts[VERT_3], self.verts[VERT_1])
+        Edge::new(self.verts[VERT_3 as usize], self.verts[VERT_1 as usize])
+    }
+
+    #[inline]
+    pub fn neighbor(&self, egde_index: TriangleEdgeIndex) -> Neighbor {
+        self.neighbors[egde_index as usize]
     }
 
     #[inline]
     pub fn neighbor12(&self) -> Neighbor {
-        self.neighbors[EDGE_12]
+        self.neighbors[EDGE_12 as usize]
     }
     #[inline]
     pub fn neighbor23(&self) -> Neighbor {
-        self.neighbors[EDGE_23]
+        self.neighbors[EDGE_23 as usize]
     }
     #[inline]
     pub fn neighbor31(&self) -> Neighbor {
-        self.neighbors[EDGE_31]
+        self.neighbors[EDGE_31 as usize]
+    }
+
+    #[inline]
+    pub fn neighbor12_mut(&mut self) -> &mut Neighbor {
+        &mut self.neighbors[EDGE_12 as usize]
+    }
+    #[inline]
+    pub fn neighbor23_mut(&mut self) -> &mut Neighbor {
+        &mut self.neighbors[EDGE_23 as usize]
+    }
+    #[inline]
+    pub fn neighbor31_mut(&mut self) -> &mut Neighbor {
+        &mut self.neighbors[EDGE_31 as usize]
     }
 
     #[inline]
     pub fn edges(&self) -> [Edge; 3] {
         [
-            Edge::new(self.verts[VERT_1], self.verts[VERT_2]),
-            Edge::new(self.verts[VERT_2], self.verts[VERT_3]),
-            Edge::new(self.verts[VERT_3], self.verts[VERT_1]),
+            Edge::new(self.verts[VERT_1 as usize], self.verts[VERT_2 as usize]),
+            Edge::new(self.verts[VERT_2 as usize], self.verts[VERT_3 as usize]),
+            Edge::new(self.verts[VERT_3 as usize], self.verts[VERT_1 as usize]),
         ]
     }
 
     #[inline]
     pub fn edge(&self, edge_index: TriangleEdgeIndex) -> Edge {
-        let vert_indexes = EDGE_TO_VERTS[edge_index];
-        Edge::new(self.verts[vert_indexes[0]], self.verts[vert_indexes[1]])
+        let vert_indexes = EDGE_TO_VERTS[edge_index as usize];
+        Edge::new(
+            self.verts[vert_indexes[0] as usize],
+            self.verts[vert_indexes[1] as usize],
+        )
     }
 
     #[inline]
     pub fn other_edges(&self, edge_index: TriangleEdgeIndex) -> [Edge; 2] {
         [
-            self.edge(NEXT_CLOCKWISE_EDGE_INDEX[edge_index]),
-            self.edge(NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index]),
+            self.edge(NEXT_CLOCKWISE_EDGE_INDEX[edge_index as usize]),
+            self.edge(NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index as usize]),
         ]
     }
 
     #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> TriangleVertices {
         (
-            vertices[self.verts[VERT_1]],
-            vertices[self.verts[VERT_2]],
-            vertices[self.verts[VERT_3]],
+            vertices[self.verts[VERT_1 as usize] as usize],
+            vertices[self.verts[VERT_2 as usize] as usize],
+            vertices[self.verts[VERT_3 as usize] as usize],
         )
     }
 
@@ -161,7 +218,7 @@ impl TriangleData {
     pub fn vertex_index(&self, vertex_id: VertexId) -> Option<TriangleVertexIndex> {
         for (v_index, v) in self.verts.iter().enumerate() {
             if *v == vertex_id {
-                return Some(v_index);
+                return Some(v_index as TriangleVertexIndex);
             }
         }
         None
@@ -175,49 +232,43 @@ impl TriangleData {
 
     /// `edge` MUST be an edge of the triangle
     #[inline]
-    pub fn get_opposite_vertex_index(&self, edge: &Edge) -> TriangleVertexIndex {
-        if !edge.contains(self.verts[VERT_1]) {
-            self.verts[VERT_1]
-        } else if !edge.contains(self.verts[VERT_2]) {
-            self.verts[VERT_2]
+    pub fn get_opposite_vertex_index(&self, edge: &Edge) -> VertexId {
+        if !edge.contains(self.verts[VERT_1 as usize]) {
+            self.verts[VERT_1 as usize]
+        } else if !edge.contains(self.verts[VERT_2 as usize]) {
+            self.verts[VERT_2 as usize]
         } else {
-            self.verts[VERT_3]
+            self.verts[VERT_3 as usize]
         }
     }
 }
 
 #[inline]
 pub fn next_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
-    NEXT_CLOCKWISE_EDGE_INDEX[edge_index]
+    NEXT_CLOCKWISE_EDGE_INDEX[edge_index as usize]
 }
 
 #[inline]
 pub fn next_counter_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
-    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index]
+    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX[edge_index as usize]
 }
 
 #[inline]
 pub fn next_clockwise_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-    NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index]
+    NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
 }
 
 #[inline]
 pub fn next_counter_clockwise_edge_index_around(
     vert_index: TriangleVertexIndex,
 ) -> TriangleEdgeIndex {
-    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index]
+    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
 }
 
 #[inline]
 pub fn opposite_edge_index(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-    OPPOSITE_EDGE_INDEX[vert_index]
+    OPPOSITE_EDGE_INDEX[vert_index as usize]
 }
-
-pub type QuadVertexIndex = usize;
-pub const QUAD_1: QuadVertexIndex = 0;
-pub const QUAD_2: QuadVertexIndex = 1;
-pub const QUAD_3: QuadVertexIndex = 2;
-pub const QUAD_4: QuadVertexIndex = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Quad {
@@ -231,28 +282,28 @@ impl Quad {
 
     #[inline]
     pub fn v1(&self) -> VertexId {
-        self.verts[QUAD_1]
+        self.verts[QUAD_1 as usize]
     }
     #[inline]
     pub fn v2(&self) -> VertexId {
-        self.verts[QUAD_2]
+        self.verts[QUAD_2 as usize]
     }
     #[inline]
     pub fn v3(&self) -> VertexId {
-        self.verts[QUAD_3]
+        self.verts[QUAD_3 as usize]
     }
     #[inline]
     pub fn v4(&self) -> VertexId {
-        self.verts[QUAD_4]
+        self.verts[QUAD_4 as usize]
     }
 
     #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> QuadVertices {
         QuadVertices([
-            vertices[self.verts[QUAD_1]],
-            vertices[self.verts[QUAD_2]],
-            vertices[self.verts[QUAD_3]],
-            vertices[self.verts[QUAD_4]],
+            vertices[self.verts[QUAD_1 as usize] as usize],
+            vertices[self.verts[QUAD_2 as usize] as usize],
+            vertices[self.verts[QUAD_3 as usize] as usize],
+            vertices[self.verts[QUAD_4 as usize] as usize],
         ])
     }
 }
@@ -266,26 +317,26 @@ pub struct QuadVertices(pub [Vertice; 4]);
 impl QuadVertices {
     #[inline]
     pub fn q1(&self) -> Vertice {
-        self.0[QUAD_1]
+        self.0[QUAD_1 as usize]
     }
     #[inline]
     pub fn q2(&self) -> Vertice {
-        self.0[QUAD_2]
+        self.0[QUAD_2 as usize]
     }
     #[inline]
     pub fn q3(&self) -> Vertice {
-        self.0[QUAD_3]
+        self.0[QUAD_3 as usize]
     }
     #[inline]
     pub fn q4(&self) -> Vertice {
-        self.0[QUAD_4]
+        self.0[QUAD_4 as usize]
     }
 
     #[inline]
     pub fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
         egdes_intersect(
-            &(self.0[QUAD_1], self.0[QUAD_2]),
-            &(self.0[QUAD_3], self.0[QUAD_4]),
+            &(self.0[QUAD_1 as usize], self.0[QUAD_2 as usize]),
+            &(self.0[QUAD_3 as usize], self.0[QUAD_4 as usize]),
         )
     }
 }
