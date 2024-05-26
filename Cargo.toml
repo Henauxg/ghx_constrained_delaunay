@@ -18,11 +18,18 @@ log = "0.4.21"
 
 [features]
 default = []
+# Uses f64 for the triangulation.
+# Can be better for input data that require more precision.
+# (disabled by default for more performances)
+f64 = []
+# Uses u64 indexes for the triangles and the vertices.
+# Allows for a larger count of vertices to triangulate.
+# (disabled by default for more performances)
+u64-indexes = []
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_context = []
+# Add logs during the triangulation porcess to idnicate the current progress
 progress_log = []
-# Uses f64 for the triangulation. Can be better for input data that require more precision.
-f64 = []
 
 [workspace]
 members = ["delaunay_compare", "examples"]

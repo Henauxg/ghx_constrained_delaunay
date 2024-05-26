@@ -54,7 +54,7 @@ mod tests {
         let mut constrained_vertices = Vec::new();
 
         for vertexid in triangulation.vert_indices {
-            constrained_vertices.push(vertices[vertexid]);
+            constrained_vertices.push(vertices[vertexid as usize]);
         }
 
         assert_eq!(6, constrained_vertices.len());
@@ -99,7 +99,7 @@ mod tests {
         let mut constrained_vertices = Vec::new();
 
         for vertexid in triangulation.vert_indices {
-            constrained_vertices.push(vertices[vertexid]);
+            constrained_vertices.push(vertices[vertexid as usize]);
         }
 
         assert_eq!(12, constrained_vertices.len());
@@ -198,7 +198,7 @@ mod tests {
         let mut constrained_vertices = Vec::new();
 
         for vertexid in triangulation.vert_indices {
-            constrained_vertices.push(vertices[vertexid]);
+            constrained_vertices.push(vertices[vertexid as usize]);
         }
 
         assert_eq!(36, constrained_vertices.len());
@@ -308,7 +308,7 @@ mod tests {
         let mut constrained_vertices = Vec::new();
 
         for vertexid in triangulation.vert_indices {
-            constrained_vertices.push(vertices[vertexid]);
+            constrained_vertices.push(vertices[vertexid as usize]);
         }
 
         assert_eq!(36, constrained_vertices.len());
