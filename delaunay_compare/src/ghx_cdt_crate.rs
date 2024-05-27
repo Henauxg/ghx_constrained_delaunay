@@ -1,4 +1,4 @@
-use ghx_constrained_delaunay::types::Vertice;
+use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertice};
 
 #[derive(Default)]
 pub struct GhxCDTCrate {
@@ -15,6 +15,9 @@ impl crate::DelaunayCrate for GhxCDTCrate {
     }
 
     fn run_creation(&self) -> Self::ResultType {
-        ghx_constrained_delaunay::triangulation_from_2d_vertices(&self.vertices)
+        ghx_constrained_delaunay::triangulation_from_2d_vertices(
+            &self.vertices,
+            TriangulationConfiguration::default(),
+        )
     }
 }

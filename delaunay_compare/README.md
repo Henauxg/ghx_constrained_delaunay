@@ -52,9 +52,9 @@ The benchmark also includes a stable bulk load variant for spade that keeps the 
 
 | CDT Bulk load            | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| With constraint edges    | TODO                     | 3647ms | 3493ms    |
-| Without constraint edges | 2721ms                   | 2976ms | 8571ms*   |
-| With stable vertex order | -                        | 5429ms | -         |
+| With constraint edges    | 3546ms                   | 3655ms | 3493ms    |
+| Without constraint edges | 2545ms                   | 2964ms | 8381ms*   |
+| With stable vertex order | -                        | 5346ms | -         |
 
 _Results obtained on an i7-9750H CPU @ 2.60GHz_
 

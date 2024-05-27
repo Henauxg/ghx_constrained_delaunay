@@ -43,15 +43,14 @@ pub fn creation_benchmark(c: &mut Criterion) {
         group.finish();
     }
 
-    // let mut group = c.benchmark_group("comparison: creation benchmark (small)");
-    // // let small = [2000, 4000, 6000, 8000, 10_000, 12_000, 14_000];
-    // let small = [2000, 4000, 6000, 8000];
+    let mut group = c.benchmark_group("comparison: creation benchmark (small)");
+    let small = [2000, 4000, 6000, 8000, 10_000, 12_000, 14_000];
 
-    // group.warm_up_time(Duration::from_secs(1));
-    // group.sample_size(50);
-    // group.measurement_time(Duration::from_secs(3));
+    group.warm_up_time(Duration::from_secs(1));
+    group.sample_size(50);
+    group.measurement_time(Duration::from_secs(3));
 
-    // run_all(group, &small);
+    run_all(group, &small);
 
     let mut group = c.benchmark_group("comparison: creation benchmark (big)");
     let big = [50_000, 100_000, 150_000, 200_000, 250_000];
