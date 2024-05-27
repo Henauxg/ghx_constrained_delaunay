@@ -24,7 +24,7 @@ use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot, TriangulationPhase},
     triangulation::CONTAINER_TRIANGLE_VERTICES,
-    types::{Float, TriangleData, TriangleId, Vector3},
+    types::{Float, TriangleData, TriangleId, Triangles, Vector3},
 };
 use glam::{Quat, Vec2, Vec3};
 
@@ -150,7 +150,7 @@ impl TrianglesDebugData {
         self.current_buffer_index
     }
 
-    pub fn current_triangles(&self) -> &Vec<TriangleData> {
+    pub fn current_triangles(&self) -> &Triangles {
         &self.context.snapshots[self.current_buffer_index].triangles
     }
 
@@ -219,7 +219,7 @@ pub fn update_triangles_debug_entities(
         snapshot.step,
         snapshot.triangulation_phase,
         snapshot.changed_ids.len(),
-        snapshot.triangles.len()
+        snapshot.triangles.count()
     );
 
     let vertices = &debug_vert_data.vertices;
@@ -234,11 +234,11 @@ pub fn update_triangles_debug_entities(
         let mut lines = Some(vec![]);
         let mut batch_index = 0;
         // TODO get diffs from the debugger and spawn the diffs?
-        for (index, t) in snapshot.triangles.iter().enumerate() {
+        for (index, t) in snapshot.triangles.buffer().iter().enumerate() {
             let (v1, v2, v3) = (
-                vertices[t.v1()].as_vec3(),
-                vertices[t.v2()].as_vec3(),
-                vertices[t.v3()].as_vec3(),
+                vertices[t.v1() as usize].as_vec3(),
+                vertices[t.v2() as usize].as_vec3(),
+                vertices[t.v3() as usize].as_vec3(),
             );
             lines
                 .as_mut()
@@ -270,13 +270,13 @@ pub fn update_triangles_debug_entities(
     // Spawn label entites if enabled
     match view_config.label_mode {
         LabelMode::All => {
-            for (index, triangle_data) in snapshot.triangles.iter().enumerate() {
-                spawn_label(&mut commands, vertices, index, triangle_data);
+            for (index, triangle_data) in snapshot.triangles.buffer().iter().enumerate() {
+                spawn_label(&mut commands, vertices, index as TriangleId, triangle_data);
             }
         }
         LabelMode::Changed => {
             for index in snapshot.changed_ids.iter() {
-                let triangle_data = &snapshot.triangles[*index];
+                let triangle_data = &snapshot.triangles.get(*index);
                 spawn_label(&mut commands, vertices, *index, triangle_data);
             }
         }
@@ -287,8 +287,12 @@ pub fn update_triangles_debug_entities(
     let (mut x_min, mut x_max, mut y_min, mut y_max) =
         (Float::MAX, Float::MIN, Float::MAX, Float::MIN);
     for index in snapshot.changed_ids.iter() {
-        let t = &snapshot.triangles[*index];
-        for v in [vertices[t.v1()], vertices[t.v2()], vertices[t.v3()]] {
+        let t = &snapshot.triangles.get(*index);
+        for v in [
+            vertices[t.v1() as usize],
+            vertices[t.v2() as usize],
+            vertices[t.v3() as usize],
+        ] {
             if v.x < x_min {
                 x_min = v.x;
             }
@@ -311,14 +315,14 @@ pub fn update_triangles_debug_entities(
 pub fn spawn_label(
     commands: &mut Commands,
     vertices: &Vec<Vector3>,
-    index: TriangleId,
+    triangle_id: TriangleId,
     triangle_data: &TriangleData,
 ) {
-    let color = COLORS[index % COLORS.len()];
+    let color = COLORS[(triangle_id as usize) % COLORS.len()];
     let (v1, v2, v3) = (
-        vertices[triangle_data.v1()],
-        vertices[triangle_data.v2()],
-        vertices[triangle_data.v3()],
+        vertices[triangle_data.v1() as usize],
+        vertices[triangle_data.v2() as usize],
+        vertices[triangle_data.v3() as usize],
     );
     let center = ((v1 + v2 + v3) / 3.).as_vec3();
 
@@ -333,7 +337,7 @@ pub fn spawn_label(
         BillboardTextBundle {
             transform: Transform::from_translation(center).with_scale(billboard_scale),
             text: Text::from_sections([TextSection {
-                value: index.to_string(),
+                value: triangle_id.to_string(),
                 style: TextStyle {
                     font_size: DEBUG_LABEL_FONT_SIZE,
                     color,
@@ -377,13 +381,13 @@ pub fn draw_triangles_debug_data_gizmos(
     // Draw triangles
     match view_config.triangles_draw_mode {
         TrianglesDrawMode::AllAsGizmos => {
-            for (index, triangle) in snapshot.triangles.iter().enumerate() {
-                draw_triangle_gizmo(&mut gizmos, vertices, index, triangle);
+            for (index, triangle) in snapshot.triangles.buffer().iter().enumerate() {
+                draw_triangle_gizmo(&mut gizmos, vertices, index as TriangleId, triangle);
             }
         }
         TrianglesDrawMode::ChangedAsGizmos => {
             for index in snapshot.changed_ids.iter() {
-                let triangle = &snapshot.triangles[*index];
+                let triangle = &snapshot.triangles.get(*index);
                 draw_triangle_gizmo(&mut gizmos, vertices, *index, triangle);
             }
         }
@@ -408,7 +412,7 @@ pub fn draw_triangles_debug_data_gizmos(
             .min(debug_vert_data.current_changes_bounds.1.y)
             / 10.;
         gizmos.circle(
-            vertices[vertex_id].as_vec3(),
+            vertices[vertex_id as usize].as_vec3(),
             Direction3d::Z,
             circle_radius,
             Color::RED,
@@ -419,15 +423,15 @@ pub fn draw_triangles_debug_data_gizmos(
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
     vertices: &Vec<Vector3>,
-    index: TriangleId,
+    triangle_id: TriangleId,
     triangle: &TriangleData,
 ) {
     let (v1, v2, v3) = (
-        vertices[triangle.v1()].as_vec3(),
-        vertices[triangle.v2()].as_vec3(),
-        vertices[triangle.v3()].as_vec3(),
+        vertices[triangle.v1() as usize].as_vec3(),
+        vertices[triangle.v2() as usize].as_vec3(),
+        vertices[triangle.v3() as usize].as_vec3(),
     );
-    let color = COLORS[index % COLORS.len()];
+    let color = COLORS[triangle_id as usize % COLORS.len()];
     gizmos.linestrip(vec![v1, v2, v3, v1], color);
 }
 
