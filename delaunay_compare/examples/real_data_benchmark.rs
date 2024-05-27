@@ -3,8 +3,10 @@ use std::time::Instant;
 use anyhow::{Context, Ok};
 use env_logger::Env;
 use ghx_constrained_delaunay::{
+    constrained_triangulation::ConstrainedTriangulationConfiguration,
     hashbrown::HashSet,
-    types::{Edge, Float, Vertice},
+    triangulation::TriangulationConfiguration,
+    types::{Edge, Float, VertexId, Vertice},
 };
 use ordered_float::OrderedFloat;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
@@ -150,10 +152,15 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
     println!("Loading cdt (ghx_cdt crate)");
     let edges = edges
         .iter()
-        .map(|[from, to]| Edge::new(*from, *to))
-        .collect::<HashSet<_>>();
+        // TODO into()
+        .map(|[from, to]| Edge::new(*from as VertexId, *to as VertexId))
+        .collect::<Vec<_>>();
     let now = Instant::now();
-    ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(&vertices_clone, &edges);
+    ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
+        &vertices_clone,
+        &edges,
+        ConstrainedTriangulationConfiguration::default(),
+    );
     println!("Done!");
     println!(
         "loading time (ghx_cdt crate with constraints): {}ms",
@@ -161,7 +168,10 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
     );
 
     let now = Instant::now();
-    ghx_constrained_delaunay::triangulation_from_2d_vertices(&vertices_clone);
+    ghx_constrained_delaunay::triangulation_from_2d_vertices(
+        &vertices_clone,
+        TriangulationConfiguration::default(),
+    );
     println!("Done!");
     println!(
         "loading time (ghx_cdt crate without constraints): {}ms",
