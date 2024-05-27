@@ -153,7 +153,7 @@ fn remove_wrapping_and_unconstrained_domains(
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
 
     #[cfg(feature = "debug_context")]
-    let mut filtered_debug_triangles = Vec::new();
+    let mut filtered_debug_triangles = Triangles::new();
 
     // Loop over all triangles
     for (index, triangle) in triangles.buffer().iter().enumerate() {
@@ -218,7 +218,12 @@ fn remove_wrapping_and_unconstrained_domains(
     }
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(TriangulationPhase::RemoveWrapping, &triangles, &[], &[]);
+    debug_context.push_snapshot(
+        TriangulationPhase::RemoveWrapping,
+        &filtered_debug_triangles,
+        &[],
+        &[],
+    );
 
     indices
 }
@@ -227,7 +232,7 @@ fn register_triangle(
     indices: &mut Vec<VertexId>,
     triangle: &TriangleData,
     container_verts: &HashSet<VertexId>,
-    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Vec<TriangleData>,
+    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
 ) {
     let mut filtered = false;
     for vert in triangle.verts.iter() {
