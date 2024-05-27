@@ -26,6 +26,7 @@ impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            #[cfg(feature = "debug_context")]
             debug_config: DebugConfiguration::default(),
         }
     }
