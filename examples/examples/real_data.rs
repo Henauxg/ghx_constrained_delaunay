@@ -14,6 +14,7 @@ use examples::{
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
+    debug::{DebugConfiguration, PhaseRecord, TriangulationPhase},
     hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
     types::{Edge, Float, Vector3, VertexId, Vertice},
@@ -99,6 +100,14 @@ fn setup(mut commands: Commands) {
 fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Triangulation {
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
+    let triangulation_config = TriangulationConfiguration {
+        debug_config: DebugConfiguration {
+            phase_record: PhaseRecord::In(TriangulationPhase::RemoveWrapping),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
     println!("Loading cdt (ghx_cdt crate)");
     let edges = _edges
         .iter()
@@ -109,7 +118,9 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Trian
     let _triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
         &vertices_clone,
         &edges,
-        ConstrainedTriangulationConfiguration::default(),
+        ConstrainedTriangulationConfiguration {
+            triangulation: triangulation_config.clone(),
+        },
     );
     println!("Done!");
     println!(
@@ -120,7 +131,7 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Trian
     let now = Instant::now();
     let triangulation = ghx_constrained_delaunay::triangulation_from_2d_vertices(
         &vertices_clone,
-        TriangulationConfiguration::default(),
+        triangulation_config,
     );
     println!("Done!");
     println!(
