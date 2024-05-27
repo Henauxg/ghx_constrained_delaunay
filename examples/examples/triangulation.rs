@@ -8,7 +8,8 @@ use examples::{
     TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
 };
 use ghx_constrained_delaunay::{
-    triangulation::triangulation_from_3d_planar_vertices, types::Vector3,
+    triangulation::{triangulation_from_3d_planar_vertices, TriangulationConfiguration},
+    types::Vector3,
 };
 
 fn main() {
@@ -25,7 +26,11 @@ fn setup(mut commands: Commands) {
     let vertices = vec![[0., 0., 0.], [0., 5., 0.], [5., 5., 0.], [5., 0., 0.]];
     let plane_normal = Vector3::Z;
 
-    let triangulation = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
+    let triangulation = triangulation_from_3d_planar_vertices(
+        &vertices,
+        plane_normal.into(),
+        TriangulationConfiguration::default(),
+    );
 
     let mut displayed_vertices = vertices.iter().map(|v| Vector3::from_slice(v)).collect();
     extend_displayed_vertices_with_container_vertice(
