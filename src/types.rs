@@ -243,6 +243,52 @@ impl TriangleData {
     }
 }
 
+#[derive(Clone)]
+pub struct Triangles {
+    pub buffer: Vec<TriangleData>,
+}
+impl Triangles {
+    pub fn new() -> Self {
+        Self { buffer: Vec::new() }
+    }
+
+    #[inline]
+    pub fn get(&self, id: TriangleId) -> &TriangleData {
+        &self.buffer[id as usize]
+    }
+    #[inline]
+    pub fn get_mut(&mut self, id: TriangleId) -> &mut TriangleData {
+        &mut self.buffer[id as usize]
+    }
+
+    #[inline]
+    pub fn buffer(&self) -> &Vec<TriangleData> {
+        &self.buffer
+    }
+    #[inline]
+    pub fn buffer_mut(&mut self) -> &mut Vec<TriangleData> {
+        &mut self.buffer
+    }
+
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.buffer.len()
+    }
+    #[inline]
+    pub fn next_id(&self) -> TriangleId {
+        self.buffer.len() as TriangleId
+    }
+
+    #[inline]
+    pub fn create(&mut self, verts: [VertexId; 3], neighbors: [Neighbor; 3]) {
+        self.buffer.push(TriangleData { verts, neighbors })
+    }
+    #[inline]
+    pub fn push(&mut self, triangle: TriangleData) {
+        self.buffer.push(triangle)
+    }
+}
+
 #[inline]
 pub fn next_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
     NEXT_CLOCKWISE_EDGE_INDEX[edge_index as usize]

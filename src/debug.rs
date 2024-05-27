@@ -1,16 +1,16 @@
-use crate::types::{Float, Neighbor, TriangleData, TriangleId, VertexId};
+use crate::types::{Float, Neighbor, TriangleId, Triangles, VertexId};
 
 pub struct DebugSnapshot {
     pub step: usize,
     pub triangulation_phase: TriangulationPhase,
     pub changed_ids: Vec<TriangleId>,
-    pub triangles: Vec<TriangleData>,
+    pub triangles: Triangles,
 }
 impl DebugSnapshot {
     pub(crate) fn new(
         step: usize,
         triangulation_phase: TriangulationPhase,
-        triangles: Vec<TriangleData>,
+        triangles: Triangles,
         changed_ids: Vec<TriangleId>,
     ) -> Self {
         Self {
@@ -46,10 +46,13 @@ impl DebugContext {
     pub(crate) fn push_snapshot(
         &mut self,
         phase: TriangulationPhase,
-        triangles: &Vec<TriangleData>,
+        triangles: &Triangles,
         triangle_ids: &[TriangleId],
         opt_neighbor_ids: &[Neighbor],
     ) {
+        if phase != TriangulationPhase::RemoveWrapping {
+            return;
+        }
         let mut step_changes = Vec::with_capacity(triangle_ids.len() + opt_neighbor_ids.len());
         step_changes.extend(triangle_ids);
         // TODO May consider neighbors differently
