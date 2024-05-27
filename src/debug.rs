@@ -152,5 +152,6 @@ pub enum TriangulationPhase {
     SwapQuadDiagonal,
     RemoveWrapping,
     //
+    BeforeConstraints,
     AfterConstraints,
 }

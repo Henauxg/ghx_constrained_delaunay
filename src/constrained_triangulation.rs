@@ -45,7 +45,7 @@ impl Default for ConstrainedTriangulationConfiguration {
 pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<[Float; 3]>,
     plane_normal: Vector3A,
-    constrained_edges: &HashSet<Edge>,
+    constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
@@ -61,11 +61,11 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
 }
 
 /// - `constrained_edges` **MUST**:
-///     - be oriented: vi -> vj
-///     - not contain edges with v0==v1
+///     - be oriented: from -> to
+///     - not contain edges with from == to
 pub fn constrained_triangulation_from_2d_vertices(
     vertices: &Vec<Vertice>,
-    constrained_edges: &HashSet<Edge>,
+    constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -87,16 +87,25 @@ pub fn constrained_triangulation_from_2d_vertices(
         &mut debug_context,
     );
 
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(TriangulationPhase::BeforeConstraints, &triangles, &[], &[]);
+
     // TODO Debug: consider adding debug support to this function
-    apply_constraints(&normalized_vertices, &mut triangles, constrained_edges);
+    let constrained_edges_set = apply_constraints(
+        &normalized_vertices,
+        &mut triangles,
+        constrained_edges,
+        #[cfg(feature = "debug_context")]
+        &mut debug_context,
+    );
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(TriangulationPhase::AfterConstraints, &triangles, &[0], &[]);
+    debug_context.push_snapshot(TriangulationPhase::AfterConstraints, &triangles, &[], &[]);
 
     let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
         &container_triangle,
-        constrained_edges,
+        constrained_edges_set,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
@@ -133,7 +142,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 fn remove_wrapping_and_unconstrained_domains(
     triangles: &Triangles,
     container_triangle: &TriangleData,
-    constrained_edges: &HashSet<Edge>,
+    constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<VertexId> {
     let mut visited_triangles = vec![false; triangles.count()];
@@ -152,10 +161,11 @@ fn remove_wrapping_and_unconstrained_domains(
             continue;
         }
 
-        let mut triangle_edge_is_constrained = [false; 3];
-        for (edge_index, edge) in triangle.edges().iter().enumerate() {
-            triangle_edge_is_constrained[edge_index] = constrained_edges.contains(edge);
-        }
+        let triangle_edge_is_constrained = [
+            constrained_edges.contains(&triangle.edge12()),
+            constrained_edges.contains(&triangle.edge23()),
+            constrained_edges.contains(&triangle.edge31()),
+        ];
 
         // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
         if triangle_edge_is_constrained.contains(&true) {
@@ -208,7 +218,7 @@ fn remove_wrapping_and_unconstrained_domains(
     }
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(TriangulationPhase::RemoveWrapping, &triangles, &[0], &[]);
+    debug_context.push_snapshot(TriangulationPhase::RemoveWrapping, &triangles, &[], &[]);
 
     indices
 }
@@ -237,8 +247,10 @@ fn register_triangle(
 fn apply_constraints(
     vertices: &Vec<Vertice>,
     triangles: &mut Triangles,
-    constrained_edges: &HashSet<Edge>,
-) {
+    constrained_edges: &Vec<Edge>,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
+) -> HashSet<Edge> {
+    let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
     // Map each verticex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
     // TODO Performance:
@@ -265,14 +277,10 @@ fn apply_constraints(
                 );
             }
         }
-
-        // TODO Performance: Use vertex_to_triangle to quicken this search
-        // -> this will probably be done by handling the SharedEdge case when testing intersection
-        // from the start of a crossed edge in register_intersected_edges
-        if is_constrained_edge_inside_triangulation(triangles, constrained_edge) {
-            // Nothing to do for this edge
+        if constrained_edges_set.insert(*constrained_edge) == false {
+            // Skipping duplicate constrained edge
             continue;
-        };
+        }
 
         let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
 
@@ -280,10 +288,14 @@ fn apply_constraints(
         let intersections = register_intersected_edges(
             triangles,
             vertices,
-            constrained_edge,
+            *constrained_edge,
             constrained_edge_vertices,
             &vertex_to_triangle,
         );
+        if intersections.is_empty() {
+            // Skipping constrained edge already in triangulation
+            continue;
+        }
 
         // Remove intersecting edges
         let mut new_diagonals_created = remove_crossed_edges(
@@ -303,42 +315,38 @@ fn apply_constraints(
             &mut new_diagonals_created,
         );
     }
+    constrained_edges_set
 }
 
-fn is_constrained_edge_inside_triangulation(
-    triangles: &Triangles,
-    constrained_edge: &Edge,
-) -> bool {
-    for triangle in triangles.buffer().iter() {
-        if triangle.verts.contains(&constrained_edge.from)
-            && triangle.verts.contains(&constrained_edge.to)
-        {
-            return true;
-        }
-    }
-    false
+enum EdgeFirstIntersection {
+    /// The constrained edge is already present in the triangulation
+    EdgeAlreadyInTriangulation,
+    /// Intersection found
+    Intersection(EdgeData),
+    /// No intersection found
+    NotFound,
 }
 
 fn loop_around_vertex_and_search_intersection(
     triangles: &Triangles,
     vertices: &Vec<Vertice>,
     from_triangle_id: TriangleId,
-    constrained_edge_vertex: VertexId,
+    constrained_edge: Edge,
     constrained_edge_verts: &EdgeVertices,
     next_edge_index: fn(TriangleVertexIndex) -> TriangleEdgeIndex,
-) -> Option<EdgeData> {
+) -> EdgeFirstIntersection {
     let mut triangle_id = from_triangle_id;
-    let mut triangle = triangles.get(from_triangle_id);
 
     // We search by circling around the first vertex of the constrained edge
     // We use `triangles.len()` as an upper bound on the number of triangles around a vertex
     for _ in 0..triangles.count() {
-        let Some(vert_index) = triangle.vertex_index(constrained_edge_vertex) else {
-            // Not possible
-            error!("Internal error, search_first_interstected_quad found a triangle without the constrained edge starting vertex, triangle {} {:?}, starting_vertex {}", triangle_id, triangle, constrained_edge_vertex);
-            return None;
-        };
+        let triangle = triangles.get(triangle_id);
 
+        if triangle.verts.contains(&constrained_edge.to) {
+            return EdgeFirstIntersection::EdgeAlreadyInTriangulation;
+        }
+
+        let vert_index = triangle.vertex_index(constrained_edge.from);
         let edge_index = opposite_edge_index(vert_index);
         let edge = triangle.edge(edge_index);
         let edge_vertices = edge.to_vertices(vertices);
@@ -347,87 +355,95 @@ fn loop_around_vertex_and_search_intersection(
             == EdgesIntersectionResult::Crossing
         {
             if let Some(neighbor_triangle_id) = triangle.neighbor(edge_index) {
-                return Some(EdgeData {
+                return EdgeFirstIntersection::Intersection(EdgeData {
                     from_triangle_id: triangle_id,
                     to_triangle_id: neighbor_triangle_id,
                     edge,
                 });
             } else {
-                // Not possible
-                error!("Internal error, search_first_interstected_quad found a triangle with a crossed edge but no neihgbor, triangle {} {:?}, starting_vertex {}", triangle_id, triangle, constrained_edge_vertex);
+                error!("Internal error, loop_around_vertex_and_search_intersection found a triangle with a crossed edge but no neihgbor, triangle {} {:?}, starting_vertex {}", triangle_id, triangle, constrained_edge.from);
                 break;
             }
         }
 
         match triangle.neighbor(next_edge_index(vert_index)) {
-            Some(neighbor_id) => {
-                triangle_id = neighbor_id;
-                triangle = triangles.get(triangle_id);
-            }
+            Some(neighbor_id) => triangle_id = neighbor_id,
             None => break,
         }
     }
-    None
+    EdgeFirstIntersection::NotFound
 }
 
-/// - visited_triangles: List of every triangles already checked. Pre-allocated and initialized by the caller
 fn search_first_interstected_quad(
     triangles: &Triangles,
     vertices: &Vec<Vertice>,
-    constrained_edge_first_vertex: VertexId,
-    constrained_edge: &EdgeVertices,
+    constrained_edge: Edge,
+    constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
-) -> EdgeData {
+) -> EdgeFirstIntersection {
     // Search clockwise
-    if let Some(intersection) = loop_around_vertex_and_search_intersection(
+    let res = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
         start_triangle,
-        constrained_edge_first_vertex,
         constrained_edge,
+        constrained_edge_vertices,
         next_clockwise_edge_index_around,
-    ) {
-        return intersection;
+    );
+    match &res {
+        EdgeFirstIntersection::NotFound => (),
+        _ => return res,
     }
 
     // Get the counter-clockwise neighbor of the starting triangle
     let triangle = triangles.get(start_triangle);
     // Not having the constrained edge first vertex in the starting triangle is not possible
-    let vert_index = triangle
-        .vertex_index(constrained_edge_first_vertex)
-        .unwrap();
+    let vert_index = triangle.vertex_index(constrained_edge.from);
     let edge_index = next_counter_clockwise_edge_index_around(vert_index);
-    let neighbor_triangle = triangle.neighbor(edge_index).expect(&format!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge_first_vertex));
+    let neighbor_triangle = triangle.neighbor(edge_index).expect(&format!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from));
 
     // Search counterclockwise
-    loop_around_vertex_and_search_intersection(
+    let res = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
         neighbor_triangle,
-        constrained_edge_first_vertex,
         constrained_edge,
+        constrained_edge_vertices,
         next_counter_clockwise_edge_index_around,
-    ).expect(&format!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge_first_vertex))
+    );
+    match &res {
+        EdgeFirstIntersection::NotFound => {
+            // TODO Return an internal error ?
+            error!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from);
+        }
+        _ => (),
+    }
+    return res;
 }
 
-/// - visited_triangles: List of every triangles already checked. Pre-allocated by the caller. Reinitialized at the beginning of this function.
 fn register_intersected_edges(
     triangles: &Triangles,
     vertices: &Vec<Vertice>,
-    constrained_edge: &Edge,
+    constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
 ) -> VecDeque<EdgeData> {
-    let mut intersection = search_first_interstected_quad(
+    let search_result = search_first_interstected_quad(
         triangles,
         vertices,
-        constrained_edge.from,
+        constrained_edge,
         constrained_edge_vertices,
         vertex_to_triangle[constrained_edge.from as usize],
     );
 
     let mut intersections = VecDeque::new();
-    intersections.push_back(intersection.clone());
+    let mut intersection = match search_result {
+        EdgeFirstIntersection::Intersection(edge_data) => {
+            intersections.push_back(edge_data.clone());
+            edge_data
+        }
+        _ => return intersections,
+    };
 
     // Search all the edges intersected by this constrained edge
     // We use `triangles.len()` as an upper bound on the number of triangles intersecting a constrained edge
@@ -435,8 +451,8 @@ fn register_intersected_edges(
         let triangle_id = intersection.to_triangle_id;
         let triangle = triangles.get(triangle_id);
 
-        // Stop if we reached the end of the constrained edge
         if triangle.verts.contains(&constrained_edge.to) {
+            // Stop if we reached the end of the constrained edge
             break;
         }
 
@@ -452,7 +468,7 @@ fn register_intersected_edges(
                 intersections.push_back(intersection.clone());
             }
             None => {
-                // TODO Doc: Justify why it is not possible
+                // Not possible, the edge must intersects at least one other side of the triangle here
                 error!("Internal error, triangle {} {:?} should be intersecting the constrained edge {:?}", triangle_id, triangle, constrained_edge);
                 break;
             }
@@ -490,15 +506,15 @@ impl EdgeData {
 /// Represents an edge between two triangles
 ///
 /// ```text
-///               q4
+///               q3
 ///              /  \
 ///            /  Tt  \
 ///          /          \
-///      q2=e2 -------- q1=e1
+///      q1=e1 -------- q2=e2
 ///          \          /
 ///            \  Tf  /
 ///              \  /
-///               q3
+///               q4
 /// ```
 ///
 /// where:
@@ -512,16 +528,15 @@ impl EdgeData {
             self.edge.from,
             self.edge.to,
             triangles
-                .get(self.from_triangle_id)
+                .get(self.to_triangle_id)
                 .get_opposite_vertex_index(&self.edge),
             triangles
-                .get(self.to_triangle_id)
+                .get(self.from_triangle_id)
                 .get_opposite_vertex_index(&self.edge),
         ])
     }
 }
 
-/// - visited_triangles: List of every triangles already checked. Pre-allocated and initialized by the caller
 fn get_next_triangle_edge_intersection(
     triangle_verts: &TriangleVertices,
     constrained_edge: &EdgeVertices,
@@ -559,27 +574,27 @@ fn get_next_triangle_edge_intersection(
 /// Swap diagonals of a quad like in the following diagram:
 ///
 /// ```text
-///               q4
+///               q3
 ///              /  \
 ///      Ttl   /  Tt  \    Ttr
 ///          /          \
-///      q2=c2 -------- q1=c1
+///      q1=c1 -------- q2=c2
 ///          \          /
 ///            \  Tf  /
 ///      Tfl     \  /      Tfr
-///               q3
+///               q4
 ///
 ///             Becomes
 ///
-///               q4
+///               q3
 ///              / | \
 ///      Ttl   /   |   \   Ttr
 ///          /     |     \
-///      q2=c2  Tf | Tt  q1=c1
+///      q1=c1  Tf | Tt  q2=c2
 ///          \     |     /
 ///            \   |   /
 ///      Tfl     \ | /     Tfr
-///               q3
+///               q4
 /// ```
 ///
 /// where:
@@ -600,7 +615,7 @@ pub(crate) fn swap_quad_diagonal(
     // TODO Design: Memorize from_crossed_edge_index in Intersection ?
     // `tt`: triangle_to
     // `tf`: triangle_from
-    let tt_left_edge_index = triangles.get(to).opposite_edge_index_from_vertex(quad.v1());
+    let tt_left_edge_index = triangles.get(to).opposite_edge_index_from_vertex(quad.v2());
     let tt_left_neighbor = triangles.get(to).neighbor(tt_left_edge_index);
     let tt_right_neighbor = triangles
         .get(to)
@@ -608,23 +623,23 @@ pub(crate) fn swap_quad_diagonal(
 
     let tf_left_edge_index = triangles
         .get(from)
-        .opposite_edge_index_from_vertex(quad.v1());
+        .opposite_edge_index_from_vertex(quad.v2());
     let tf_left_neighbor = triangles.get(from).neighbor(tf_left_edge_index);
     let tf_right_neighbor = triangles
         .get(from)
         .neighbor(next_counter_clockwise_edge_index(tf_left_edge_index));
 
-    triangles.get_mut(from).verts = [quad.v4(), quad.v2(), quad.v3()];
-    triangles.get_mut(to).verts = [quad.v4(), quad.v3(), quad.v1()];
+    triangles.get_mut(from).verts = [quad.v3(), quad.v4(), quad.v1()];
+    triangles.get_mut(to).verts = [quad.v3(), quad.v2(), quad.v4()];
 
-    triangles.get_mut(from).neighbors = [tt_left_neighbor, tf_left_neighbor, Some(to)];
-    triangles.get_mut(to).neighbors = [Some(from), tf_right_neighbor, tt_right_neighbor];
+    triangles.get_mut(from).neighbors = [Some(to), tf_left_neighbor, tt_left_neighbor];
+    triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, Some(from)];
 
     triangulation::update_triangle_neighbor(tt_left_neighbor, Some(to), Some(from), triangles);
     triangulation::update_triangle_neighbor(tf_right_neighbor, Some(from), Some(to), triangles);
 
-    vertex_to_triangle[quad.v1() as usize] = to;
-    vertex_to_triangle[quad.v2() as usize] = from;
+    vertex_to_triangle[quad.v1() as usize] = from;
+    vertex_to_triangle[quad.v2() as usize] = to;
 
     // Update in memory collectiosn that may contain now out of date data
     for edges_data_collection in edges_data_collections.iter_mut() {

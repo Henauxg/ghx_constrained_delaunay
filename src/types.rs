@@ -42,9 +42,9 @@ pub const QUAD_3: QuadVertexIndex = 2;
 pub const QUAD_4: QuadVertexIndex = 3;
 
 /// From a TriangleEdgeIndex, gives the next edge index in a clockwise order
-pub const NEXT_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
+pub const NEXT_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
 /// From a TriangleEdgeIndex, gives the next edge index in a counter-clockwise order
-pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
+pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
 /// From a TriangleEdgeIndex, gives the corresponding pair of TriangleVertexIndex
 pub const EDGE_TO_VERTS: [[TriangleVertexIndex; 2]; 3] =
     [[VERT_1, VERT_2], [VERT_2, VERT_3], [VERT_3, VERT_1]];
@@ -53,10 +53,10 @@ pub const EDGE_TO_VERTS: [[TriangleVertexIndex; 2]; 3] =
 pub const OPPOSITE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
 /// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
 pub const NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
-    [EDGE_12, EDGE_23, EDGE_31];
+    [EDGE_31, EDGE_12, EDGE_23];
 /// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
 pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
-    [EDGE_31, EDGE_12, EDGE_23];
+    [EDGE_12, EDGE_23, EDGE_31];
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct Edge {
@@ -181,11 +181,7 @@ impl TriangleData {
 
     #[inline]
     pub fn edges(&self) -> [Edge; 3] {
-        [
-            Edge::new(self.verts[VERT_1 as usize], self.verts[VERT_2 as usize]),
-            Edge::new(self.verts[VERT_2 as usize], self.verts[VERT_3 as usize]),
-            Edge::new(self.verts[VERT_3 as usize], self.verts[VERT_1 as usize]),
-        ]
+        [self.edge12(), self.edge23(), self.edge31()]
     }
 
     #[inline]
@@ -214,8 +210,19 @@ impl TriangleData {
         )
     }
 
+    /// `vertex` MUST be a vertex of the triangle
     #[inline]
-    pub fn vertex_index(&self, vertex_id: VertexId) -> Option<TriangleVertexIndex> {
+    pub fn vertex_index(&self, vertex: VertexId) -> TriangleVertexIndex {
+        if self.v1() == vertex {
+            return VERT_1;
+        } else if self.v2() == vertex {
+            return VERT_2;
+        } else {
+            return VERT_3;
+        }
+    }
+    #[inline]
+    pub fn get_vertex_index(&self, vertex_id: VertexId) -> Option<TriangleVertexIndex> {
         for (v_index, v) in self.verts.iter().enumerate() {
             if *v == vertex_id {
                 return Some(v_index as TriangleVertexIndex);
@@ -227,18 +234,18 @@ impl TriangleData {
     /// `vertex` MUST be a vertex of the triangle
     #[inline]
     pub fn opposite_edge_index_from_vertex(&self, vertex: VertexId) -> TriangleEdgeIndex {
-        opposite_edge_index(self.vertex_index(vertex).unwrap())
+        opposite_edge_index(self.vertex_index(vertex))
     }
 
     /// `edge` MUST be an edge of the triangle
     #[inline]
     pub fn get_opposite_vertex_index(&self, edge: &Edge) -> VertexId {
-        if !edge.contains(self.verts[VERT_1 as usize]) {
-            self.verts[VERT_1 as usize]
-        } else if !edge.contains(self.verts[VERT_2 as usize]) {
-            self.verts[VERT_2 as usize]
+        if !edge.contains(self.v1()) {
+            self.v1()
+        } else if !edge.contains(self.v2()) {
+            self.v2()
         } else {
-            self.verts[VERT_3 as usize]
+            self.v3()
         }
     }
 }
@@ -346,10 +353,10 @@ impl Quad {
     #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> QuadVertices {
         QuadVertices([
-            vertices[self.verts[QUAD_1 as usize] as usize],
-            vertices[self.verts[QUAD_2 as usize] as usize],
-            vertices[self.verts[QUAD_3 as usize] as usize],
-            vertices[self.verts[QUAD_4 as usize] as usize],
+            vertices[self.v1() as usize],
+            vertices[self.v2() as usize],
+            vertices[self.v3() as usize],
+            vertices[self.v4() as usize],
         ])
     }
 }

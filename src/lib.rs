@@ -25,7 +25,6 @@ pub use triangulation::{
 #[cfg(test)]
 mod tests {
     use glam::Vec3;
-    use hashbrown::HashSet;
 
     use crate::{
         constrained_triangulation::{
@@ -170,34 +169,33 @@ mod tests {
         vertices.push([1., 0., 0.]);
         vertices.push([0., 0., 0.]);
 
-        let mut constrained_edges: HashSet<Edge> = HashSet::new();
+        let mut constrained_edges = Vec::new();
 
         // mesh frontier MUST be counter clockwise
         // then other domains MUST alternate between clockwise and counter clockwise
 
-        // counter clockwise
-        constrained_edges.insert(Edge::new(0, 3));
-        constrained_edges.insert(Edge::new(3, 2));
-        constrained_edges.insert(Edge::new(2, 1));
-        constrained_edges.insert(Edge::new(1, 0));
-
-        //clockwise
-        constrained_edges.insert(Edge::new(4, 5));
-        constrained_edges.insert(Edge::new(5, 6));
-        constrained_edges.insert(Edge::new(6, 7));
-        constrained_edges.insert(Edge::new(7, 4));
-
-        //counter clockwise
-        constrained_edges.insert(Edge::new(8, 11));
-        constrained_edges.insert(Edge::new(11, 10));
-        constrained_edges.insert(Edge::new(10, 9));
-        constrained_edges.insert(Edge::new(9, 8));
-
-        //counter clockwise
-        constrained_edges.insert(Edge::new(12, 15));
-        constrained_edges.insert(Edge::new(15, 14));
-        constrained_edges.insert(Edge::new(14, 13));
-        constrained_edges.insert(Edge::new(13, 12));
+        constrained_edges.extend([
+            // counter clockwise
+            Edge::new(0, 3),
+            Edge::new(3, 2),
+            Edge::new(2, 1),
+            Edge::new(1, 0),
+            //clockwise
+            Edge::new(4, 5),
+            Edge::new(5, 6),
+            Edge::new(6, 7),
+            Edge::new(7, 4),
+            //counter clockwise
+            Edge::new(8, 11),
+            Edge::new(11, 10),
+            Edge::new(10, 9),
+            Edge::new(9, 8),
+            //counter clockwise
+            Edge::new(12, 15),
+            Edge::new(15, 14),
+            Edge::new(14, 13),
+            Edge::new(13, 12),
+        ]);
 
         let plane_normal = Vec3::Z;
         let triangulation = constrained_triangulation_from_3d_planar_vertices(
@@ -281,34 +279,33 @@ mod tests {
         vertices.push([1., 0., 0.]);
         vertices.push([0., 0., 0.]);
 
-        let mut constrained_edges: HashSet<Edge> = HashSet::new();
+        let mut constrained_edges = Vec::new();
 
         // mesh frontier MUST be counter clockwise
         // then other domains MUST alternate between clockwise and counter clockwise
 
-        // counter clockwise
-        constrained_edges.insert(Edge::new(0, 3));
-        constrained_edges.insert(Edge::new(3, 2));
-        constrained_edges.insert(Edge::new(2, 1));
-        constrained_edges.insert(Edge::new(1, 0));
-
-        //clockwise
-        constrained_edges.insert(Edge::new(4, 5));
-        constrained_edges.insert(Edge::new(5, 6));
-        constrained_edges.insert(Edge::new(6, 7));
-        constrained_edges.insert(Edge::new(7, 4));
-
-        //counter clockwise
-        constrained_edges.insert(Edge::new(8, 11));
-        constrained_edges.insert(Edge::new(11, 10));
-        constrained_edges.insert(Edge::new(10, 9));
-        constrained_edges.insert(Edge::new(9, 8));
-
-        //counter clockwise
-        constrained_edges.insert(Edge::new(12, 15));
-        constrained_edges.insert(Edge::new(15, 14));
-        constrained_edges.insert(Edge::new(14, 13));
-        constrained_edges.insert(Edge::new(13, 12));
+        constrained_edges.extend([
+            // counter clockwise
+            Edge::new(0, 3),
+            Edge::new(3, 2),
+            Edge::new(2, 1),
+            Edge::new(1, 0),
+            //clockwise
+            Edge::new(4, 5),
+            Edge::new(5, 6),
+            Edge::new(6, 7),
+            Edge::new(7, 4),
+            //counter clockwise
+            Edge::new(8, 11),
+            Edge::new(11, 10),
+            Edge::new(10, 9),
+            Edge::new(9, 8),
+            //counter clockwise
+            Edge::new(12, 15),
+            Edge::new(15, 14),
+            Edge::new(14, 13),
+            Edge::new(13, 12),
+        ]);
 
         let plane_normal = Vec3::Z;
         let triangulation = constrained_triangulation_from_3d_planar_vertices(
