@@ -10,20 +10,23 @@ use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumc
 use log::info;
 
 #[cfg(feature = "debug_context")]
-use crate::debug::{DebugContext, TriangulationPhase};
+use crate::debug::{DebugConfiguration, DebugContext, TriangulationPhase};
 
 /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
 pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
     /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
     pub bin_vertex_density_power: f64,
+    #[cfg(feature = "debug_context")]
+    pub debug_config: DebugConfiguration,
 }
 impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            debug_config: DebugConfiguration::default(),
         }
     }
 }
@@ -61,7 +64,9 @@ pub fn triangulation_from_3d_planar_vertices(
     triangulation_from_2d_vertices(&mut planar_vertices, config)
 }
 pub struct Triangulation {
+    /// Indices of the original vertices by groups of 3 to from triangles.
     pub vert_indices: Vec<VertexId>,
+
     #[cfg(feature = "debug_context")]
     pub debug_context: DebugContext,
 }
@@ -75,7 +80,8 @@ pub fn triangulation_from_2d_vertices(
         normalize_vertices_coordinates(vertices);
 
     #[cfg(feature = "debug_context")]
-    let mut debug_context = DebugContext::new(_scale_factor, _x_min, _y_min);
+    let mut debug_context =
+        DebugContext::new(config.debug_config.clone(), _scale_factor, _x_min, _y_min);
 
     let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
@@ -232,7 +238,12 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     // Loop over all the input vertices
     for (_step, sorted_vertex) in partitioned_vertices.iter().enumerate() {
         #[cfg(feature = "debug_context")]
-        debug_context.set_step(_step);
+        {
+            let force_end = debug_context.set_step(_step);
+            if force_end {
+                break;
+            }
+        }
 
         // Find an existing triangle which encloses P
         match search_enclosing_triangle(sorted_vertex, triangle_id, &triangles, &vertices) {
@@ -666,6 +677,7 @@ mod tests {
     #[cfg(feature = "debug_context")]
     use crate::debug::DebugContext;
     use crate::{
+        debug::DebugConfiguration,
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
@@ -750,7 +762,7 @@ mod tests {
         triangles.push(container_triangle);
 
         #[cfg(feature = "debug_context")]
-        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
         let _new_triangles = split_triangle_in_three_at_vertex(
             &mut triangles,
             0,
@@ -785,7 +797,7 @@ mod tests {
         triangles.push(triangle_2);
 
         #[cfg(feature = "debug_context")]
-        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
         let quad_swap = check_and_swap_quad_diagonal(
             &mut triangles,
             &vertices,
@@ -823,7 +835,7 @@ mod tests {
         triangles.push(triangle_2);
 
         #[cfg(feature = "debug_context")]
-        let mut debug_context = DebugContext::new(0., 0., 0.);
+        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
         let quad_swap = check_and_swap_quad_diagonal(
             &mut triangles,
             &vertices,

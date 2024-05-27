@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ConstrainedTriangulationConfiguration {
     pub triangulation: TriangulationConfiguration,
 }
@@ -73,7 +73,12 @@ pub fn constrained_triangulation_from_2d_vertices(
         normalize_vertices_coordinates(vertices);
 
     #[cfg(feature = "debug_context")]
-    let mut debug_context = DebugContext::new(_scale_factor, _x_min, _y_min);
+    let mut debug_context = DebugContext::new(
+        config.triangulation.debug_config.clone(),
+        _scale_factor,
+        _x_min,
+        _y_min,
+    );
 
     let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
