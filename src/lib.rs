@@ -28,8 +28,11 @@ mod tests {
     use hashbrown::HashSet;
 
     use crate::{
-        constrained_triangulation::constrained_triangulation_from_3d_planar_vertices,
-        triangulation::triangulation_from_3d_planar_vertices,
+        constrained_triangulation::{
+            constrained_triangulation_from_3d_planar_vertices,
+            ConstrainedTriangulationConfiguration,
+        },
+        triangulation::{triangulation_from_3d_planar_vertices, TriangulationConfiguration},
         types::{Edge, Float},
     };
 
@@ -49,7 +52,11 @@ mod tests {
         vertices.push([5., 0., 0.]);
 
         let plane_normal = Vec3::Z;
-        let triangulation = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
+        let triangulation = triangulation_from_3d_planar_vertices(
+            &vertices,
+            plane_normal.into(),
+            TriangulationConfiguration::default(),
+        );
 
         let mut constrained_vertices = Vec::new();
 
@@ -94,7 +101,11 @@ mod tests {
         vertices.push([5., 10., 0.]);
 
         let plane_normal = Vec3::Z;
-        let triangulation = triangulation_from_3d_planar_vertices(&vertices, plane_normal.into());
+        let triangulation = triangulation_from_3d_planar_vertices(
+            &vertices,
+            plane_normal.into(),
+            TriangulationConfiguration::default(),
+        );
 
         let mut constrained_vertices = Vec::new();
 
@@ -193,6 +204,7 @@ mod tests {
             &vertices,
             plane_normal.into(),
             &constrained_edges,
+            ConstrainedTriangulationConfiguration::default(),
         );
 
         let mut constrained_vertices = Vec::new();
@@ -303,6 +315,7 @@ mod tests {
             &vertices,
             plane_normal.into(),
             &constrained_edges,
+            ConstrainedTriangulationConfiguration::default(),
         );
 
         let mut constrained_vertices = Vec::new();

@@ -10,7 +10,9 @@ use examples::{
     TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
 };
 use ghx_constrained_delaunay::{
-    constrained_triangulation::constrained_triangulation_from_3d_planar_vertices,
+    constrained_triangulation::{
+        constrained_triangulation_from_3d_planar_vertices, ConstrainedTriangulationConfiguration,
+    },
     types::{Edge, Vector3},
 };
 
@@ -67,6 +69,7 @@ fn setup(mut commands: Commands) {
         &vertices,
         plane_normal.into(),
         &constrained_edges,
+        ConstrainedTriangulationConfiguration::default(),
     );
 
     let mut displayed_vertices = vertices.iter().map(|v| Vector3::from_slice(v)).collect();

@@ -12,6 +12,22 @@ use log::info;
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugContext, TriangulationPhase};
 
+/// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
+pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
+
+#[derive(Copy, Clone, Debug)]
+pub struct TriangulationConfiguration {
+    /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
+    pub bin_vertex_density_power: f64,
+}
+impl Default for TriangulationConfiguration {
+    fn default() -> Self {
+        Self {
+            bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+        }
+    }
+}
+
 pub const CONTAINER_TRIANGLE_COORDINATE: Float = 5.;
 
 pub const CONTAINER_TRIANGLE_VERTICES: [Vertice; 3] = [
@@ -31,6 +47,7 @@ pub const CONTAINER_TRIANGLE_VERTICES: [Vertice; 3] = [
 pub fn triangulation_from_3d_planar_vertices(
     vertices: &Vec<[Float; 3]>,
     plane_normal: Vector3A,
+    config: TriangulationConfiguration,
 ) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
@@ -41,7 +58,7 @@ pub fn triangulation_from_3d_planar_vertices(
     let mut planar_vertices =
         transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
 
-    triangulation_from_2d_vertices(&mut planar_vertices)
+    triangulation_from_2d_vertices(&mut planar_vertices, config)
 }
 pub struct Triangulation {
     pub vert_indices: Vec<VertexId>,
@@ -49,7 +66,10 @@ pub struct Triangulation {
     pub debug_context: DebugContext,
 }
 
-pub fn triangulation_from_2d_vertices(vertices: &Vec<Vertice>) -> Triangulation {
+pub fn triangulation_from_2d_vertices(
+    vertices: &Vec<Vertice>,
+    config: TriangulationConfiguration,
+) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
         normalize_vertices_coordinates(vertices);
@@ -59,6 +79,7 @@ pub fn triangulation_from_2d_vertices(vertices: &Vec<Vertice>) -> Triangulation 
 
     let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
+        &config,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
@@ -184,12 +205,13 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertice>) -> Tr
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     vertices: &mut Vec<Vertice>,
+    config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> (Triangles, TriangleData) {
     // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
     // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
-    let partitioned_vertices = VertexBinSort::sort(&vertices, 0.5);
+    let partitioned_vertices = VertexBinSort::sort(&vertices, config.bin_vertex_density_power);
 
     let container_triangle = add_container_triangle_vertices(vertices);
 
@@ -318,8 +340,8 @@ pub(crate) struct SortedVertex {
 
 impl VertexBinSort {
     // Each bin will contain roughly vertices.len()^(vertex_density_power) vertices
-    pub fn sort(vertices: &Vec<Vertice>, vertex_density_power: Float) -> Vec<SortedVertex> {
-        let bins_per_row = (vertices.len() as Float)
+    pub fn sort(vertices: &Vec<Vertice>, vertex_density_power: f64) -> Vec<SortedVertex> {
+        let bins_per_row = (vertices.len() as f64)
             .powf(vertex_density_power / 2.)
             .round() as usize;
 

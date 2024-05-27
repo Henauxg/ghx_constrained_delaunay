@@ -3,7 +3,9 @@ use std::collections::VecDeque;
 use hashbrown::HashSet;
 use log::error;
 
-use crate::triangulation::{normalize_vertices_coordinates, Triangulation};
+use crate::triangulation::{
+    normalize_vertices_coordinates, Triangulation, TriangulationConfiguration,
+};
 use crate::types::{Float, TriangleEdgeIndex, Triangles, Vector3A, Vertice};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
@@ -23,6 +25,18 @@ use crate::{
     },
 };
 
+#[derive(Copy, Clone, Debug)]
+pub struct ConstrainedTriangulationConfiguration {
+    pub triangulation: TriangulationConfiguration,
+}
+impl Default for ConstrainedTriangulationConfiguration {
+    fn default() -> Self {
+        Self {
+            triangulation: TriangulationConfiguration::default(),
+        }
+    }
+}
+
 /// - `plane_normal` **MUST** be normalized
 /// - `vertices` **MUST** all belong to a 3d plane
 /// - `constrained_edges` **MUST**:
@@ -32,6 +46,7 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<[Float; 3]>,
     plane_normal: Vector3A,
     constrained_edges: &HashSet<Edge>,
+    config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
     // TODO Clean: See what we need for input data format of `triangulate`
     let mut vertices_data = Vec::with_capacity(vertices.len());
@@ -42,7 +57,7 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     let mut planar_vertices =
         triangulation::transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
 
-    constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges)
+    constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges, config)
 }
 
 /// - `constrained_edges` **MUST**:
@@ -51,6 +66,7 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
 pub fn constrained_triangulation_from_2d_vertices(
     vertices: &Vec<Vertice>,
     constrained_edges: &HashSet<Edge>,
+    config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
@@ -61,6 +77,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 
     let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
+        &config.triangulation,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
