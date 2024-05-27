@@ -1,7 +1,6 @@
 use bevy::{
     app::{App, Startup},
     ecs::system::Commands,
-    utils::hashbrown::HashSet,
     DefaultPlugins,
 };
 
@@ -47,7 +46,7 @@ fn setup(mut commands: Commands) {
         [-4., 4., 0.],
     ];
 
-    let constrained_edges: HashSet<Edge> = HashSet::from([
+    let constrained_edges = vec![
         Edge::new(0, 11),
         Edge::new(11, 10),
         Edge::new(10, 9),
@@ -62,7 +61,7 @@ fn setup(mut commands: Commands) {
         Edge::new(1, 0),
         Edge::new(12, 13),
         Edge::new(14, 15),
-    ]);
+    ];
 
     let plane_normal = Vector3::Z;
     let triangulation = constrained_triangulation_from_3d_planar_vertices(

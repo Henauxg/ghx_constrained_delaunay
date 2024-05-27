@@ -95,32 +95,37 @@ fn setup(mut commands: Commands) {
         LabelMode::Changed,
         TrianglesDrawMode::AllAsMeshBatches { batch_size: 150 },
     ));
+    // TODO Center camera on data
 }
 
-fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Triangulation {
+fn load_with_ghx_cdt_crate(vertices: &[Vertice], edges: &[[usize; 2]]) -> Triangulation {
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
-    let triangulation_config = TriangulationConfiguration {
-        debug_config: DebugConfiguration {
-            phase_record: PhaseRecord::In(TriangulationPhase::RemoveWrapping),
+    let config = ConstrainedTriangulationConfiguration {
+        triangulation: TriangulationConfiguration {
+            debug_config: DebugConfiguration {
+                phase_record: PhaseRecord::InAny(HashSet::from([
+                    TriangulationPhase::BeforeConstraints,
+                    TriangulationPhase::AfterConstraints,
+                    TriangulationPhase::RemoveWrapping,
+                ])),
+                ..Default::default()
+            },
             ..Default::default()
         },
-        ..Default::default()
     };
 
     println!("Loading cdt (ghx_cdt crate)");
-    let edges = _edges
+    let edges = edges
         .iter()
         // TODO into()
         .map(|[from, to]| Edge::new(*from as VertexId, *to as VertexId))
-        .collect::<HashSet<_>>();
+        .collect::<Vec<_>>();
     let now = Instant::now();
-    let _triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
+    let triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
         &vertices_clone,
         &edges,
-        ConstrainedTriangulationConfiguration {
-            triangulation: triangulation_config.clone(),
-        },
+        config,
     );
     println!("Done!");
     println!(
@@ -128,16 +133,6 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertice], _edges: &[[usize; 2]]) -> Trian
         now.elapsed().as_millis()
     );
 
-    let now = Instant::now();
-    let triangulation = ghx_constrained_delaunay::triangulation_from_2d_vertices(
-        &vertices_clone,
-        triangulation_config,
-    );
-    println!("Done!");
-    println!(
-        "loading time (ghx_cdt crate without constraints): {}ms",
-        now.elapsed().as_millis()
-    );
     triangulation
 }
 
