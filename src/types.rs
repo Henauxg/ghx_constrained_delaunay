@@ -97,7 +97,7 @@ pub struct TriangleData {
     /// Adjacent neighbors on each edge.
     ///
     /// Can be [`None`] for the container triangle added by the triangulation process which has no neighbors,
-    /// and contain all the points to triangulate
+    /// and contains all the points to triangulate
     pub neighbors: [Neighbor; 3],
 }
 

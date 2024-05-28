@@ -168,7 +168,7 @@ enum SearchResult {
 }
 
 fn search_enclosing_triangle(
-    sorted_vertex: &SortedVertex,
+    vertex: Vertice,
     from: Neighbor,
     triangles: &Triangles,
     vertices: &Vec<Vertice>,
@@ -185,11 +185,11 @@ fn search_enclosing_triangle(
         let (v1, v2, v3) = triangle.to_vertices(vertices);
 
         // Check if the point is inside the triangle, if not check the neighbours
-        if !is_point_on_right_side_of_edge((v1, v2), sorted_vertex.vertex) {
+        if !is_point_on_right_side_of_edge((v1, v2), vertex) {
             triangle_id = triangle.neighbor12();
-        } else if !is_point_on_right_side_of_edge((v2, v3), sorted_vertex.vertex) {
+        } else if !is_point_on_right_side_of_edge((v2, v3), vertex) {
             triangle_id = triangle.neighbor23();
-        } else if !is_point_on_right_side_of_edge((v3, v1), sorted_vertex.vertex) {
+        } else if !is_point_on_right_side_of_edge((v3, v1), vertex) {
             triangle_id = triangle.neighbor31();
         } else {
             search_result = SearchResult::EnlosingTriangle(current_triangle_id);
@@ -237,7 +237,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     );
 
     // Loop over all the input vertices
-    for (_step, sorted_vertex) in partitioned_vertices.iter().enumerate() {
+    for (_step, &vertex_id) in partitioned_vertices.iter().enumerate() {
         #[cfg(feature = "debug_context")]
         {
             let force_end = debug_context.set_step(_step);
@@ -247,10 +247,13 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         }
 
         // Find an existing triangle which encloses P
-        match search_enclosing_triangle(sorted_vertex, triangle_id, &triangles, &vertices) {
+        match search_enclosing_triangle(
+            vertices[vertex_id as usize],
+            triangle_id,
+            &triangles,
+            &vertices,
+        ) {
             SearchResult::EnlosingTriangle(enclosing_triangle_id) => {
-                let vertex_id = sorted_vertex.original_id;
-
                 // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
                 let new_triangles = split_triangle_in_three_at_vertex(
                     &mut triangles,
@@ -290,7 +293,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 // TODO Error
                 error!(
                     "Found no triangle enclosing vertex {:?}, step {}",
-                    sorted_vertex, _step
+                    vertex_id, _step
                 );
                 break;
             }
@@ -344,15 +347,9 @@ pub(crate) struct VertexBinSort {
     bins_count: usize,
 }
 
-#[derive(Debug, Default, Copy, Clone)]
-pub(crate) struct SortedVertex {
-    pub(crate) original_id: VertexId,
-    pub(crate) vertex: Vertice,
-}
-
 impl VertexBinSort {
     // Each bin will contain roughly vertices.len()^(vertex_density_power) vertices
-    pub fn sort(vertices: &Vec<Vertice>, vertex_density_power: f64) -> Vec<SortedVertex> {
+    pub fn sort(vertices: &Vec<Vertice>, vertex_density_power: f64) -> Vec<VertexId> {
         let bins_per_row = (vertices.len() as f64)
             .powf(vertex_density_power / 2.)
             .round() as usize;
@@ -379,14 +376,11 @@ impl VertexBinSort {
             bins_counters[bin_index] += bins_counters[bin_index - 1];
         }
 
-        let mut sorted = vec![SortedVertex::default(); vertices.len()];
-        for (vertex_id, vertex) in vertices.iter().enumerate() {
+        let mut sorted = vec![0; vertices.len()];
+        for vertex_id in 0..vertices.len() {
             let bin_index = vertices_bin_indexes[vertex_id];
             bins_counters[bin_index] -= 1;
-            sorted[bins_counters[bin_index]] = SortedVertex {
-                original_id: vertex_id as VertexId,
-                vertex: *vertex,
-            };
+            sorted[bins_counters[bin_index]] = vertex_id as VertexId;
         }
         sorted
     }
