@@ -19,7 +19,7 @@ impl crate::DelaunayCrate for DelaunatorCrate {
             .collect();
     }
 
-    fn run_creation(&self, distribution: Distribution) -> Self::ResultType {
+    fn run_creation(&self, _distribution: Distribution) -> Self::ResultType {
         delaunator::triangulate(&self.vertices)
     }
 }
