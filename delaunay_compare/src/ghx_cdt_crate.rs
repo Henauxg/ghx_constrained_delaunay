@@ -1,4 +1,4 @@
-use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertice};
+use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertex};
 
 use crate::Distribution;
 
@@ -11,7 +11,7 @@ fn bin_density_from_distribution(dis: Distribution) -> f64 {
 
 #[derive(Default)]
 pub struct GhxCDTCrate {
-    vertices: Vec<Vertice>,
+    vertices: Vec<Vertex>,
 }
 
 impl crate::DelaunayCrate for GhxCDTCrate {
@@ -19,7 +19,7 @@ impl crate::DelaunayCrate for GhxCDTCrate {
 
     fn init(&mut self, vertices: impl Iterator<Item = [f64; 2]>) {
         self.vertices = vertices
-            .map(|vertex| Vertice::new(vertex[0], vertex[1]))
+            .map(|vertex| Vertex::new(vertex[0], vertex[1]))
             .collect();
     }
 

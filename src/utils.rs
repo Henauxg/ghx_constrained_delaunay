@@ -1,4 +1,4 @@
-use crate::types::{EdgeVertices, Vertice};
+use crate::types::{EdgeVertices, Vertex};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EdgesIntersectionResult {
@@ -57,7 +57,7 @@ pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesInt
 }
 
 /// Returns the orientation of an ordered triplet (p, q, r).
-pub fn triplet_orientation(p: Vertice, q: Vertice, r: Vertice) -> Orientation {
+pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
     let val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
 
     if val == 0. {
@@ -73,13 +73,13 @@ pub fn triplet_orientation(p: Vertice, q: Vertice, r: Vertice) -> Orientation {
 ///
 /// Uses the ross product of vectors e0.e1 and e1.p
 #[inline]
-pub fn is_point_on_right_side_of_edge(e: EdgeVertices, p: Vertice) -> bool {
+pub fn is_point_on_right_side_of_edge(e: EdgeVertices, p: Vertex) -> bool {
     ((p.x - e.0.x) * (e.1.y - e.0.y) - (p.y - e.0.y) * (e.1.x - e.0.x)) >= 0.
 }
 
 /// Given three collinear points p, q, r, the function checks if point `q` lies on line segment 'pr'
 #[inline]
-pub fn on_segment(p: Vertice, q: Vertice, r: Vertice) -> bool {
+pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
     q.x <= p.x.max(r.x) && q.x >= p.x.min(r.x) && q.y <= p.y.max(r.y) && q.y >= p.y.min(r.y)
 }
 
@@ -105,7 +105,7 @@ pub fn on_segment(p: Vertice, q: Vertice, r: Vertice) -> bool {
 /// A storage efficient method for construction of a Thiessen triangulation.
 /// Rocky Mounfain J. Math. 14, 119-139 (1984)
 ///
-pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vertice], p: Vertice) -> bool {
+pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
     let x13 = triangle[0].x - triangle[2].x;
     let x23 = triangle[1].x - triangle[2].x;
     let y13 = triangle[0].y - triangle[2].y;
@@ -140,7 +140,7 @@ pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vertice], p: Vertice) -> b
 mod tests {
 
     use crate::{
-        types::{Float, Vertice},
+        types::{Float, Vertex},
         utils::{
             egdes_intersect, is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle,
             on_segment, EdgesIntersectionResult,
@@ -150,15 +150,15 @@ mod tests {
     #[test]
     fn vertex_in_triangle_circumcircle() {
         let unit_circle = [
-            Vertice::new(-1., 0.),
-            Vertice::new(1., 0.),
-            Vertice::new(0., 1.),
+            Vertex::new(-1., 0.),
+            Vertex::new(1., 0.),
+            Vertex::new(0., 1.),
         ];
 
         let step = 100;
         for i in -step..step {
             for j in -step..step {
-                let p = Vertice::new(i as Float / step as Float, j as Float / step as Float);
+                let p = Vertex::new(i as Float / step as Float, j as Float / step as Float);
                 let p_length = p.length();
                 let p_in_circle = is_vertex_in_triangle_circumcircle(&unit_circle, p);
                 if p_length < 1. {
@@ -175,8 +175,8 @@ mod tests {
 
     #[test]
     fn edge_intersect_none() {
-        let edge1 = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let edge2 = (Vertice::new(0., 3.), Vertice::new(3., 3.));
+        let edge1 = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let edge2 = (Vertex::new(0., 3.), Vertex::new(3., 3.));
 
         let intersect = egdes_intersect(&edge1, &edge2);
 
@@ -185,8 +185,8 @@ mod tests {
 
     #[test]
     fn edge_intersect_crossing() {
-        let edge1 = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let edge2 = (Vertice::new(1., -2.), Vertice::new(1., 3.));
+        let edge1 = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let edge2 = (Vertex::new(1., -2.), Vertex::new(1., 3.));
 
         let intersect = egdes_intersect(&edge1, &edge2);
 
@@ -195,8 +195,8 @@ mod tests {
 
     #[test]
     fn edge_intersect_on_edge_tip() {
-        let edge1 = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let edge2 = (Vertice::new(1., 0.), Vertice::new(3., 3.));
+        let edge1 = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let edge2 = (Vertex::new(1., 0.), Vertex::new(3., 3.));
 
         let intersect = egdes_intersect(&edge1, &edge2);
 
@@ -205,8 +205,8 @@ mod tests {
 
     #[test]
     fn edge_intersect_shared_edge() {
-        let edge1 = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let edge2 = (Vertice::new(0., 0.), Vertice::new(3., 3.));
+        let edge1 = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let edge2 = (Vertex::new(0., 0.), Vertex::new(3., 3.));
 
         let intersect = egdes_intersect(&edge1, &edge2);
 
@@ -215,8 +215,8 @@ mod tests {
 
     #[test]
     fn point_edge_orientatiion_left() {
-        let edge = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let p = Vertice::new(0., 3.);
+        let edge = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let p = Vertex::new(0., 3.);
 
         let orientation = is_point_on_right_side_of_edge(edge, p);
 
@@ -225,8 +225,8 @@ mod tests {
 
     #[test]
     fn point_edge_orientation_right() {
-        let edge = (Vertice::new(0., 0.), Vertice::new(3., 0.));
-        let p = Vertice::new(0., -3.);
+        let edge = (Vertex::new(0., 0.), Vertex::new(3., 0.));
+        let p = Vertex::new(0., -3.);
 
         let orientation = is_point_on_right_side_of_edge(edge, p);
 
@@ -235,9 +235,9 @@ mod tests {
 
     #[test]
     fn point_inside_segment() {
-        let p = Vertice::new(0., 3.);
-        let r = Vertice::new(0., -3.);
-        let q = Vertice::new(0., 0.);
+        let p = Vertex::new(0., 3.);
+        let r = Vertex::new(0., -3.);
+        let q = Vertex::new(0., 0.);
 
         let orientation = on_segment(p, q, r);
 
@@ -246,9 +246,9 @@ mod tests {
 
     #[test]
     fn point_outside_segment() {
-        let p = Vertice::new(0., 3.);
-        let r = Vertice::new(0., -3.);
-        let q = Vertice::new(8., 0.);
+        let p = Vertex::new(0., 3.);
+        let r = Vertex::new(0., -3.);
+        let q = Vertex::new(8., 0.);
 
         let orientation = on_segment(p, q, r);
 

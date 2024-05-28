@@ -6,7 +6,7 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
-    types::{Edge, Float, VertexId, Vertice},
+    types::{Edge, Float, VertexId, Vertex},
 };
 use ordered_float::OrderedFloat;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
@@ -146,7 +146,7 @@ fn load_with_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow
 fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow::Result<()> {
     let vertices_clone = vertices
         .iter()
-        .map(|p| Vertice::new(p.x as Float, p.y as Float))
+        .map(|p| Vertex::new(p.x as Float, p.y as Float))
         .collect::<Vec<_>>();
 
     println!("Loading cdt (ghx_cdt crate)");

@@ -2,7 +2,7 @@ use hashbrown::HashSet;
 use log::error;
 
 use crate::types::{
-    Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, VertexId, Vertice,
+    Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, Vertex, VertexId,
 };
 use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle};
 
@@ -34,13 +34,13 @@ impl Default for TriangulationConfiguration {
 
 pub const CONTAINER_TRIANGLE_COORDINATE: Float = 5.;
 
-pub const CONTAINER_TRIANGLE_VERTICES: [Vertice; 3] = [
-    Vertice::new(
+pub const CONTAINER_TRIANGLE_VERTICES: [Vertex; 3] = [
+    Vertex::new(
         -CONTAINER_TRIANGLE_COORDINATE,
         -CONTAINER_TRIANGLE_COORDINATE,
     ),
-    Vertice::new(0., CONTAINER_TRIANGLE_COORDINATE),
-    Vertice::new(
+    Vertex::new(0., CONTAINER_TRIANGLE_COORDINATE),
+    Vertex::new(
         CONTAINER_TRIANGLE_COORDINATE,
         -CONTAINER_TRIANGLE_COORDINATE,
     ),
@@ -73,7 +73,7 @@ pub struct Triangulation {
 }
 
 pub fn triangulation_from_2d_vertices(
-    vertices: &Vec<Vertice>,
+    vertices: &Vec<Vertex>,
     config: TriangulationConfiguration,
 ) -> Triangulation {
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -111,7 +111,7 @@ pub fn triangulation_from_2d_vertices(
 pub(crate) fn transform_to_2d_planar_coordinate_system(
     vertices: &mut Vec<Vector3A>,
     plane_normal: Vector3A,
-) -> Vec<Vertice> {
+) -> Vec<Vertex> {
     // Create a base, using the first two vertices as the first base vector and plane_normal as the second
     let basis_1 = (vertices[0] - vertices[1]).normalize();
     // basis_3 is already normalized since basis_1 and plane_normal are normalized and orthogonal
@@ -120,7 +120,7 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
     // Project every vertices into the base B
     let mut vertices_2d = Vec::with_capacity(vertices.len());
     for vertex in vertices {
-        vertices_2d.push(Vertice::new(vertex.dot(basis_1), vertex.dot(basis_3)));
+        vertices_2d.push(Vertex::new(vertex.dot(basis_1), vertex.dot(basis_3)));
     }
     vertices_2d
 }
@@ -128,8 +128,8 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
 /// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
 /// The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
 pub(crate) fn normalize_vertices_coordinates(
-    vertices: &Vec<Vertice>,
-) -> (Vec<Vertice>, Float, Float, Float) {
+    vertices: &Vec<Vertex>,
+) -> (Vec<Vertex>, Float, Float, Float) {
     let mut normalized_vertices = Vec::with_capacity(vertices.len());
     let (mut x_min, mut y_min, mut x_max, mut y_max) =
         (Float::MAX, Float::MAX, Float::MIN, Float::MIN);
@@ -152,7 +152,7 @@ pub(crate) fn normalize_vertices_coordinates(
     let scale_factor = (x_max - x_min).max(y_max - y_min);
 
     for vertex in vertices.iter() {
-        normalized_vertices.push(Vertice {
+        normalized_vertices.push(Vertex {
             x: (vertex.x - x_min) / scale_factor,
             y: (vertex.y - y_min) / scale_factor,
         });
@@ -168,10 +168,10 @@ enum SearchResult {
 }
 
 fn search_enclosing_triangle(
-    vertex: Vertice,
+    vertex: Vertex,
     from: Neighbor,
     triangles: &Triangles,
-    vertices: &Vec<Vertice>,
+    vertices: &Vec<Vertex>,
 ) -> SearchResult {
     let mut triangle_id = from;
 
@@ -203,7 +203,7 @@ fn search_enclosing_triangle(
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
 ///  This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle.
 ///  Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
-pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertice>) -> TriangleData {
+pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertex>) -> TriangleData {
     let container_triangle = TriangleData::new_container_triangle(vertices.len() as TriangleId);
     vertices.extend(CONTAINER_TRIANGLE_VERTICES.clone());
     container_triangle
@@ -211,7 +211,7 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertice>) -> Tr
 
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
-    vertices: &mut Vec<Vertice>,
+    vertices: &mut Vec<Vertex>,
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> (Triangles, TriangleData) {
@@ -349,7 +349,7 @@ pub(crate) struct VertexBinSort {
 
 impl VertexBinSort {
     // Each bin will contain roughly vertices.len()^(vertex_density_power) vertices
-    pub fn sort(vertices: &Vec<Vertice>, vertex_density_power: f64) -> Vec<VertexId> {
+    pub fn sort(vertices: &Vec<Vertex>, vertex_density_power: f64) -> Vec<VertexId> {
         let bins_per_row = (vertices.len() as f64)
             .powf(vertex_density_power / 2.)
             .round() as usize;
@@ -385,7 +385,7 @@ impl VertexBinSort {
         sorted
     }
 
-    fn bin_index_from_vertex(&self, vertex: Vertice) -> usize {
+    fn bin_index_from_vertex(&self, vertex: Vertex) -> usize {
         // Compute a bin index from a vertox position which is in [0.,1]
         let bin_x = (0.99 * self.bins_per_row as Float * vertex.x) as usize;
         let bin_y: usize = (0.99 * self.bins_per_row as Float * vertex.y) as usize;
@@ -498,7 +498,7 @@ pub(crate) fn update_triangle_neighbor(
 
 fn restore_delaunay_triangulation(
     triangles: &mut Triangles,
-    vertices: &Vec<Vertice>,
+    vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
     new_triangles: [TriangleId; 3],
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
@@ -545,7 +545,7 @@ pub enum QuadSwapResult {
 
 pub fn check_and_swap_quad_diagonal(
     triangles: &mut Triangles,
-    vertices: &Vec<Vertice>,
+    vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
     from_triangle_id: TriangleId,
     opposite_triangle_id: TriangleId,
@@ -678,7 +678,7 @@ mod tests {
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
             QuadSwapResult,
         },
-        types::{Float, TriangleData, TriangleId, Triangles, Vector3A, Vertice},
+        types::{Float, TriangleData, TriangleId, Triangles, Vector3A, Vertex},
     };
 
     #[test]
@@ -692,17 +692,17 @@ mod tests {
 
         let mut planar_vertices = Vec::with_capacity(vertices.len());
         for v in &vertices {
-            planar_vertices.push(Vertice::from_array(*v));
+            planar_vertices.push(Vertex::from_array(*v));
         }
 
         normalize_vertices_coordinates(&mut planar_vertices);
 
         assert_eq!(
             Vec::from([
-                Vertice::from([1., 1.]),
-                Vertice::from([0., 1.]),
-                Vertice::from([0., 0.]),
-                Vertice::from([1., 0.])
+                Vertex::from([1., 1.]),
+                Vertex::from([0., 1.]),
+                Vertex::from([0., 0.]),
+                Vertex::from([1., 0.])
             ]),
             planar_vertices
         );
@@ -729,10 +729,10 @@ mod tests {
 
         assert_eq!(
             Vec::from([
-                Vertice::from([3.0, 2.0]),
-                Vertice::from([-1.0, 2.0]),
-                Vertice::from([-1.0, -2.0]),
-                Vertice::from([3.0, -2.0])
+                Vertex::from([3.0, 2.0]),
+                Vertex::from([-1.0, 2.0]),
+                Vertex::from([-1.0, -2.0]),
+                Vertex::from([3.0, -2.0])
             ]),
             planar_vertices
         );
@@ -740,17 +740,17 @@ mod tests {
 
     #[test]
     fn split_in_three_triangle() {
-        let mut vertices = Vec::<Vertice>::new();
-        vertices.push(Vertice::new(0., 0.)); // vertex to be added
+        let mut vertices = Vec::<Vertex>::new();
+        vertices.push(Vertex::new(0., 0.)); // vertex to be added
 
         // container triangle to be splited by the vertex
         let container_triangle = TriangleData::new_container_triangle(vertices.len() as TriangleId);
 
         // vertices of the container triangle
         vertices.extend([
-            Vertice::new(1., 1.),
-            Vertice::new(1., -2.),
-            Vertice::new(-3., 2.),
+            Vertex::new(1., 1.),
+            Vertex::new(1., -2.),
+            Vertex::new(-3., 2.),
         ]);
 
         let mut triangles = Triangles::new();
@@ -771,11 +771,11 @@ mod tests {
 
     #[test]
     fn no_swap() {
-        let mut vertices = Vec::<Vertice>::new();
-        vertices.push(Vertice::new(0.5, 3.));
-        vertices.push(Vertice::new(-2., -2.));
-        vertices.push(Vertice::new(1., -4.));
-        vertices.push(Vertice::new(3., -2.));
+        let mut vertices = Vec::<Vertex>::new();
+        vertices.push(Vertex::new(0.5, 3.));
+        vertices.push(Vertex::new(-2., -2.));
+        vertices.push(Vertex::new(1., -4.));
+        vertices.push(Vertex::new(3., -2.));
 
         let triangle_1 = TriangleData {
             verts: [3, 1, 0],
@@ -809,11 +809,11 @@ mod tests {
 
     #[test]
     fn swap() {
-        let mut vertices = Vec::<Vertice>::new();
-        vertices.push(Vertice::new(0.5, 3.));
-        vertices.push(Vertice::new(-2., -2.));
-        vertices.push(Vertice::new(1., -4.));
-        vertices.push(Vertice::new(3., -2.));
+        let mut vertices = Vec::<Vertex>::new();
+        vertices.push(Vertex::new(0.5, 3.));
+        vertices.push(Vertex::new(-2., -2.));
+        vertices.push(Vertex::new(1., -4.));
+        vertices.push(Vertex::new(3., -2.));
 
         let triangle_1 = TriangleData {
             verts: [0, 1, 2],

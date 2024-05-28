@@ -75,7 +75,7 @@ impl Edge {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> EdgeVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> EdgeVertices {
         (vertices[self.from as usize], vertices[self.to as usize])
     }
 
@@ -202,7 +202,7 @@ impl TriangleData {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> TriangleVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> TriangleVertices {
         (
             vertices[self.verts[VERT_1 as usize] as usize],
             vertices[self.verts[VERT_2 as usize] as usize],
@@ -351,7 +351,7 @@ impl Quad {
     }
 
     #[inline]
-    pub fn to_vertices(&self, vertices: &Vec<Vertice>) -> QuadVertices {
+    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> QuadVertices {
         QuadVertices([
             vertices[self.v1() as usize],
             vertices[self.v2() as usize],
@@ -362,26 +362,26 @@ impl Quad {
 }
 
 // TODO may change to structured arrays [Vec2;n]
-pub type EdgeVertices = (Vertice, Vertice);
-pub type TriangleVertices = (Vertice, Vertice, Vertice);
+pub type EdgeVertices = (Vertex, Vertex);
+pub type TriangleVertices = (Vertex, Vertex, Vertex);
 
 #[derive(Debug)]
-pub struct QuadVertices(pub [Vertice; 4]);
+pub struct QuadVertices(pub [Vertex; 4]);
 impl QuadVertices {
     #[inline]
-    pub fn q1(&self) -> Vertice {
+    pub fn q1(&self) -> Vertex {
         self.0[QUAD_1 as usize]
     }
     #[inline]
-    pub fn q2(&self) -> Vertice {
+    pub fn q2(&self) -> Vertex {
         self.0[QUAD_2 as usize]
     }
     #[inline]
-    pub fn q3(&self) -> Vertice {
+    pub fn q3(&self) -> Vertex {
         self.0[QUAD_3 as usize]
     }
     #[inline]
-    pub fn q4(&self) -> Vertice {
+    pub fn q4(&self) -> Vertex {
         self.0[QUAD_4 as usize]
     }
 
