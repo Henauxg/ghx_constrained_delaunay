@@ -10,14 +10,14 @@ pub mod f64;
 #[cfg(feature = "f64")]
 pub use f64::*;
 
-#[cfg(not(feature = "u64-indexes"))]
+#[cfg(not(feature = "u64_indexes"))]
 pub mod u32;
-#[cfg(not(feature = "u64-indexes"))]
+#[cfg(not(feature = "u64_indexes"))]
 pub use u32::IndexType;
 
-#[cfg(feature = "u64-indexes")]
+#[cfg(feature = "u64_indexes")]
 pub mod u64;
-#[cfg(feature = "u64-indexes")]
+#[cfg(feature = "u64_indexes")]
 pub use u64::IndexType;
 
 pub type VertexId = IndexType;

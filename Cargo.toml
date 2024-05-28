@@ -25,7 +25,7 @@ f64 = []
 # Uses u64 indexes for the triangles and the vertices.
 # Allows for a larger count of vertices to triangulate.
 # (disabled by default for more performances)
-u64-indexes = []
+u64_indexes = []
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_context = []
 # Add logs during the triangulation porcess to idnicate the current progress
