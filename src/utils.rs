@@ -27,6 +27,11 @@ pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesInt
     let orientation_3 = triplet_orientation(edge_2.0, edge_2.1, edge_1.0);
     let orientation_4 = triplet_orientation(edge_2.0, edge_2.1, edge_1.1);
 
+    // General case
+    if orientation_1 != orientation_2 && orientation_3 != orientation_4 {
+        return EdgesIntersectionResult::Crossing;
+    }
+
     // Special Cases
     // edge_1.0, edge_1.1 and edge_2.0 are collinear and edge_2.0 lies on segment edge_1.0edge_1.1
     if orientation_1 == Orientation::Colinear && on_segment(edge_1.0, edge_2.0, edge_1.1) {
@@ -46,12 +51,6 @@ pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesInt
     // edge_2.0, edge_2.1 and edge_1.1 are collinear and edge_1.1 lies on segment edge_2.0edge_2.1
     if orientation_4 == Orientation::Colinear && on_segment(edge_2.0, edge_1.1, edge_2.1) {
         return EdgesIntersectionResult::OnEdgeTip;
-    }
-
-    // TODO Performance: General case should be the fastest one to be compted and thus should be at the top.
-    // General case
-    if orientation_1 != orientation_2 && orientation_3 != orientation_4 {
-        return EdgesIntersectionResult::Crossing;
     }
 
     EdgesIntersectionResult::None // Doesn't fall in any of the above cases
