@@ -6,7 +6,9 @@ use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
     SamplingMode, Throughput,
 };
-use delaunay_compare::{cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate};
+use delaunay_compare::{
+    cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate, Distribution,
+};
 
 pub fn creation_benchmark(c: &mut Criterion) {
     fn run_single<Crate: DelaunayCrate>(
@@ -21,14 +23,14 @@ pub fn creation_benchmark(c: &mut Criterion) {
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::walk_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), &size, |b, _| {
-                b.iter(|| delaunay_crate.run_creation())
+                b.iter(|| delaunay_crate.run_creation(Distribution::Local))
             });
 
             let name = format!("{} (uniform)", crate_name);
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::uniform_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), size, |b, _| {
-                b.iter(|| delaunay_crate.run_creation())
+                b.iter(|| delaunay_crate.run_creation(Distribution::Uniform))
             });
         }
     }
@@ -38,7 +40,6 @@ pub fn creation_benchmark(c: &mut Criterion) {
         // run_single::<spade_crate::SpadeCrateWithHierarchy>(&mut group, sizes, "spade 2 hierarchy");
         run_single::<cdt_crate::CdtCrate>(&mut group, sizes, "cdt");
         run_single::<ghx_cdt_crate::GhxCDTCrate>(&mut group, sizes, "ghx");
-        // run_single::<ghx_cdt_crate::GhxCDTCrateNoBinSort>(&mut group, sizes, "ghx");
         run_single::<delaunator_crate::DelaunatorCrate>(&mut group, sizes, "delaunator");
         group.finish();
     }
