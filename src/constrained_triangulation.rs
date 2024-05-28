@@ -111,7 +111,7 @@ pub fn constrained_triangulation_from_2d_vertices(
     );
 
     Triangulation {
-        vert_indices,
+        triangles: vert_indices,
         #[cfg(feature = "debug_context")]
         debug_context,
     }
@@ -144,7 +144,7 @@ fn remove_wrapping_and_unconstrained_domains(
     container_triangle: &TriangleData,
     constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Vec<VertexId> {
+) -> Vec<[VertexId; 3]> {
     let mut visited_triangles = vec![false; triangles.count()];
 
     // TODO Clean: Size approx
@@ -229,7 +229,7 @@ fn remove_wrapping_and_unconstrained_domains(
 }
 
 fn register_triangle(
-    indices: &mut Vec<VertexId>,
+    indices: &mut Vec<[VertexId; 3]>,
     triangle: &TriangleData,
     container_verts: &HashSet<VertexId>,
     #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
@@ -241,9 +241,7 @@ fn register_triangle(
         }
     }
     if !filtered {
-        indices.push(triangle.v1());
-        indices.push(triangle.v2());
-        indices.push(triangle.v3());
+        indices.push(triangle.verts);
         #[cfg(feature = "debug_context")]
         filtered_debug_triangles.push(triangle.clone());
     }

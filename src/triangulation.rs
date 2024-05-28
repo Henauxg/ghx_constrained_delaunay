@@ -1,5 +1,6 @@
 use hashbrown::HashSet;
 use log::error;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::types::{
     Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, Vertex, VertexId,
@@ -15,10 +16,16 @@ use crate::debug::{DebugConfiguration, DebugContext, TriangulationPhase};
 /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
 pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
 
+pub const DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD: usize = 100_000;
+pub const DEFAULT_FILTER_PARALLEL_MIN_BATCH_LEN: usize = 1000;
+
 #[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
     /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
     pub bin_vertex_density_power: f64,
+    // TODO Doc
+    pub filter_parallel_tri_count_threshold: usize,
+    pub filter_parallel_min_batch_len: usize,
     #[cfg(feature = "debug_context")]
     pub debug_config: DebugConfiguration,
 }
@@ -26,6 +33,8 @@ impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            filter_parallel_tri_count_threshold: DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD,
+            filter_parallel_min_batch_len: DEFAULT_FILTER_PARALLEL_MIN_BATCH_LEN,
             #[cfg(feature = "debug_context")]
             debug_config: DebugConfiguration::default(),
         }
@@ -66,7 +75,7 @@ pub fn triangulation_from_3d_planar_vertices(
 }
 pub struct Triangulation {
     /// Indices of the original vertices by groups of 3 to from triangles.
-    pub vert_indices: Vec<VertexId>,
+    pub triangles: Vec<[VertexId; 3]>,
 
     #[cfg(feature = "debug_context")]
     pub debug_context: DebugContext,
@@ -94,12 +103,13 @@ pub fn triangulation_from_2d_vertices(
     let vert_indices = remove_wrapping(
         &triangles,
         &container_triangle,
+        &config,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     Triangulation {
-        vert_indices,
+        triangles: vert_indices,
         #[cfg(feature = "debug_context")]
         debug_context,
     }
@@ -306,30 +316,68 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 pub(crate) fn remove_wrapping(
     triangles: &Triangles,
     container_triangle: &TriangleData,
+    config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Vec<VertexId> {
-    // TODO Clean: Size approx
-    let mut indices = Vec::with_capacity(3 * triangles.count());
-
+) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
 
     let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
-    for triangle in triangles.buffer().iter() {
-        let mut filtered = false;
-        for vert in triangle.verts.iter() {
-            if container_verts.contains(vert) {
-                filtered = true;
+
+    let indices = if triangles.count() > config.filter_parallel_tri_count_threshold {
+        // Debug loop out of the // loop because filtered_debug_triangles cannot be accessed as mut from multiple tasks.
+        #[cfg(feature = "debug_context")]
+        for triangle in triangles.buffer().iter() {
+            let mut filtered = false;
+            for vert in triangle.verts.iter() {
+                if container_verts.contains(vert) {
+                    filtered = true;
+                    break;
+                }
+            }
+            if !filtered {
+                filtered_debug_triangles.push(triangle.clone());
             }
         }
-        if !filtered {
-            indices.push(triangle.v1());
-            indices.push(triangle.v2());
-            indices.push(triangle.v3());
-            #[cfg(feature = "debug_context")]
-            filtered_debug_triangles.push(triangle.clone());
+
+        triangles
+            .buffer()
+            .par_iter()
+            .with_min_len(config.filter_parallel_min_batch_len)
+            .filter_map(|t| {
+                let mut filtered = false;
+                for vert in t.verts.iter() {
+                    if container_verts.contains(vert) {
+                        filtered = true;
+                        break;
+                    }
+                }
+                match filtered {
+                    true => None,
+                    false => Some(t.verts),
+                }
+            })
+            // TODO Is it possible to pre-set the capacity of indices ?
+            // .collect_into_vec(&mut indices);
+            .collect()
+    } else {
+        let mut indices = Vec::with_capacity(triangles.count());
+        for t in triangles.buffer().iter() {
+            let mut filtered = false;
+            for vert in t.verts.iter() {
+                if container_verts.contains(vert) {
+                    filtered = true;
+                    break;
+                }
+            }
+            if !filtered {
+                indices.push(t.verts);
+                #[cfg(feature = "debug_context")]
+                filtered_debug_triangles.push(t.clone());
+            }
         }
-    }
+        indices
+    };
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(
@@ -670,9 +718,8 @@ pub fn check_and_swap_quad_diagonal(
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "debug_context")]
-    use crate::debug::DebugContext;
+    use crate::debug::{DebugConfiguration, DebugContext};
     use crate::{
-        debug::DebugConfiguration,
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
