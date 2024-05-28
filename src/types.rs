@@ -255,6 +255,12 @@ pub struct Triangles {
     pub buffer: Vec<TriangleData>,
 }
 impl Triangles {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            buffer: Vec::with_capacity(capacity),
+        }
+    }
+
     pub fn new() -> Self {
         Self { buffer: Vec::new() }
     }
