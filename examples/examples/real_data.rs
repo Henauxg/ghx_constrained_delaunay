@@ -17,7 +17,7 @@ use ghx_constrained_delaunay::{
     debug::{DebugConfiguration, PhaseRecord, TriangulationPhase},
     hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
-    types::{Edge, Float, Vector3, VertexId, Vertice},
+    types::{Edge, Float, Vector3, VertexId, Vertex},
     Triangulation,
 };
 use ordered_float::OrderedFloat;
@@ -54,7 +54,7 @@ fn setup(mut commands: Commands) {
                         let x = RESIZE_FACTOR * p.x as Float;
                         let y = RESIZE_FACTOR * p.y as Float;
                         match uniques.insert([OrderedFloat(x), OrderedFloat(y)]) {
-                            true => vertices.push(Vertice::new(x, y)),
+                            true => vertices.push(Vertex::new(x, y)),
                             false => (),
                         }
                     }
@@ -98,7 +98,7 @@ fn setup(mut commands: Commands) {
     // TODO Center camera on data
 }
 
-fn load_with_ghx_cdt_crate(vertices: &[Vertice], edges: &[[usize; 2]]) -> Triangulation {
+fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangulation {
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
     let config = ConstrainedTriangulationConfiguration {
