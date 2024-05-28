@@ -28,6 +28,7 @@ impl crate::DelaunayCrate for GhxCDTCrate {
             &self.vertices,
             TriangulationConfiguration {
                 bin_vertex_density_power: bin_density_from_distribution(distribution),
+                ..Default::default()
             },
         )
     }
