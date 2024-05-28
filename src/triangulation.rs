@@ -222,7 +222,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
     let container_triangle = add_container_triangle_vertices(vertices);
 
-    let mut triangles = Triangles::new();
+    let mut triangles = Triangles::with_capacity(vertices.len() * 2 + 1);
     triangles.buffer_mut().push(container_triangle.clone());
 
     // Id of the triangle we are looking at
@@ -787,7 +787,7 @@ mod tests {
             neighbors: [None, None, Some(0)],
         };
 
-        let mut triangles = Triangles::new();
+        let mut triangles = Triangles::with_capacity(2);
         triangles.push(triangle_1);
         triangles.push(triangle_2);
 
@@ -825,7 +825,7 @@ mod tests {
             neighbors: [None, None, Some(0)],
         };
 
-        let mut triangles = Triangles::new();
+        let mut triangles = Triangles::with_capacity(2);
         triangles.push(triangle_1);
         triangles.push(triangle_2);
 
