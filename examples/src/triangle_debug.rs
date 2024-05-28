@@ -214,7 +214,7 @@ pub fn update_triangles_debug_entities(
     }
     let snapshot = debug_vert_data.current_snapshot();
     info!(
-        "Triangles Debug Cursor set to snapshot n°{}, step {}, phase {:?}, {} changes, {} triangles",
+        "Cursor set to snapshot n°{}, step {}, phase {:?}, {} changes, {} triangles",
         debug_vert_data.cursor(),
         snapshot.step,
         snapshot.triangulation_phase,
@@ -230,10 +230,10 @@ pub fn update_triangles_debug_entities(
     }
 
     // Spawn triangle meshes if enabled
+    // TODO WIth a better diff from the debug context, could only spawn the difference.
     if let TrianglesDrawMode::AllAsMeshBatches { batch_size } = view_config.triangles_draw_mode {
         let mut lines = Some(vec![]);
         let mut batch_index = 0;
-        // TODO get diffs from the debugger and spawn the diffs?
         for (index, t) in snapshot.triangles.buffer().iter().enumerate() {
             let (v1, v2, v3) = (
                 vertices[t.v1() as usize].as_vec3(),
@@ -246,25 +246,28 @@ pub fn update_triangles_debug_entities(
                 .extend(vec![(v1, v2), (v2, v3), (v3, v1)]);
 
             if index % batch_size == batch_size - 1 {
-                commands.spawn((
-                    MaterialMeshBundle {
-                        mesh: meshes.add(LineList {
-                            lines: lines.take().unwrap(),
-                        }),
-                        material: debug_assets.color_materials[batch_index % COLORS.len()].clone(),
-                        ..default()
-                    },
-                    TriangleDebugEntity,
-                ));
+                spawn_triangle_mesh_batch(
+                    &mut commands,
+                    &mut meshes,
+                    &debug_assets,
+                    batch_index,
+                    lines.take().unwrap(),
+                );
                 lines = Some(vec![]);
                 batch_index += 1;
             }
         }
-        // TODO Spawn remaining batch
-        info!(
-            "TODO Spawned all triangle meshes in {} batches",
-            batch_index
-        );
+        let lines = lines.unwrap();
+        if !lines.is_empty() {
+            spawn_triangle_mesh_batch(
+                &mut commands,
+                &mut meshes,
+                &debug_assets,
+                batch_index,
+                lines,
+            );
+        }
+        info!("Spawned {} triangle mesh batches", batch_index);
     }
 
     // Spawn label entites if enabled
@@ -310,6 +313,23 @@ pub fn update_triangles_debug_entities(
     let size = Vec2::new((x_max - x_min) as f32, (y_max - y_min) as f32);
     let pos = Vec3::new(x_min as f32 + size.x / 2., y_min as f32 + size.y / 2., 0.);
     debug_vert_data.current_changes_bounds = (pos, size);
+}
+
+pub fn spawn_triangle_mesh_batch(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    debug_assets: &Res<TriangleDebugAssets>,
+    batch_index: usize,
+    lines: Vec<(Vec3, Vec3)>,
+) {
+    commands.spawn((
+        MaterialMeshBundle {
+            mesh: meshes.add(LineList { lines }),
+            material: debug_assets.color_materials[batch_index % COLORS.len()].clone(),
+            ..default()
+        },
+        TriangleDebugEntity,
+    ));
 }
 
 pub fn spawn_label(
