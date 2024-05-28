@@ -1,5 +1,7 @@
 use delaunator::Point;
 
+use crate::Distribution;
+
 #[derive(Default)]
 pub struct DelaunatorCrate {
     vertices: Vec<Point>,
@@ -17,7 +19,7 @@ impl crate::DelaunayCrate for DelaunatorCrate {
             .collect();
     }
 
-    fn run_creation(&self) -> Self::ResultType {
+    fn run_creation(&self, distribution: Distribution) -> Self::ResultType {
         delaunator::triangulate(&self.vertices)
     }
 }

@@ -1,5 +1,14 @@
 use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertice};
 
+use crate::Distribution;
+
+fn bin_density_from_distribution(dis: Distribution) -> f64 {
+    match dis {
+        Distribution::Uniform => 0.85,
+        Distribution::Local => 0.5,
+    }
+}
+
 #[derive(Default)]
 pub struct GhxCDTCrate {
     vertices: Vec<Vertice>,
@@ -14,10 +23,12 @@ impl crate::DelaunayCrate for GhxCDTCrate {
             .collect();
     }
 
-    fn run_creation(&self) -> Self::ResultType {
+    fn run_creation(&self, distribution: Distribution) -> Self::ResultType {
         ghx_constrained_delaunay::triangulation_from_2d_vertices(
             &self.vertices,
-            TriangulationConfiguration::default(),
+            TriangulationConfiguration {
+                bin_vertex_density_power: bin_density_from_distribution(distribution),
+            },
         )
     }
 }

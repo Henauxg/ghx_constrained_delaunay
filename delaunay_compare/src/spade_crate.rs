@@ -1,5 +1,7 @@
 use spade::Triangulation;
 
+use crate::Distribution;
+
 type SpadePoint = spade::Point2<f64>;
 
 #[derive(Default)]
@@ -37,7 +39,7 @@ where
         self.vertices = vertices.into_iter().map(|vertex| vertex.into()).collect()
     }
 
-    fn run_creation(&self) -> Self::ResultType {
+    fn run_creation(&self, distribution: Distribution) -> Self::ResultType {
         Self::ResultType::bulk_load(self.vertices.clone()).unwrap()
     }
 }
