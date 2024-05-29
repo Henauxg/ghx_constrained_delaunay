@@ -1,5 +1,8 @@
 use crate::types::{EdgeVertices, Vertex};
 
+#[cfg(feature = "profile_traces")]
+use tracing::{span, Level};
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EdgesIntersectionResult {
     None,
@@ -106,6 +109,9 @@ pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
 /// Rocky Mounfain J. Math. 14, 119-139 (1984)
 ///
 pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "is_vertex_in_triangle_circumcircle").entered();
+
     let x13 = triangle[0].x - triangle[2].x;
     let x23 = triangle[1].x - triangle[2].x;
     let y13 = triangle[0].y - triangle[2].y;

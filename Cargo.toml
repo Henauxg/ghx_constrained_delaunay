@@ -16,9 +16,11 @@ glam = { version = ">=0.21, <=0.27" }
 hashbrown = "0.14.5"
 log = "0.4.21"
 rayon = "1.10.0"
+tracing = "0.1.40"
 
 [features]
 default = []
+
 # Uses f64 for the triangulation.
 # Can be better for input data that require more precision.
 # (disabled by default for more performances)
@@ -27,10 +29,13 @@ f64 = []
 # Allows for a larger count of vertices to triangulate.
 # (disabled by default for more performances)
 u64_indexes = []
+
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_context = []
 # Add logs during the triangulation porcess to idnicate the current progress
 progress_log = []
+# Adds profile spans to use with the Tracy profiler
+profile_traces = []
 
 [workspace]
 members = ["delaunay_compare", "examples"]

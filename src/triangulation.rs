@@ -13,6 +13,9 @@ use log::info;
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugConfiguration, DebugContext, TriangulationPhase};
 
+#[cfg(feature = "profile_traces")]
+use tracing::{span, Level};
+
 /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
 pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
 
@@ -140,6 +143,9 @@ pub(crate) fn transform_to_2d_planar_coordinate_system(
 pub(crate) fn normalize_vertices_coordinates(
     vertices: &Vec<Vertex>,
 ) -> (Vec<Vertex>, Float, Float, Float) {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "normalize_vertices_coordinates").entered();
+
     let mut normalized_vertices = Vec::with_capacity(vertices.len());
     let (mut x_min, mut y_min, mut x_max, mut y_max) =
         (Float::MAX, Float::MAX, Float::MIN, Float::MIN);
@@ -183,6 +189,9 @@ fn search_enclosing_triangle(
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
 ) -> SearchResult {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "search_enclosing_triangle").entered();
+
     let mut triangle_id = from;
 
     let mut search_result = SearchResult::NotFound;
@@ -225,6 +234,9 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> (Triangles, TriangleData) {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "wrap_and_triangulate_2d_normalized_vertices").entered();
+
     // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
     // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
@@ -245,6 +257,9 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         &[0],
         &[],
     );
+
+    // TODO Try to re-use the allocation
+    // let mut quads_to_check = Vec::<(TriangleId, TriangleId)>::new();
 
     // Loop over all the input vertices
     for (_step, &vertex_id) in partitioned_vertices.iter().enumerate() {
@@ -278,6 +293,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     vertices,
                     vertex_id,
                     new_triangles,
+                    // &mut quads_to_check,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 );
@@ -319,6 +335,9 @@ pub(crate) fn remove_wrapping(
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "remove_wrapping").entered();
+
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
 
@@ -398,6 +417,9 @@ pub(crate) struct VertexBinSort {
 impl VertexBinSort {
     // Each bin will contain roughly vertices.len()^(vertex_density_power) vertices
     pub fn sort(vertices: &Vec<Vertex>, vertex_density_power: f64) -> Vec<VertexId> {
+        #[cfg(feature = "profile_traces")]
+        let _span = span!(Level::TRACE, "sort").entered();
+
         let bins_per_row = (vertices.len() as f64)
             .powf(vertex_density_power / 2.)
             .round() as usize;
@@ -434,7 +456,7 @@ impl VertexBinSort {
     }
 
     fn bin_index_from_vertex(&self, vertex: Vertex) -> usize {
-        // Compute a bin index from a vertox position which is in [0.,1]
+        // Compute a bin index from a vertex position which is in [0.,1]
         let bin_x = (0.99 * self.bins_per_row as Float * vertex.x) as usize;
         let bin_y: usize = (0.99 * self.bins_per_row as Float * vertex.y) as usize;
         self.bin_index_from_bin_position(bin_x, bin_y)
@@ -476,6 +498,9 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     vertex_id: VertexId,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> [TriangleId; 3] {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "split_triangle_in_three_at_vertex").entered();
+
     // Re-use the existing triangle id for the first triangle
     let t1 = triangle_id;
     // Create two new triangles for the other two
@@ -549,12 +574,22 @@ fn restore_delaunay_triangulation(
     vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
     new_triangles: [TriangleId; 3],
+    // quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
+
     let mut quads_to_check = Vec::<(TriangleId, Neighbor)>::new();
+    // TODO Share between calls
+    // let mut quads_to_check = Vec::<(TriangleId, Neighbor)>::with_capacity(triangles.count());
+    // quads_to_check.clear();
 
     for &from_triangle_id in &new_triangles {
         // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
+        // if let Some(opposite_triangle_id) = triangles.get(from_triangle_id).neighbor23() {
+        //     quads_to_check.push((from_triangle_id, opposite_triangle_id));
+        // }
         quads_to_check.push((
             from_triangle_id,
             triangles.get(from_triangle_id).neighbor23(),
@@ -578,6 +613,14 @@ fn restore_delaunay_triangulation(
             QuadSwapResult::Swapped(pairs) => {
                 // Place any new triangles pairs which are now opposite `vertex_id` on the stack, to be checked
                 quads_to_check.extend(pairs);
+                // TODO Try to only insert valid pairs
+                // if let Some(opposite_triangle_id) = pairs[0].1 {
+                //     quads_to_check.push((pairs[0].0, opposite_triangle_id));
+                // }
+                // if let Some(opposite_triangle_id) = pairs[1].1 {
+                //     quads_to_check.push((pairs[1].0, opposite_triangle_id));
+                // }
+                // quads_to_check.push(pairs[1]);
             }
             QuadSwapResult::NotSwapped => (),
         }
@@ -599,6 +642,9 @@ pub fn check_and_swap_quad_diagonal(
     opposite_triangle_id: TriangleId,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> QuadSwapResult {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "check_and_swap_quad_diagonal").entered();
+
     let opposite_triangle = triangles.get(opposite_triangle_id);
 
     // ```text

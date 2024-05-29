@@ -12,6 +12,9 @@ use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesInt
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugContext, TriangulationPhase};
 
+#[cfg(feature = "profile_traces")]
+use tracing::{span, Level};
+
 #[cfg(feature = "progress_log")]
 use log::info;
 
@@ -68,6 +71,9 @@ pub fn constrained_triangulation_from_2d_vertices(
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "constrained_triangulation_from_2d_vertices").entered();
+
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
         normalize_vertices_coordinates(vertices);
@@ -145,6 +151,9 @@ fn remove_wrapping_and_unconstrained_domains(
     constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "remove_wrapping_and_unconstrained_domains").entered();
+
     let mut visited_triangles = vec![false; triangles.count()];
 
     // TODO Clean: Size approx
@@ -253,6 +262,9 @@ fn apply_constraints(
     constrained_edges: &Vec<Edge>,
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> HashSet<Edge> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "apply_constraints").entered();
+
     let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
     // Map each verticex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
@@ -384,6 +396,9 @@ fn search_first_interstected_quad(
     constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
 ) -> EdgeFirstIntersection {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "search_first_interstected_quad").entered();
+
     // Search clockwise
     let res = loop_around_vertex_and_search_intersection(
         triangles,
@@ -431,6 +446,9 @@ fn register_intersected_edges(
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
 ) -> VecDeque<EdgeData> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "register_intersected_edges").entered();
+
     let search_result = search_first_interstected_quad(
         triangles,
         vertices,
@@ -612,6 +630,9 @@ pub(crate) fn swap_quad_diagonal(
     edge_data: &EdgeData,
     quad: &Quad,
 ) {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "swap_quad_diagonal").entered();
+
     let from = edge_data.from();
     let to = edge_data.to();
 
@@ -696,6 +717,9 @@ fn remove_crossed_edges(
     constrained_edge_vertices: &EdgeVertices,
     mut intersections: VecDeque<EdgeData>,
 ) -> VecDeque<EdgeData> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "remove_crossed_edges").entered();
+
     let mut new_diagonals_created = VecDeque::new();
 
     while let Some(intersection) = intersections.pop_front() {
@@ -744,6 +768,9 @@ fn restore_delaunay_triangulation_constrained(
     constrained_edge: &Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
 ) {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "restore_delaunay_triangulation_constrained").entered();
+
     while let Some(new_edge) = new_diagonals_created.pop_front() {
         if new_edge.edge.undirected_equals(constrained_edge) {
             continue;
