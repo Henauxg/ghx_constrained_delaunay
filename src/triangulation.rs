@@ -1,6 +1,7 @@
 use hashbrown::HashSet;
 use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use smallvec::SmallVec;
 
 use crate::types::{
     Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, Vertex, VertexId,
@@ -259,7 +260,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     );
 
     // TODO Doc comment: reuse allocations
-    let mut quads_to_check = Vec::<(TriangleId, TriangleId)>::new();
+    let mut quads_to_check = Vec::new();
 
     // Loop over all the input vertices
     for (_step, &vertex_id) in partitioned_vertices.iter().enumerate() {
@@ -569,7 +570,8 @@ pub(crate) fn update_triangle_neighbor(
     };
 }
 
-/// `quads_to_check` use the shared pre-allocated buffer for efficiency
+/// `quads_to_check` used the shared pre-allocated buffer for efficiency.
+/// - It does not need to be cleared since it is fully emptied by each call to restore_delaunay_triangulation
 fn restore_delaunay_triangulation(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
@@ -580,8 +582,6 @@ fn restore_delaunay_triangulation(
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
-
-    quads_to_check.clear();
 
     for &from_triangle_id in &new_triangles {
         // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
