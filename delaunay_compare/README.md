@@ -2,11 +2,6 @@
 
 Small benchmark suite for comparing different (constrained) Delaunay triangulation implementations in rust, modified from the [spade](https://github.com/Stoeoef/spade/tree/master/delaunay_compare) crate comparison benchmark.
 
-## Differences with the original benchmark
-
-- Added the [ghx_constrained_delaunay]("https://github.com/Henauxg/ghx_constrained_delaunay") crate
-- In the `real_data_benchmark`, duplicate input vertices are removed before being fed to all the crates algorithms.
-
 ## Crates under test
 
  - [delaunator 1.0.1](https://crates.io/crates/delaunator)
@@ -14,11 +9,10 @@ Small benchmark suite for comparing different (constrained) Delaunay triangulati
  - [spade 2.0](https://crates.io/crates/spade)
  - [ghx_constrained_delaunay 0.1.0]("https://github.com/Henauxg/ghx_constrained_delaunay")
 
-For spade: Both insertion *with* a lookup structure ("hierarchy") and *without* are being tested.
+For `spade`: Both insertion *with* a lookup structure ("hierarchy") and *without* are being tested.
 The look up structure allows efficient position lookup (e.g. for nearest neighbor searches) on the resulting triangulations but takes additional time to construct.
 
-For spade, cdt and ghx_constrained_delaunay: This benchmark suite also contains a constrained Delaunay triangulation (CDT) benchmark that bulk loads a single real data set
-(Europe_coastline.shp) consisting of 2,912,812 input vertices and 2,837,094 constraint edges.
+For `spade`, `cdt` and `ghx_constrained_delaunay`: this benchmark suite also contains a constrained Delaunay triangulation (CDT) benchmark that bulk loads a single real data set (_Europe_coastline.shp_) consisting of **2,912,812** input vertices and **2,837,094** constraint edges.
 
 ## Point distributions under test
 
@@ -28,11 +22,11 @@ Two point distributions are tested:
 
  ## How to run
 
- Clone this repository and run `cargo bench` inside the `delaunay_compare` folder.
+ Clone this repository and inside the `delaunay_compare` folder, run `cargo bench`.
 
  Results are stored in `<repository_root>/target/criterion`.
 
- For the cdt loading benchmark, run `cargo run --release --example real_data_benchmark`
+ For the cdt loading benchmark with deal world data, run `cargo run --release --example real_data_benchmark`
 
 # Results
 
@@ -52,14 +46,20 @@ The benchmark also includes a stable bulk load variant for spade that keeps the 
 
 | CDT Bulk load            | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| With constraint edges    | 3546ms                   | 3655ms | 3493ms    |
-| Without constraint edges | 2545ms                   | 2964ms | 8381ms*   |
-| With stable vertex order | -                        | 5346ms | -         |
+| With constraint edges    | **1510ms**               | 2020ms | 2026ms    |
+| Without constraint edges | **948ms**                | 1597ms | 4761ms*   |
+| With stable vertex order | -                        | 3134ms | -         |
 
-_Results obtained on an i7-9750H CPU @ 2.60GHz_
+_Results obtained on an i7-14700KF CPU @ 3.40GHz_
 
 (*) It seems weird that the `cdt` crate takes less time with constraints than without. I need to look at the implementation.
 
 # Credits
 
 See the [spade](https://github.com/Stoeoef/spade) crate for the original benchmark.
+
+
+## Differences with the original benchmark
+
+- Added the [ghx_constrained_delaunay]("https://github.com/Henauxg/ghx_constrained_delaunay") crate.
+- In the `real_data_benchmark`, duplicate input vertices are removed before being fed to all the crates algorithms.
