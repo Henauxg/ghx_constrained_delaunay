@@ -108,7 +108,8 @@ pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
 /// A storage efficient method for construction of a Thiessen triangulation.
 /// Rocky Mounfain J. Math. 14, 119-139 (1984)
 ///
-pub fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
+#[inline(always)]
+pub(crate) fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "is_vertex_in_triangle_circumcircle").entered();
 

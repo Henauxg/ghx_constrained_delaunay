@@ -621,7 +621,7 @@ pub enum QuadSwapResult {
     NotSwapped,
 }
 
-pub fn check_and_swap_quad_diagonal(
+pub(crate) fn check_and_swap_quad_diagonal(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
