@@ -258,8 +258,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         &[],
     );
 
-    // TODO Try to re-use the allocation
-    // let mut quads_to_check = Vec::<(TriangleId, TriangleId)>::new();
+    // TODO Doc comment: reuse allocations
+    let mut quads_to_check = Vec::<(TriangleId, TriangleId)>::new();
 
     // Loop over all the input vertices
     for (_step, &vertex_id) in partitioned_vertices.iter().enumerate() {
@@ -293,7 +293,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     vertices,
                     vertex_id,
                     new_triangles,
-                    // &mut quads_to_check,
+                    &mut quads_to_check,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 );
@@ -569,38 +569,28 @@ pub(crate) fn update_triangle_neighbor(
     };
 }
 
+/// `quads_to_check` use the shared pre-allocated buffer for efficiency
 fn restore_delaunay_triangulation(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
     new_triangles: [TriangleId; 3],
-    // quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
+    quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
 
-    let mut quads_to_check = Vec::<(TriangleId, Neighbor)>::new();
-    // TODO Share between calls
-    // let mut quads_to_check = Vec::<(TriangleId, Neighbor)>::with_capacity(triangles.count());
-    // quads_to_check.clear();
+    quads_to_check.clear();
 
     for &from_triangle_id in &new_triangles {
         // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
-        // if let Some(opposite_triangle_id) = triangles.get(from_triangle_id).neighbor23() {
-        //     quads_to_check.push((from_triangle_id, opposite_triangle_id));
-        // }
-        quads_to_check.push((
-            from_triangle_id,
-            triangles.get(from_triangle_id).neighbor23(),
-        ));
+        if let Some(opposite_triangle_id) = triangles.get(from_triangle_id).neighbor23() {
+            quads_to_check.push((from_triangle_id, opposite_triangle_id));
+        }
     }
 
     while let Some((from_triangle_id, opposite_triangle_id)) = quads_to_check.pop() {
-        let Some(opposite_triangle_id) = opposite_triangle_id else {
-            continue;
-        };
-
         match check_and_swap_quad_diagonal(
             triangles,
             vertices,
@@ -611,16 +601,13 @@ fn restore_delaunay_triangulation(
             debug_context,
         ) {
             QuadSwapResult::Swapped(pairs) => {
-                // Place any new triangles pairs which are now opposite `vertex_id` on the stack, to be checked
-                quads_to_check.extend(pairs);
-                // TODO Try to only insert valid pairs
-                // if let Some(opposite_triangle_id) = pairs[0].1 {
-                //     quads_to_check.push((pairs[0].0, opposite_triangle_id));
-                // }
-                // if let Some(opposite_triangle_id) = pairs[1].1 {
-                //     quads_to_check.push((pairs[1].0, opposite_triangle_id));
-                // }
-                // quads_to_check.push(pairs[1]);
+                // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
+                if let Some(opposite_triangle_id) = pairs[0].1 {
+                    quads_to_check.push((pairs[0].0, opposite_triangle_id));
+                }
+                if let Some(opposite_triangle_id) = pairs[1].1 {
+                    quads_to_check.push((pairs[1].0, opposite_triangle_id));
+                }
             }
             QuadSwapResult::NotSwapped => (),
         }
