@@ -1,7 +1,6 @@
 use hashbrown::HashSet;
 use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use smallvec::SmallVec;
 
 use crate::types::{
     Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, Vertex, VertexId,
