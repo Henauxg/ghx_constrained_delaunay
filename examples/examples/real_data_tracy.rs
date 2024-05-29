@@ -1,17 +1,6 @@
 use std::time::Instant;
 
-use bevy::{
-    app::{App, Startup, Update},
-    ecs::system::Commands,
-    gizmos::gizmos::Gizmos,
-    math::{primitives::Direction3d, Vec3},
-    render::color::Color,
-    DefaultPlugins,
-};
-use examples::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
-};
+use examples::extend_displayed_vertices_with_container_vertice;
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     debug::{DebugConfiguration, PhaseRecord, TriangulationPhase},
@@ -21,18 +10,13 @@ use ghx_constrained_delaunay::{
     Triangulation,
 };
 use ordered_float::OrderedFloat;
+use tracing_subscriber::{layer::SubscriberExt, Registry};
+use tracing_tracy::TracyLayer;
 
 fn main() {
-    App::new()
-        .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
-        .add_systems(Startup, setup)
-        .add_systems(Update, draw_debug_circle)
-        .run();
-}
+    let subscriber = Registry::default().with(TracyLayer::new());
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to set subscriber");
 
-const RESIZE_FACTOR: Float = 1.0;
-
-fn setup(mut commands: Commands) {
     let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";
     println!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
@@ -49,8 +33,8 @@ fn setup(mut commands: Commands) {
                 for part in line.parts() {
                     let first_vertex = vertices.len();
                     for p in part.iter() {
-                        let x = RESIZE_FACTOR * p.x as Float;
-                        let y = RESIZE_FACTOR * p.y as Float;
+                        let x = p.x as Float;
+                        let y = p.y as Float;
                         match uniques.insert([OrderedFloat(x), OrderedFloat(y)]) {
                             true => vertices.push(Vertex::new(x, y)),
                             false => (),
@@ -83,16 +67,6 @@ fn setup(mut commands: Commands) {
         &triangulation.debug_context,
         false,
     );
-
-    commands.insert_resource(TrianglesDebugData::new(
-        displayed_vertices,
-        triangulation.debug_context,
-    ));
-    commands.insert_resource(TrianglesDebugViewConfig::new(
-        LabelMode::Changed,
-        TrianglesDrawMode::AllAsMeshBatches { batch_size: 150 },
-    ));
-    // TODO Center camera on data
 }
 
 fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangulation {
@@ -130,13 +104,4 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
     );
 
     triangulation
-}
-
-fn draw_debug_circle(mut gizmos: Gizmos) {
-    gizmos.circle(
-        Vec3::new(0., 0., 0.),
-        Direction3d::Z,
-        100.,
-        Color::ALICE_BLUE,
-    );
 }

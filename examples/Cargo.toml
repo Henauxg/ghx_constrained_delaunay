@@ -18,6 +18,10 @@ name = "real_data"
 path = "examples/real_data.rs"
 
 [[example]]
+name = "real_data_tracy"
+path = "examples/real_data_tracy.rs"
+
+[[example]]
 name = "constrained_triangulation"
 path = "examples/constrained_triangulation.rs"
 
@@ -59,3 +63,7 @@ bevy = { version = "0.13", default-features = false, features = [
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
 ordered-float = "4.2.0"
 shapefile = "0.6.0"
+
+tracing = "0.1.40"
+tracing-tracy = "0.10.4"
+tracing-subscriber = "0.3.18"
