@@ -1,0 +1,28 @@
+[package]
+name = "profiling"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "2d constrained Delaunay triangulation profiling"
+repository = "https://github.com/Henauxg/ghx_constrained_delaunay"
+license = "MIT OR Apache-2.0"
+
+# Examples
+[[example]]
+name = "real_data_tracy"
+path = "examples/real_data_tracy.rs"
+required-features = ["ghx_constrained_delaunay/profile_traces"]
+
+# Examples dependencies
+[dependencies]
+ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
+    "f64",
+    "profile_traces",
+] }
+
+glam = { version = "0.25" }
+ordered-float = "4.2.0"
+shapefile = "0.6.0"
+tracing = "0.1.40"
+tracing-tracy = "0.10.4"
+tracing-subscriber = "0.3.18"

@@ -1,12 +1,10 @@
 use std::time::Instant;
 
-use examples::extend_displayed_vertices_with_container_vertice;
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
-    debug::{DebugConfiguration, PhaseRecord, TriangulationPhase},
     hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
-    types::{Edge, Float, Vector3, Vertex, VertexId},
+    types::{Edge, Float, Vertex, VertexId},
     Triangulation,
 };
 use ordered_float::OrderedFloat;
@@ -54,19 +52,7 @@ fn main() {
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
 
-    let triangulation = load_with_ghx_cdt_crate(&vertices, &edges);
-
-    let plane_normal = Vector3::Z;
-    let mut displayed_vertices = vertices
-        .iter()
-        .map(|v| Vector3::new(v.x, v.y, 0.))
-        .collect();
-    extend_displayed_vertices_with_container_vertice(
-        &mut displayed_vertices,
-        plane_normal,
-        &triangulation.debug_context,
-        false,
-    );
+    let _triangulation = load_with_ghx_cdt_crate(&vertices, &edges);
 }
 
 fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangulation {
@@ -74,14 +60,6 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
 
     let config = ConstrainedTriangulationConfiguration {
         triangulation: TriangulationConfiguration {
-            debug_config: DebugConfiguration {
-                phase_record: PhaseRecord::InAny(HashSet::from([
-                    TriangulationPhase::BeforeConstraints,
-                    TriangulationPhase::AfterConstraints,
-                    TriangulationPhase::RemoveWrapping,
-                ])),
-                ..Default::default()
-            },
             ..Default::default()
         },
     };
