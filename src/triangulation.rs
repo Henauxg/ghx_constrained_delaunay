@@ -702,7 +702,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
     let quad_vertices = quad.to_vertices(vertices);
 
     // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
-    if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
+    if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=2], quad_vertices.q4()) {
         let opposite_neighbor = opposite_triangle_id.into();
         let from_neighbor = from_triangle_id.into();
 
