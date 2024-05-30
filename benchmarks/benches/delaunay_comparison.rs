@@ -10,7 +10,7 @@ use delaunay_compare::{
     cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate, Distribution,
 };
 
-pub fn creation_benchmark(c: &mut Criterion) {
+pub fn triangulation_benchmark(c: &mut Criterion) {
     fn run_single<Crate: DelaunayCrate>(
         group: &mut BenchmarkGroup<WallTime>,
         sizes: &[usize],
@@ -23,28 +23,27 @@ pub fn creation_benchmark(c: &mut Criterion) {
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::walk_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), &size, |b, _| {
-                b.iter(|| delaunay_crate.run_creation(Distribution::Local))
+                b.iter(|| delaunay_crate.run_triangulation(Distribution::Local))
             });
 
             let name = format!("{} (uniform)", crate_name);
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::uniform_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), size, |b, _| {
-                b.iter(|| delaunay_crate.run_creation(Distribution::Uniform))
+                b.iter(|| delaunay_crate.run_triangulation(Distribution::Uniform))
             });
         }
     }
 
     fn run_all(mut group: BenchmarkGroup<WallTime>, sizes: &[usize]) {
         run_single::<spade_crate::SpadeCrate>(&mut group, sizes, "spade 2");
-        // run_single::<spade_crate::SpadeCrateWithHierarchy>(&mut group, sizes, "spade 2 hierarchy");
         run_single::<cdt_crate::CdtCrate>(&mut group, sizes, "cdt");
         run_single::<ghx_cdt_crate::GhxCDTCrate>(&mut group, sizes, "ghx");
         run_single::<delaunator_crate::DelaunatorCrate>(&mut group, sizes, "delaunator");
         group.finish();
     }
 
-    let mut group = c.benchmark_group("comparison: creation benchmark (small)");
+    let mut group = c.benchmark_group("comparison: triangulation benchmark (small)");
     let small = [2000, 4000, 6000, 8000, 10_000, 12_000, 14_000];
 
     group.warm_up_time(Duration::from_secs(1));
@@ -53,7 +52,7 @@ pub fn creation_benchmark(c: &mut Criterion) {
 
     run_all(group, &small);
 
-    let mut group = c.benchmark_group("comparison: creation benchmark (big)");
+    let mut group = c.benchmark_group("comparison: triangulation benchmark (big)");
     let big = [50_000, 100_000, 150_000, 200_000, 250_000];
     group.sample_size(10);
     group.sampling_mode(SamplingMode::Flat);
@@ -61,5 +60,5 @@ pub fn creation_benchmark(c: &mut Criterion) {
     run_all(group, &big);
 }
 
-criterion_group!(benches, creation_benchmark);
+criterion_group!(benches, triangulation_benchmark);
 criterion_main!(benches);

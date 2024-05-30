@@ -8,14 +8,16 @@ edition = "2018"
 
 [dependencies]
 num-traits = "0.2.14"
+shapefile = "0.6.0"
+tiny-skia = "0.11.4"
+
+# Triangulation crates
 cdt = "0.1"
 delaunator = "1.0.1"
-shapefile = "0.6.0"
 spade = "2.6.0"
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     "f64",
 ] }
-tiny-skia = "0.11.4"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

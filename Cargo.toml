@@ -38,4 +38,4 @@ progress_log = []
 profile_traces = []
 
 [workspace]
-members = ["delaunay_compare", "examples", "profiling"]
+members = ["benchmarks", "examples", "profiling"]

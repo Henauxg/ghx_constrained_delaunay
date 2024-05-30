@@ -12,7 +12,7 @@ impl crate::DelaunayCrate for CdtCrate {
         self.vertices = vertices.map(|array| (array[0], array[1])).collect()
     }
 
-    fn run_creation(&self, _distribution: Distribution) -> Self::ResultType {
+    fn run_triangulation(&self, _distribution: Distribution) -> Self::ResultType {
         cdt::triangulate_points(&self.vertices).unwrap()
     }
 }

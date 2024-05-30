@@ -6,7 +6,7 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
-    types::{Edge, Float, VertexId, Vertex},
+    types::{Edge, Float, Vertex, VertexId},
 };
 use ordered_float::OrderedFloat;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
@@ -18,9 +18,7 @@ fn main() -> anyhow::Result<()> {
     let shape_file_path = "./examples/Europe_coastline.shp";
     println!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path)?;
-    println!("Loaded!");
 
-    println!("Extracting data...");
     let mut vertices = Vec::new();
     let mut edges = Vec::new();
 
@@ -46,9 +44,9 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    println!("Done!");
     println!("{} vertices", vertices.len());
     println!("{} constraint edges", edges.len());
+    println!();
 
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
@@ -72,7 +70,6 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
     let now = Instant::now();
     let cdt =
         spade::ConstrainedDelaunayTriangulation::<_>::bulk_load_cdt(vertices_clone, edges_clone)?;
-    println!("Done!");
     println!("{} vertices (without duplicates)", cdt.num_vertices());
     println!("{} undirected edges", cdt.num_undirected_edges());
     println!("{} constraint edges", cdt.num_constraints());
@@ -107,12 +104,6 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
         now.elapsed().as_millis()
     );
 
-    println!();
-    // Let's turn the triangulation into an image, just to verify that everything works!
-    println!("Creating and saving output image...");
-    draw_to_pixmap(cdt)?.save_png("examples/europe.png")?;
-    println!("Done!");
-
     Ok(())
 }
 
@@ -126,7 +117,6 @@ fn load_with_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow
         .collect::<Vec<_>>();
     let now = Instant::now();
     cdt::triangulate_with_edges(&vertices_clone, &edges)?;
-    println!("Done!");
     println!(
         "loading time (cdt crate with constraints): {}ms",
         now.elapsed().as_millis()
@@ -134,7 +124,6 @@ fn load_with_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> anyhow
 
     let now = Instant::now();
     cdt::triangulate_points(&vertices_clone)?;
-    println!("Done!");
     println!(
         "loading time (cdt crate without constraints): {}ms",
         now.elapsed().as_millis()
@@ -161,7 +150,6 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
         &edges,
         ConstrainedTriangulationConfiguration::default(),
     );
-    println!("Done!");
     println!(
         "loading time (ghx_cdt crate with constraints): {}ms",
         now.elapsed().as_millis()
@@ -172,7 +160,6 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
         &vertices_clone,
         TriangulationConfiguration::default(),
     );
-    println!("Done!");
     println!(
         "loading time (ghx_cdt crate without constraints): {}ms",
         now.elapsed().as_millis()
@@ -181,7 +168,7 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
     Ok(())
 }
 
-fn draw_to_pixmap(cdt: ConstrainedDelaunayTriangulation<Point2<f64>>) -> anyhow::Result<Pixmap> {
+fn _draw_to_pixmap(cdt: ConstrainedDelaunayTriangulation<Point2<f64>>) -> anyhow::Result<Pixmap> {
     let mut min_x = f64::MAX;
     let mut min_y = f64::MAX;
     let mut max_x = f64::MIN;

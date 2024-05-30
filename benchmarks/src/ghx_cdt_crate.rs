@@ -23,7 +23,7 @@ impl crate::DelaunayCrate for GhxCDTCrate {
             .collect();
     }
 
-    fn run_creation(&self, distribution: Distribution) -> Self::ResultType {
+    fn run_triangulation(&self, distribution: Distribution) -> Self::ResultType {
         ghx_constrained_delaunay::triangulation_from_2d_vertices(
             &self.vertices,
             TriangulationConfiguration {
