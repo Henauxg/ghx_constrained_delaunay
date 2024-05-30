@@ -39,7 +39,7 @@ where
         self.vertices = vertices.into_iter().map(|vertex| vertex.into()).collect()
     }
 
-    fn run_creation(&self, _distribution: Distribution) -> Self::ResultType {
+    fn run_triangulation(&self, _distribution: Distribution) -> Self::ResultType {
         Self::ResultType::bulk_load(self.vertices.clone()).unwrap()
     }
 }
