@@ -601,14 +601,14 @@ fn restore_delaunay_triangulation(
             #[cfg(feature = "debug_context")]
             debug_context,
         ) {
-            QuadSwapResult::Swapped(pairs) => {
+            QuadSwapResult::Swapped(quad_1, quad_2) => {
                 // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
                 // Unrolled loop for performances
-                if pairs[0].1.exists() {
-                    quads_to_check.push((pairs[0].0, pairs[0].1.id));
+                if quad_1.1.exists() {
+                    quads_to_check.push((quad_1.0, quad_1.1.id));
                 }
-                if pairs[1].1.exists() {
-                    quads_to_check.push((pairs[1].0, pairs[1].1.id));
+                if quad_2.1.exists() {
+                    quads_to_check.push((quad_2.0, quad_2.1.id));
                 }
             }
             QuadSwapResult::NotSwapped => (),
@@ -619,7 +619,7 @@ fn restore_delaunay_triangulation(
 #[derive(PartialEq, Eq, Debug)]
 pub enum QuadSwapResult {
     /// Contains the new triangle pairs to check
-    Swapped([(TriangleId, Neighbor); 2]),
+    Swapped((TriangleId, Neighbor), (TriangleId, Neighbor)),
     NotSwapped,
 }
 
@@ -665,7 +665,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     let opposite_triangle = triangles.get(opposite_triangle_id);
 
-    let (quad, triangle_3_id, triangle_4_id) =
+    let (quad, triangle_3, triangle_4) =
     // No need to check if neighbor exists, handled by the == check since `from_triangle_id` exists
         if opposite_triangle.neighbor12().id == from_triangle_id {
             (
@@ -705,11 +705,11 @@ pub(crate) fn check_and_swap_quad_diagonal(
     let quad_vertices = quad.to_vertices(vertices);
 
     // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
-    if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=2], quad_vertices.q4()) {
+    if is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4()) {
         let opposite_neighbor = opposite_triangle_id.into();
         let from_neighbor = from_triangle_id.into();
 
-        update_triangle_neighbor(triangle_3_id, opposite_neighbor, from_neighbor, triangles);
+        update_triangle_neighbor(triangle_3, opposite_neighbor, from_neighbor, triangles);
         update_triangle_neighbor(
             triangles.get(from_triangle_id).neighbor31(),
             from_neighbor,
@@ -722,10 +722,10 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
         triangles.get_mut(opposite_triangle_id).neighbors = [
             from_neighbor,
-            triangle_4_id,
+            triangle_4,
             triangles.get(from_triangle_id).neighbor31(),
         ];
-        *triangles.get_mut(from_triangle_id).neighbor23_mut() = triangle_3_id;
+        *triangles.get_mut(from_triangle_id).neighbor23_mut() = triangle_3;
         *triangles.get_mut(from_triangle_id).neighbor31_mut() = opposite_neighbor;
 
         #[cfg(feature = "debug_context")]
@@ -733,13 +733,13 @@ pub(crate) fn check_and_swap_quad_diagonal(
             TriangulationPhase::SwapQuadDiagonal,
             &triangles,
             &[from_triangle_id, opposite_triangle_id],
-            &[triangle_3_id, triangles.get(from_triangle_id).neighbor31()],
+            &[triangle_3, triangles.get(from_triangle_id).neighbor31()],
         );
 
-        QuadSwapResult::Swapped([
-            (from_triangle_id, triangle_3_id),
-            (opposite_triangle_id, triangle_4_id),
-        ])
+        QuadSwapResult::Swapped(
+            (from_triangle_id, triangle_3),
+            (opposite_triangle_id, triangle_4),
+        )
     } else {
         QuadSwapResult::NotSwapped
     }

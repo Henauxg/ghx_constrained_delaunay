@@ -782,7 +782,7 @@ fn restore_delaunay_triangulation_constrained(
         } else {
             let quad = new_edge.to_quad(triangles);
             let quad_vertices = quad.to_vertices(vertices);
-            if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=2], quad_vertices.q4()) {
+            if is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4()) {
                 swap_quad_diagonal(
                     triangles,
                     vertex_to_triangle,
