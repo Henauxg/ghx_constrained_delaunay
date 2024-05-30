@@ -392,12 +392,14 @@ impl Quad {
 
     #[inline]
     pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> QuadVertices {
-        QuadVertices([
-            vertices[self.v1() as usize],
-            vertices[self.v2() as usize],
-            vertices[self.v3() as usize],
-            vertices[self.v4() as usize],
-        ])
+        QuadVertices {
+            verts: [
+                vertices[self.v1() as usize],
+                vertices[self.v2() as usize],
+                vertices[self.v3() as usize],
+                vertices[self.v4() as usize],
+            ],
+        }
     }
 }
 
@@ -406,30 +408,32 @@ pub type EdgeVertices = (Vertex, Vertex);
 pub type TriangleVertices = (Vertex, Vertex, Vertex);
 
 #[derive(Debug)]
-pub struct QuadVertices(pub [Vertex; 4]);
+pub struct QuadVertices {
+    pub verts: [Vertex; 4],
+}
 impl QuadVertices {
     #[inline]
     pub fn q1(&self) -> Vertex {
-        self.0[QUAD_1 as usize]
+        self.verts[QUAD_1 as usize]
     }
     #[inline]
     pub fn q2(&self) -> Vertex {
-        self.0[QUAD_2 as usize]
+        self.verts[QUAD_2 as usize]
     }
     #[inline]
     pub fn q3(&self) -> Vertex {
-        self.0[QUAD_3 as usize]
+        self.verts[QUAD_3 as usize]
     }
     #[inline]
     pub fn q4(&self) -> Vertex {
-        self.0[QUAD_4 as usize]
+        self.verts[QUAD_4 as usize]
     }
 
     #[inline]
     pub fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
         egdes_intersect(
-            &(self.0[QUAD_1 as usize], self.0[QUAD_2 as usize]),
-            &(self.0[QUAD_3 as usize], self.0[QUAD_4 as usize]),
+            &(self.verts[QUAD_1 as usize], self.verts[QUAD_2 as usize]),
+            &(self.verts[QUAD_3 as usize], self.verts[QUAD_4 as usize]),
         )
     }
 }
