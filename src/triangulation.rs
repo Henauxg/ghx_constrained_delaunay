@@ -258,7 +258,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         &[],
     );
 
-    // TODO Doc comment: reuse allocations
+    // This buffer is used by all calls to `restore_delaunay_triangulation`.
+    // We create if here to share the allocation between all those calls as an optimization.
     let mut quads_to_check = Vec::new();
 
     // Loop over all the input vertices
@@ -620,6 +621,35 @@ pub enum QuadSwapResult {
     NotSwapped,
 }
 
+/// ```text
+///                q3
+///         t3   /    \   t4
+///            /   To   \
+///          /            \
+///         q1 ---------- q2
+///          \ 2        3 /
+///            \   Tf   /
+///              \ 1  /
+///                q4
+/// ```
+///
+/// If q4 is in the circumcircle of the tirangle q1q2q3, the two triangles form a convex quadrilateral
+/// whose diagonal is drawn in the wrong direction. We swap this diagonal to form two new triangles so
+/// that the structure of the Delaunay triangulation is locally restored.
+///
+/// The quad becomes
+///
+/// ```text
+///               q3
+///         t3  / 3|2 \   t4
+///           /    |    \
+///         /      |      \
+///        q1 2  Tf|To   3 q2
+///         \      |      /
+///           \    |    /
+///             \ 1|1 /
+///               q4
+/// ```
 pub(crate) fn check_and_swap_quad_diagonal(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
@@ -633,17 +663,6 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     let opposite_triangle = triangles.get(opposite_triangle_id);
 
-    // ```text
-    //                q3
-    //         t3   /    \   t4
-    //            /   To   \
-    //          /            \
-    //         q1 ---------- q2
-    //          \ 2        3 /
-    //            \   Tf   /
-    //              \ 1  /
-    //                q4
-    // ```
     let (quad, triangle_3_id, triangle_4_id) =
         if opposite_triangle.neighbor12() == Some(from_triangle_id) {
             (
@@ -684,22 +703,6 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
     if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
-        // The two triangles form a convex quadrilateral whose diagonal is drawn in the wrong direction.
-        // Swap this diagonal to form two new triangles so that the structure of the Delaunay triangulation
-        // is locally restored.
-        //
-        // The quad becomes
-        // ```text
-        //               q3
-        //         t3  / 3|2 \   t4
-        //           /    |    \
-        //         /      |      \
-        //        q1 2  Tf|To   3 q2
-        //         \      |      /
-        //           \    |    /
-        //             \ 1|1 /
-        //               q4
-        // ```
         update_triangle_neighbor(
             triangle_3_id,
             Some(opposite_triangle_id),
