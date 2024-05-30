@@ -12,7 +12,7 @@ use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_tracy::TracyLayer;
 
 fn main() {
-    let subscriber = Registry::default().with(TracyLayer::new());
+    let subscriber = Registry::default().with(TracyLayer::default());
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set subscriber");
 
     let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";

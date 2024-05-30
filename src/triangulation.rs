@@ -88,6 +88,9 @@ pub fn triangulation_from_2d_vertices(
     vertices: &Vec<Vertex>,
     config: TriangulationConfiguration,
 ) -> Triangulation {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "triangulation_from_2d_vertices").entered();
+
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
         normalize_vertices_coordinates(vertices);

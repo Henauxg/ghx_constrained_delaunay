@@ -11,7 +11,10 @@ license = "MIT OR Apache-2.0"
 [[example]]
 name = "real_data_tracy"
 path = "examples/real_data_tracy.rs"
-required-features = ["ghx_constrained_delaunay/profile_traces"]
+
+[[example]]
+name = "small_data_set"
+path = "examples/small_data_set.rs"
 
 # Examples dependencies
 [dependencies]
@@ -20,9 +23,12 @@ ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     "profile_traces",
 ] }
 
+rand = "0.8"
+num-traits = "0.2.14"
 glam = { version = "0.25" }
 ordered-float = "4.2.0"
 shapefile = "0.6.0"
 tracing = "0.1.40"
-tracing-tracy = "0.10.4"
+tracing-tracy = { version = "0.11.0", features = ["flush-on-exit"] }
+
 tracing-subscriber = "0.3.18"
