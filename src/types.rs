@@ -22,7 +22,6 @@ pub use u64::IndexType;
 
 pub type VertexId = IndexType;
 pub type TriangleId = IndexType;
-pub type Neighbor = Option<VertexId>;
 
 // TODO New types to avoid some bugs
 pub type TriangleVertexIndex = u8;
@@ -90,6 +89,37 @@ impl From<(VertexId, VertexId)> for Edge {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// Type used to represent an optionnal [TriangleId].
+///
+/// More packed in memory than an [Option], for efficiency.
+pub struct Neighbor {
+    pub id: TriangleId,
+}
+
+impl Neighbor {
+    pub const NONE: Neighbor = Neighbor {
+        id: TriangleId::MAX,
+    };
+
+    #[inline]
+    pub(crate) fn new(id: TriangleId) -> Self {
+        Self { id }
+    }
+
+    #[inline]
+    pub fn exists(&self) -> bool {
+        self.id != TriangleId::MAX
+    }
+}
+
+impl From<TriangleId> for Neighbor {
+    #[inline]
+    fn from(id: TriangleId) -> Self {
+        Self { id }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TriangleData {
     /// Triangle vertices indexes
@@ -105,7 +135,7 @@ impl TriangleData {
     pub(crate) fn new_container_triangle(first_index: TriangleId) -> Self {
         TriangleData {
             verts: [first_index, first_index + 1, first_index + 2],
-            neighbors: [None, None, None],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::NONE],
         }
     }
 
@@ -286,6 +316,10 @@ impl Triangles {
     #[inline]
     pub fn count(&self) -> usize {
         self.buffer.len()
+    }
+    #[inline]
+    pub fn last_id(&self) -> TriangleId {
+        (self.buffer.len() - 1) as TriangleId
     }
     #[inline]
     pub fn next_id(&self) -> TriangleId {

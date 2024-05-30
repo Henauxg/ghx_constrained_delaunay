@@ -99,7 +99,7 @@ impl DebugContext {
         phase: TriangulationPhase,
         triangles: &Triangles,
         triangle_ids: &[TriangleId],
-        opt_neighbor_ids: &[Neighbor],
+        opt_neighbors: &[Neighbor],
     ) {
         let record = match &self.config.phase_record {
             PhaseRecord::All => true,
@@ -115,14 +115,14 @@ impl DebugContext {
             StepsRecord::Until(to) => self.current_step <= to,
             StepsRecord::Between(from, to) => self.current_step >= from && self.current_step <= to,
         } {
-            let mut step_changes = Vec::with_capacity(triangle_ids.len() + opt_neighbor_ids.len());
+            let mut step_changes = Vec::with_capacity(triangle_ids.len() + opt_neighbors.len());
             step_changes.extend(triangle_ids);
             // TODO May consider neighbors differently
             step_changes.extend(
-                opt_neighbor_ids
+                opt_neighbors
                     .iter()
-                    .filter(|o| o.is_some())
-                    .map(|o| o.unwrap())
+                    .filter(|o| o.exists())
+                    .map(|o| o.id)
                     .collect::<Vec<TriangleId>>(),
             );
 
