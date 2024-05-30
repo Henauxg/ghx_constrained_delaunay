@@ -195,31 +195,29 @@ fn remove_wrapping_and_unconstrained_domains(
 
             // Triangle-walk in the domain to register the domain's triangles
             while let Some(neighbor) = triangles_to_explore.pop() {
-                match neighbor {
-                    Some(triangle_index) => {
-                        if visited_triangles[triangle_index as usize] {
-                            continue;
-                        } else {
-                            let triangle = triangles.get(triangle_index);
-                            register_triangle(
-                                &mut indices,
-                                triangle,
-                                &container_verts,
-                                #[cfg(feature = "debug_context")]
-                                &mut filtered_debug_triangles,
-                            );
-                            visited_triangles[triangle_index as usize] = true;
+                if !neighbor.exists() {
+                    continue;
+                }
+                let triangle_id = neighbor.id;
 
-                            for (edge_index, edge) in triangle.edges().iter().enumerate() {
-                                if !constrained_edges.contains(edge) {
-                                    // TODO Clean: Would it be quicker to also check for visited before adding to the stack
-                                    triangles_to_explore.push(triangle.neighbors[edge_index]);
-                                }
-                            }
+                if visited_triangles[triangle_id as usize] {
+                    continue;
+                } else {
+                    let triangle = triangles.get(triangle_id);
+                    register_triangle(
+                        &mut indices,
+                        triangle,
+                        &container_verts,
+                        #[cfg(feature = "debug_context")]
+                        &mut filtered_debug_triangles,
+                    );
+                    visited_triangles[triangle_id as usize] = true;
+
+                    for (edge_index, edge) in triangle.edges().iter().enumerate() {
+                        if !constrained_edges.contains(edge) {
+                            // TODO Clean: Would it be quicker to also check for visited before adding to the stack
+                            triangles_to_explore.push(triangle.neighbors[edge_index]);
                         }
-                    }
-                    None => {
-                        continue;
                     }
                 }
             }
@@ -369,10 +367,11 @@ fn loop_around_vertex_and_search_intersection(
         if egdes_intersect(&constrained_edge_verts, &edge_vertices)
             == EdgesIntersectionResult::Crossing
         {
-            if let Some(neighbor_triangle_id) = triangle.neighbor(edge_index) {
+            let neighbor_triangle = triangle.neighbor(edge_index);
+            if neighbor_triangle.exists() {
                 return EdgeFirstIntersection::Intersection(EdgeData {
                     from_triangle_id: triangle_id,
-                    to_triangle_id: neighbor_triangle_id,
+                    to_triangle_id: neighbor_triangle.id,
                     edge,
                 });
             } else {
@@ -381,9 +380,11 @@ fn loop_around_vertex_and_search_intersection(
             }
         }
 
-        match triangle.neighbor(next_edge_index(vert_index)) {
-            Some(neighbor_id) => triangle_id = neighbor_id,
-            None => break,
+        let neighbor = triangle.neighbor(next_edge_index(vert_index));
+        if neighbor.exists() {
+            triangle_id = neighbor.id;
+        } else {
+            break;
         }
     }
     EdgeFirstIntersection::NotFound
@@ -418,7 +419,8 @@ fn search_first_interstected_quad(
     // Not having the constrained edge first vertex in the starting triangle is not possible
     let vert_index = triangle.vertex_index(constrained_edge.from);
     let edge_index = next_counter_clockwise_edge_index_around(vert_index);
-    let neighbor_triangle = triangle.neighbor(edge_index).expect(&format!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from));
+    // It is impossible to have no neighbor here. It would mean that there is no triangle with the constrained edge intersection
+    let neighbor_triangle = triangle.neighbor(edge_index).id;
 
     // Search counterclockwise
     let res = loop_around_vertex_and_search_intersection(
@@ -579,11 +581,12 @@ fn get_next_triangle_edge_intersection(
         }
         // TODO Doc: Add a note about why we only care about the `Crossing` result
         if egdes_intersect(constrained_edge, edge_vertices) == EdgesIntersectionResult::Crossing {
-            if let Some(neighbor_triangle_id) = triangle.neighbors[edge_index] {
+            let neighbor_triangle = triangle.neighbors[edge_index];
+            if neighbor_triangle.exists() {
                 return Some(EdgeData {
                     // crossed_edge_index: edge_index,
                     from_triangle_id: triangle_id,
-                    to_triangle_id: neighbor_triangle_id,
+                    to_triangle_id: neighbor_triangle.id,
                     edge,
                 });
             }
@@ -656,11 +659,11 @@ pub(crate) fn swap_quad_diagonal(
     triangles.get_mut(from).verts = [quad.v3(), quad.v4(), quad.v1()];
     triangles.get_mut(to).verts = [quad.v3(), quad.v2(), quad.v4()];
 
-    triangles.get_mut(from).neighbors = [Some(to), tf_left_neighbor, tt_left_neighbor];
-    triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, Some(from)];
+    triangles.get_mut(from).neighbors = [to.into(), tf_left_neighbor, tt_left_neighbor];
+    triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, from.into()];
 
-    triangulation::update_triangle_neighbor(tt_left_neighbor, Some(to), Some(from), triangles);
-    triangulation::update_triangle_neighbor(tf_right_neighbor, Some(from), Some(to), triangles);
+    triangulation::update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
+    triangulation::update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
 
     vertex_to_triangle[quad.v1() as usize] = from;
     vertex_to_triangle[quad.v2() as usize] = to;
@@ -686,21 +689,23 @@ fn update_edges_data(
 ) {
     for edge_data in edges_data.iter_mut() {
         // We do not need to check for updates of triangle_from<->triangle_to pairs since there should only be one in the collection and we are currently treating it.
-        if let Some(tt_left_neighbor) = tt_left_neighbor {
-            if edge_data.from_triangle_id == tt_left_neighbor && edge_data.to_triangle_id == to {
+        if tt_left_neighbor.exists() {
+            if edge_data.from_triangle_id == tt_left_neighbor.id && edge_data.to_triangle_id == to {
                 edge_data.to_triangle_id = from;
             } else if edge_data.from_triangle_id == to
-                && edge_data.to_triangle_id == tt_left_neighbor
+                && edge_data.to_triangle_id == tt_left_neighbor.id
             {
                 edge_data.from_triangle_id = from;
                 // TODO Design: inter.from_edge_index becomes EDGE_12
             }
         }
-        if let Some(tf_right_neighbor) = tf_right_neighbor {
-            if edge_data.from_triangle_id == tf_right_neighbor && edge_data.to_triangle_id == from {
+        if tf_right_neighbor.exists() {
+            if edge_data.from_triangle_id == tf_right_neighbor.id
+                && edge_data.to_triangle_id == from
+            {
                 edge_data.to_triangle_id = to;
             } else if edge_data.from_triangle_id == from
-                && edge_data.to_triangle_id == tf_right_neighbor
+                && edge_data.to_triangle_id == tf_right_neighbor.id
             {
                 edge_data.from_triangle_id = to;
                 // TODO Design: inter.from_edge_index becomes EDGE_23
@@ -806,7 +811,7 @@ fn restore_delaunay_triangulation_constrained(
 mod tests {
     use std::collections::VecDeque;
 
-    use crate::types::{Edge, Quad, TriangleData, TriangleId, Triangles, Vertex};
+    use crate::types::{Edge, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vertex};
 
     use super::{swap_quad_diagonal, EdgeData};
 
@@ -820,12 +825,12 @@ mod tests {
 
         let triangle_1 = TriangleData {
             verts: [0, 1, 3],
-            neighbors: [None, Some(1), None],
+            neighbors: [Neighbor::NONE, Neighbor::new(1), Neighbor::NONE],
         };
 
         let triangle_2 = TriangleData {
             verts: [1, 2, 3],
-            neighbors: [None, None, Some(0)],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(0)],
         };
 
         let mut triangles = Triangles::new();

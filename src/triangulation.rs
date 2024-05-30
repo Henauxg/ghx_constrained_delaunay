@@ -192,26 +192,26 @@ fn search_enclosing_triangle(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "search_enclosing_triangle").entered();
 
-    let mut triangle_id = from;
+    let mut neighbor = from;
 
     let mut search_result = SearchResult::NotFound;
     // We use `triangles.len()` as an upper bound on the number of triangles
     for _ in 0..triangles.count() {
-        let Some(current_triangle_id) = triangle_id else {
+        if !neighbor.exists() {
             break;
-        };
-        let triangle = triangles.get(current_triangle_id);
+        }
+        let triangle = triangles.get(neighbor.id);
         let (v1, v2, v3) = triangle.to_vertices(vertices);
 
         // Check if the point is inside the triangle, if not check the neighbours
         if !is_point_on_right_side_of_edge((v1, v2), vertex) {
-            triangle_id = triangle.neighbor12();
+            neighbor = triangle.neighbor12();
         } else if !is_point_on_right_side_of_edge((v2, v3), vertex) {
-            triangle_id = triangle.neighbor23();
+            neighbor = triangle.neighbor23();
         } else if !is_point_on_right_side_of_edge((v3, v1), vertex) {
-            triangle_id = triangle.neighbor31();
+            neighbor = triangle.neighbor31();
         } else {
-            search_result = SearchResult::EnlosingTriangle(current_triangle_id);
+            search_result = SearchResult::EnlosingTriangle(neighbor.id);
             break;
         }
     }
@@ -248,7 +248,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     triangles.buffer_mut().push(container_triangle.clone());
 
     // Id of the triangle we are looking at
-    let mut triangle_id = Some(0);
+    let mut triangle_id = Neighbor::new(0);
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(
@@ -301,7 +301,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
                 // We'll start the search for the next enclosing triangle from the last created triangle.
                 // This is a pretty good heuristic since the vertices were spatially partitionned
-                triangle_id = Some((triangles.count() - 1) as TriangleId);
+                triangle_id = Neighbor::new(triangles.last_id());
 
                 #[cfg(feature = "progress_log")]
                 {
@@ -511,32 +511,32 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     // t2
     triangles.create(
         [vertex_id, triangles.get(t1).v2(), triangles.get(t1).v3()],
-        [Some(t3), triangles.get(t1).neighbor23(), Some(t1)],
+        [t3.into(), triangles.get(t1).neighbor23(), t1.into()],
     );
     // t3
     triangles.create(
         [vertex_id, triangles.get(t1).v1(), triangles.get(t1).v2()],
-        [Some(t1), triangles.get(t1).neighbor12(), Some(t2)],
+        [t1.into(), triangles.get(t1).neighbor12(), t2.into()],
     );
 
     // Update triangle indexes
     update_triangle_neighbor(
         triangles.get(t1).neighbor12(),
-        Some(t1),
-        Some(t3),
+        t1.into(),
+        t3.into(),
         triangles,
     );
     update_triangle_neighbor(
         triangles.get(t1).neighbor23(),
-        Some(t1),
-        Some(t2),
+        t1.into(),
+        t2.into(),
         triangles,
     );
 
     let verts = [vertex_id, triangles.get(t1).v3(), triangles.get(t1).v1()];
     triangles.get_mut(t1).verts = verts;
 
-    let neighbors = [Some(t2), triangles.get(t1).neighbor31(), Some(t3)];
+    let neighbors = [t2.into(), triangles.get(t1).neighbor31(), t3.into()];
     triangles.get_mut(t1).neighbors = neighbors;
 
     #[cfg(feature = "debug_context")]
@@ -552,22 +552,19 @@ pub(crate) fn split_triangle_in_three_at_vertex(
 }
 
 pub(crate) fn update_triangle_neighbor(
-    triangle_id: Neighbor,
+    triangle: Neighbor,
     old_neighbour_id: Neighbor,
     new_neighbour_id: Neighbor,
     triangles: &mut Triangles,
 ) {
-    match triangle_id {
-        Some(triangle_id) => {
-            for neighbor in triangles.get_mut(triangle_id).neighbors.iter_mut() {
-                if *neighbor == old_neighbour_id {
-                    *neighbor = new_neighbour_id;
-                    break;
-                }
+    if triangle.exists() {
+        for neighbor in triangles.get_mut(triangle.id).neighbors.iter_mut() {
+            if *neighbor == old_neighbour_id {
+                *neighbor = new_neighbour_id;
+                break;
             }
         }
-        None => (),
-    };
+    }
 }
 
 /// `quads_to_check` used the shared pre-allocated buffer for efficiency.
@@ -585,8 +582,9 @@ fn restore_delaunay_triangulation(
 
     for &from_triangle_id in &new_triangles {
         // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
-        if let Some(opposite_triangle_id) = triangles.get(from_triangle_id).neighbor23() {
-            quads_to_check.push((from_triangle_id, opposite_triangle_id));
+        let neighbor = triangles.get(from_triangle_id).neighbor23();
+        if neighbor.exists() {
+            quads_to_check.push((from_triangle_id, neighbor.id));
         }
     }
 
@@ -602,11 +600,12 @@ fn restore_delaunay_triangulation(
         ) {
             QuadSwapResult::Swapped(pairs) => {
                 // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
-                if let Some(opposite_triangle_id) = pairs[0].1 {
-                    quads_to_check.push((pairs[0].0, opposite_triangle_id));
+                // Unrolled loop for performances
+                if pairs[0].1.exists() {
+                    quads_to_check.push((pairs[0].0, pairs[0].1.id));
                 }
-                if let Some(opposite_triangle_id) = pairs[1].1 {
-                    quads_to_check.push((pairs[1].0, opposite_triangle_id));
+                if pairs[1].1.exists() {
+                    quads_to_check.push((pairs[1].0, pairs[1].1.id));
                 }
             }
             QuadSwapResult::NotSwapped => (),
@@ -664,7 +663,8 @@ pub(crate) fn check_and_swap_quad_diagonal(
     let opposite_triangle = triangles.get(opposite_triangle_id);
 
     let (quad, triangle_3_id, triangle_4_id) =
-        if opposite_triangle.neighbor12() == Some(from_triangle_id) {
+    // No need to check if neighbor exists, handled by the == check since `from_triangle_id` exists
+        if opposite_triangle.neighbor12().id == from_triangle_id {
             (
                 Quad::new([
                     opposite_triangle.v2(),
@@ -675,7 +675,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
                 opposite_triangle.neighbor23(),
                 opposite_triangle.neighbor31(),
             )
-        } else if opposite_triangle.neighbor23() == Some(from_triangle_id) {
+        } else if opposite_triangle.neighbor23().id == from_triangle_id {
             (
                 Quad::new([
                     opposite_triangle.v3(),
@@ -703,16 +703,14 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
     if is_vertex_in_triangle_circumcircle(&quad_vertices.0[0..=3], quad_vertices.q4()) {
-        update_triangle_neighbor(
-            triangle_3_id,
-            Some(opposite_triangle_id),
-            Some(from_triangle_id),
-            triangles,
-        );
+        let opposite_neighbor = opposite_triangle_id.into();
+        let from_neighbor = from_triangle_id.into();
+
+        update_triangle_neighbor(triangle_3_id, opposite_neighbor, from_neighbor, triangles);
         update_triangle_neighbor(
             triangles.get(from_triangle_id).neighbor31(),
-            Some(from_triangle_id),
-            Some(opposite_triangle_id),
+            from_neighbor,
+            opposite_neighbor,
             triangles,
         );
 
@@ -720,12 +718,12 @@ pub(crate) fn check_and_swap_quad_diagonal(
         triangles.get_mut(opposite_triangle_id).verts = [quad.v4(), quad.v3(), quad.v2()];
 
         triangles.get_mut(opposite_triangle_id).neighbors = [
-            Some(from_triangle_id),
+            from_neighbor,
             triangle_4_id,
             triangles.get(from_triangle_id).neighbor31(),
         ];
         *triangles.get_mut(from_triangle_id).neighbor23_mut() = triangle_3_id;
-        *triangles.get_mut(from_triangle_id).neighbor31_mut() = Some(opposite_triangle_id);
+        *triangles.get_mut(from_triangle_id).neighbor31_mut() = opposite_neighbor;
 
         #[cfg(feature = "debug_context")]
         debug_context.push_snapshot(
@@ -760,7 +758,7 @@ mod tests {
             split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
             QuadSwapResult,
         },
-        types::{Float, TriangleData, TriangleId, Triangles, Vector3A, Vertex},
+        types::{Float, Neighbor, TriangleData, TriangleId, Triangles, Vector3A, Vertex},
     };
 
     #[test]
@@ -861,12 +859,12 @@ mod tests {
 
         let triangle_1 = TriangleData {
             verts: [3, 1, 0],
-            neighbors: [None, None, Some(1)],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(1)],
         };
 
         let triangle_2 = TriangleData {
             verts: [1, 2, 3],
-            neighbors: [None, None, Some(0)],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(0)],
         };
 
         let mut triangles = Triangles::with_capacity(2);
@@ -899,12 +897,12 @@ mod tests {
 
         let triangle_1 = TriangleData {
             verts: [0, 1, 2],
-            neighbors: [None, None, Some(1)],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(1)],
         };
 
         let triangle_2 = TriangleData {
             verts: [2, 3, 0],
-            neighbors: [None, None, Some(0)],
+            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(0)],
         };
 
         let mut triangles = Triangles::with_capacity(2);
