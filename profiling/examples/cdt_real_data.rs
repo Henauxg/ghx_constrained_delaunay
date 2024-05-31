@@ -11,11 +11,17 @@ use ordered_float::OrderedFloat;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_tracy::TracyLayer;
 
+const SHP_FILE_NAME: &str = "Europe_coastline";
+// const SHP_FILE_NAME: &str = "ne_10m_coastline";
+// const SHP_FILE_NAME: &str = "ne_50m_coastline";
+
+const SHP_FILES_PATH: &str = "../assets";
+
 fn main() {
     let subscriber = Registry::default().with(TracyLayer::default());
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set subscriber");
 
-    let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";
+    let shape_file_path = format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.shp");
     println!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
 

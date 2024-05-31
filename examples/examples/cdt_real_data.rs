@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use bevy::{
     app::{App, Startup, Update},
-    ecs::system::Commands,
+    ecs::system::{Commands, Res},
     gizmos::gizmos::Gizmos,
     math::{primitives::Direction3d, Vec3},
     render::color::Color,
@@ -22,18 +22,24 @@ use ghx_constrained_delaunay::{
 };
 use ordered_float::OrderedFloat;
 
+const SHP_FILE_NAME: &str = "Europe_coastline";
+// const SHP_FILE_NAME: &str = "ne_10m_coastline";
+// const SHP_FILE_NAME: &str = "ne_50m_coastline";
+
+const SHP_FILES_PATH: &str = "../assets";
+
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update, draw_debug_circle)
+        .add_systems(Update, draw_origin_circle)
         .run();
 }
 
 const RESIZE_FACTOR: Float = 1.0;
 
 fn setup(mut commands: Commands) {
-    let shape_file_path = "../delaunay_compare/examples/Europe_coastline.shp";
+    let shape_file_path = format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.shp");
     println!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
 
@@ -132,11 +138,11 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
     triangulation
 }
 
-fn draw_debug_circle(mut gizmos: Gizmos) {
+fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebugData>) {
     gizmos.circle(
         Vec3::new(0., 0., 0.),
         Direction3d::Z,
-        100.,
+        0.01 * triangle_debug_data.context.scale_factor as f32,
         Color::ALICE_BLUE,
     );
 }

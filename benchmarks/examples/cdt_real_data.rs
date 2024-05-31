@@ -12,12 +12,18 @@ use ordered_float::OrderedFloat;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 use tiny_skia::{Paint, PathBuilder, Pixmap, Stroke, Transform};
 
+const SHP_FILE_NAME: &str = "Europe_coastline";
+// const SHP_FILE_NAME: &str = "ne_10m_coastline";
+// const SHP_FILE_NAME: &str = "ne_50m_coastline";
+
+const SHP_FILES_PATH: &str = "../assets";
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
 
-    let shape_file_path = "./examples/Europe_coastline.shp";
-    println!("Loading {} ...", shape_file_path);
-    let mut reader = shapefile::Reader::from_path(shape_file_path)?;
+    let shape_file = format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.shp");
+    println!("Loading {} ...", shape_file);
+    let mut reader = shapefile::Reader::from_path(shape_file)?;
 
     let mut vertices = Vec::new();
     let mut edges = Vec::new();
@@ -70,16 +76,14 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
     let now = Instant::now();
     let cdt =
         spade::ConstrainedDelaunayTriangulation::<_>::bulk_load_cdt(vertices_clone, edges_clone)?;
+    let elapsed = now.elapsed().as_millis();
     println!("{} vertices (without duplicates)", cdt.num_vertices());
     println!("{} undirected edges", cdt.num_undirected_edges());
     println!("{} constraint edges", cdt.num_constraints());
     println!("{} triangles", cdt.num_inner_faces());
     println!("{} convex hull edges", cdt.convex_hull_size());
     println!();
-    println!(
-        "loading time (spade cdt bulk load): {}ms",
-        now.elapsed().as_millis()
-    );
+    println!("loading time (spade with constraints): {}ms", elapsed);
 
     let vertices_clone = vertices.clone();
     let edges_clone = edges.clone();
@@ -91,7 +95,7 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
     )?;
 
     println!(
-        "loading time (spade cdt bulk load stable): {}ms",
+        "loading time (spade with constraints, stable): {}ms",
         now.elapsed().as_millis()
     );
 
@@ -103,6 +107,10 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
         "loading time (spade without constraints): {}ms",
         now.elapsed().as_millis()
     );
+
+    println!("Creating and saving output image...");
+    _draw_to_pixmap(cdt)?.save_png(format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.png"))?;
+    println!("Done!");
 
     Ok(())
 }

@@ -31,7 +31,7 @@ where
     core::iter::from_fn(step_fn)
 }
 
-const VERTICES_COUNT: usize = 2000;
+const VERTICES_COUNT: usize = 250000;
 
 fn main() {
     let subscriber = Registry::default().with(TracyLayer::default());
@@ -45,6 +45,8 @@ fn main() {
     let _triangulation = triangulation_from_2d_vertices(
         &vertices,
         TriangulationConfiguration {
+            filter_parallel_tri_count_threshold: 10000,
+            filter_parallel_min_batch_len: 10000,
             ..Default::default()
         },
     );
