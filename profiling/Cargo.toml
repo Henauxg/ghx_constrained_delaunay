@@ -9,12 +9,12 @@ license = "MIT OR Apache-2.0"
 
 # Examples
 [[example]]
-name = "real_data_tracy"
-path = "examples/real_data_tracy.rs"
+name = "cdt_real_data"
+path = "examples/cdt_real_data.rs"
 
 [[example]]
-name = "small_data_set"
-path = "examples/small_data_set.rs"
+name = "dt_random_data"
+path = "examples/dt_random_data.rs"
 
 # Examples dependencies
 [dependencies]

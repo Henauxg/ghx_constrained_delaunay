@@ -27,5 +27,5 @@ env_logger = "0.11.3"
 ordered-float = "4.2.0"
 
 [[bench]]
-name = "delaunay_comparison"
+name = "dt_comparison"
 harness = false

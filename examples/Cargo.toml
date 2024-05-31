@@ -10,16 +10,16 @@ exclude = ["assets/"]
 
 # Examples
 [[example]]
-name = "triangulation"
-path = "examples/triangulation.rs"
+name = "dt"
+path = "examples/dt.rs"
 
 [[example]]
-name = "constrained_triangulation"
-path = "examples/constrained_triangulation.rs"
+name = "cdt"
+path = "examples/cdt.rs"
 
 [[example]]
-name = "real_data"
-path = "examples/real_data.rs"
+name = "cdt_real_data"
+path = "examples/cdt_real_data.rs"
 
 # Examples dependencies
 [dependencies]
