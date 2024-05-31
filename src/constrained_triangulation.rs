@@ -277,6 +277,11 @@ fn apply_constraints(
         vertex_to_triangle[t.v3() as usize] = index as TriangleId;
     }
 
+    // Those buffers are used by all calls to `register_intersected_edges`, `remove_crossed_edges` and `restore_delaunay_triangulation_constrained`.
+    // We create them here to share the allocation between all those calls as an optimization.
+    let mut intersections = VecDeque::new();
+    let mut new_diagonals_created = VecDeque::new();
+
     for (_step, constrained_edge) in constrained_edges.iter().enumerate() {
         #[cfg(feature = "progress_log")]
         {
@@ -298,12 +303,13 @@ fn apply_constraints(
         let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
 
         // Stores all of the edges that cross the constrained edge
-        let intersections = register_intersected_edges(
+        register_intersected_edges(
             triangles,
             vertices,
             *constrained_edge,
             constrained_edge_vertices,
             &vertex_to_triangle,
+            &mut intersections,
         );
         if intersections.is_empty() {
             // Skipping constrained edge already in triangulation
@@ -311,12 +317,13 @@ fn apply_constraints(
         }
 
         // Remove intersecting edges
-        let mut new_diagonals_created = remove_crossed_edges(
+        remove_crossed_edges(
             triangles,
             vertices,
             &mut vertex_to_triangle,
             constrained_edge_vertices,
-            intersections,
+            &mut intersections,
+            &mut new_diagonals_created,
         );
 
         // Restore Delaunay triangulation
@@ -447,7 +454,8 @@ fn register_intersected_edges(
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
-) -> VecDeque<EdgeData> {
+    intersections: &mut VecDeque<EdgeData>,
+) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
 
@@ -459,13 +467,12 @@ fn register_intersected_edges(
         vertex_to_triangle[constrained_edge.from as usize],
     );
 
-    let mut intersections = VecDeque::new();
     let mut intersection = match search_result {
         EdgeFirstIntersection::Intersection(edge_data) => {
             intersections.push_back(edge_data.clone());
             edge_data
         }
-        _ => return intersections,
+        _ => return,
     };
 
     // Search all the edges intersected by this constrained edge
@@ -497,8 +504,6 @@ fn register_intersected_edges(
             }
         }
     }
-
-    intersections
 }
 
 #[derive(Clone, Debug)]
@@ -720,12 +725,11 @@ fn remove_crossed_edges(
     vertices: &Vec<Vertex>,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge_vertices: &EdgeVertices,
-    mut intersections: VecDeque<EdgeData>,
-) -> VecDeque<EdgeData> {
+    intersections: &mut VecDeque<EdgeData>,
+    new_diagonals_created: &mut VecDeque<EdgeData>,
+) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "remove_crossed_edges").entered();
-
-    let mut new_diagonals_created = VecDeque::new();
 
     while let Some(intersection) = intersections.pop_front() {
         let quad = intersection.to_quad(triangles);
@@ -740,7 +744,7 @@ fn remove_crossed_edges(
             swap_quad_diagonal(
                 triangles,
                 vertex_to_triangle,
-                &mut [&mut intersections, &mut new_diagonals_created],
+                &mut [intersections, new_diagonals_created],
                 &intersection,
                 &quad,
             );
@@ -763,7 +767,6 @@ fn remove_crossed_edges(
             }
         }
     }
-    new_diagonals_created
 }
 
 fn restore_delaunay_triangulation_constrained(
