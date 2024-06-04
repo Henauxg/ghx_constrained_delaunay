@@ -14,17 +14,16 @@ use examples::{
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
-    debug::{DebugConfiguration, PhaseRecord, TriangulationPhase},
+    debug::{DebugConfiguration, Phase, PhaseRecord},
     hashbrown::HashSet,
-    triangulation::TriangulationConfiguration,
     types::{Edge, Float, Vector3, Vertex, VertexId},
     Triangulation,
 };
 use ordered_float::OrderedFloat;
 
-const SHP_FILE_NAME: &str = "Europe_coastline";
+// const SHP_FILE_NAME: &str = "Europe_coastline";
 // const SHP_FILE_NAME: &str = "ne_10m_coastline";
-// const SHP_FILE_NAME: &str = "ne_50m_coastline";
+const SHP_FILE_NAME: &str = "ne_50m_coastline";
 
 const SHP_FILES_PATH: &str = "../assets";
 
@@ -105,17 +104,15 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
     let config = ConstrainedTriangulationConfiguration {
-        triangulation: TriangulationConfiguration {
-            debug_config: DebugConfiguration {
-                phase_record: PhaseRecord::InAny(HashSet::from([
-                    TriangulationPhase::BeforeConstraints,
-                    TriangulationPhase::AfterConstraints,
-                    TriangulationPhase::RemoveWrapping,
-                ])),
-                ..Default::default()
-            },
+        debug_config: DebugConfiguration {
+            phase_record: PhaseRecord::InAny(HashSet::from([
+                Phase::BeforeConstraints,
+                Phase::AfterConstraints,
+                Phase::FilterTriangles,
+            ])),
             ..Default::default()
         },
+        ..Default::default()
     };
 
     println!("Loading cdt (ghx_cdt crate)");

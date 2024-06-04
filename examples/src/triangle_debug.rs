@@ -22,7 +22,7 @@ use bevy::{
 };
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
-    debug::{DebugContext, DebugSnapshot, TriangulationPhase},
+    debug::{DebugContext, DebugSnapshot, EventInfo},
     triangulation::CONTAINER_TRIANGLE_VERTICES,
     types::{Float, TriangleData, TriangleId, Triangles, Vector3},
 };
@@ -369,7 +369,11 @@ pub fn spawn_label(
         TriangleDebugEntity,
     ));
 
-    for (v, label) in vec![(v1, "v1"), (v2, "v2"), (v3, "v3")] {
+    for (v, _v_id, label) in vec![
+        (v1, triangle_data.v1(), "v1"),
+        (v2, triangle_data.v2(), "v2"),
+        (v3, triangle_data.v3(), "v3"),
+    ] {
         let v = v.as_vec3();
         let v_display_pos = v + (center - v) * 0.15;
         commands.spawn((
@@ -377,6 +381,8 @@ pub fn spawn_label(
                 transform: Transform::from_translation(v_display_pos).with_scale(billboard_scale),
                 text: Text::from_sections([TextSection {
                     value: label.to_string(),
+                    // Uncomment to display the vertices ids
+                    // value: _v_id.to_string(),
                     style: TextStyle {
                         font_size: DEBUG_LABEL_FONT_SIZE,
                         color,
@@ -422,8 +428,8 @@ pub fn draw_triangles_debug_data_gizmos(
         Color::WHITE,
     );
 
-    // Draw specific phase info
-    if let TriangulationPhase::SplitTriangle(vertex_id) = snapshot.triangulation_phase {
+    // Draw specific event info
+    if let EventInfo::SplitTriangle(vertex_id) = snapshot.event {
         // Set circle radius as proportional to the changes bounding box
         let circle_radius = debug_vert_data
             .current_changes_bounds
