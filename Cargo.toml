@@ -32,8 +32,8 @@ u64_indexes = []
 
 # Register debug data (triangle) in buffers during the execution of the triangulation
 debug_context = []
-# Add logs during the triangulation porcess to idnicate the current progress
-progress_log = []
+# Add logs during the triangulation process to indicate the current progress
+progress_log = ["debug_context"]
 # Adds profile spans to use with the Tracy profiler
 profile_traces = []
 

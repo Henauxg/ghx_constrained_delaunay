@@ -5,17 +5,19 @@ use crate::types::{Float, Neighbor, TriangleId, Triangles, VertexId};
 /// Defines debug recording of the Triangulation
 #[derive(Debug, Clone)]
 pub enum PhaseRecord {
+    None,
     /// Records all the phases
     All,
     /// Records the steps during the specified phase
-    In(TriangulationPhase),
+    In(Phase),
     /// Records the steps during the specified phases
-    InAny(HashSet<TriangulationPhase>),
+    InAny(HashSet<Phase>),
 }
 
 /// Defines debug recording of the Triangulation
 #[derive(Debug, Clone)]
 pub enum StepsRecord {
+    None,
     /// Records all the steps
     All,
     /// Records all the steps after the specified one (inclusive)
@@ -45,20 +47,23 @@ impl Default for DebugConfiguration {
 
 pub struct DebugSnapshot {
     pub step: usize,
-    pub triangulation_phase: TriangulationPhase,
+    pub triangulation_phase: Phase,
+    pub event: EventInfo,
     pub changed_ids: Vec<TriangleId>,
     pub triangles: Triangles,
 }
 impl DebugSnapshot {
     pub(crate) fn new(
         step: usize,
-        triangulation_phase: TriangulationPhase,
+        triangulation_phase: Phase,
+        event: EventInfo,
         triangles: Triangles,
         changed_ids: Vec<TriangleId>,
     ) -> Self {
         Self {
             step,
             triangulation_phase,
+            event,
             triangles,
             changed_ids,
         }
@@ -94,14 +99,16 @@ impl DebugContext {
         }
     }
 
-    pub(crate) fn push_snapshot(
+    pub(crate) fn push_snapshot_event(
         &mut self,
-        phase: TriangulationPhase,
+        phase: Phase,
+        event: EventInfo,
         triangles: &Triangles,
         triangle_ids: &[TriangleId],
         opt_neighbors: &[Neighbor],
     ) {
         let record = match &self.config.phase_record {
+            PhaseRecord::None => false,
             PhaseRecord::All => true,
             PhaseRecord::InAny(phases) => phases.contains(&phase),
             PhaseRecord::In(rec_phase) => phase == *rec_phase,
@@ -110,6 +117,7 @@ impl DebugContext {
             return;
         }
         if match self.config.steps_record {
+            StepsRecord::None => false,
             StepsRecord::All => true,
             StepsRecord::From(from) => self.current_step >= from,
             StepsRecord::Until(to) => self.current_step <= to,
@@ -129,29 +137,57 @@ impl DebugContext {
             self.snapshots.push(DebugSnapshot::new(
                 self.current_step,
                 phase,
+                event,
                 triangles.clone(),
                 step_changes,
             ));
         }
     }
 
+    pub(crate) fn push_snapshot(
+        &mut self,
+        phase: Phase,
+        triangles: &Triangles,
+        triangle_ids: &[TriangleId],
+        opt_neighbors: &[Neighbor],
+    ) {
+        self.push_snapshot_event(
+            phase,
+            EventInfo::Snapshot,
+            triangles,
+            triangle_ids,
+            opt_neighbors,
+        )
+    }
+
     /// Returns true if the algorithm should stop
-    pub(crate) fn set_step(&mut self, step: usize) -> bool {
-        self.current_step = step;
+    pub(crate) fn advance_step(&mut self) -> bool {
+        self.current_step += 1;
         match self.config.force_end_at_step {
-            Some(end_step) => step >= end_step,
+            Some(end_step) => self.current_step >= end_step,
             None => false,
         }
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum TriangulationPhase {
+pub enum Phase {
+    /// After insertion of the container triangle vertices
     ContainerVerticesInsertion,
-    SplitTriangle(VertexId),
-    SwapQuadDiagonal,
-    RemoveWrapping,
-    //
+    /// After a triangle was split in 3
+    SplitTriangle,
+    /// After a quad diagonal was swapped in the delaunay restoration
+    DelaunayRestoreSwapQuadDiagonals,
     BeforeConstraints,
+    RegisterCrossedEdges,
+    ConstrainedSwapQuadDiagonals,
     AfterConstraints,
+    /// After removal of the container triangle vertices (and of the unwanted domains for CDT)
+    FilterTriangles,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum EventInfo {
+    Snapshot,
+    SplitTriangle(VertexId),
 }
