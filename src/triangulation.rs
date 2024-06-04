@@ -11,7 +11,7 @@ use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumc
 use log::info;
 
 #[cfg(feature = "debug_context")]
-use crate::debug::{DebugConfiguration, DebugContext, TriangulationPhase};
+use crate::debug::{DebugConfiguration, DebugContext, EventInfo, Phase};
 
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
@@ -101,7 +101,8 @@ pub fn triangulation_from_2d_vertices(
 
     let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
-        &config,
+        config.bin_vertex_density_power,
+        &mut None,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
@@ -231,10 +232,25 @@ pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertex>) -> Tri
     container_triangle
 }
 
+pub(crate) fn find_existing_close_vertex(
+    triangle: &TriangleData,
+    triangle_verts: &[Vertex; 3],
+    vertex: Vertex,
+) -> Option<VertexId> {
+    for (vertex_index, triangle_vertex) in triangle_verts.iter().enumerate() {
+        let dist = *triangle_vertex - vertex;
+        if dist.x.abs() < Float::EPSILON && dist.y.abs() < Float::EPSILON {
+            return Some(triangle.verts[vertex_index]);
+        }
+    }
+    None
+}
+
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     vertices: &mut Vec<Vertex>,
-    config: &TriangulationConfiguration,
+    bin_vertex_density_power: f64,
+    vertex_merge_mapping: &mut Option<Vec<VertexId>>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> (Triangles, TriangleData) {
     #[cfg(feature = "profile_traces")]
@@ -243,7 +259,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
     // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
-    let partitioned_vertices = VertexBinSort::sort(&vertices, config.bin_vertex_density_power);
+    let partitioned_vertices = VertexBinSort::sort(&vertices, bin_vertex_density_power);
 
     let container_triangle = add_container_triangle_vertices(vertices);
 
@@ -254,35 +270,38 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     let mut triangle_id = Neighbor::new(0);
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(
-        TriangulationPhase::ContainerVerticesInsertion,
-        &triangles,
-        &[0],
-        &[],
-    );
+    debug_context.push_snapshot(Phase::ContainerVerticesInsertion, &triangles, &[0], &[]);
 
     // This buffer is used by all calls to `restore_delaunay_triangulation`.
     // We create if here to share the allocation between all those calls as an optimization.
     let mut quads_to_check = Vec::new();
 
     // Loop over all the input vertices
-    for (_step, &vertex_id) in partitioned_vertices.iter().enumerate() {
+    for (_index, &vertex_id) in partitioned_vertices.iter().enumerate() {
         #[cfg(feature = "debug_context")]
         {
-            let force_end = debug_context.set_step(_step);
+            let force_end = debug_context.advance_step();
             if force_end {
                 break;
             }
         }
 
         // Find an existing triangle which encloses P
-        match search_enclosing_triangle(
-            vertices[vertex_id as usize],
-            triangle_id,
-            &triangles,
-            &vertices,
-        ) {
+        let vertex = vertices[vertex_id as usize];
+        match search_enclosing_triangle(vertex, triangle_id, &triangles, &vertices) {
             SearchResult::EnlosingTriangle(enclosing_triangle_id) => {
+                // Compare to the points in the triangle, if too close to one, continue
+                let triangle = &triangles.get(enclosing_triangle_id);
+                let triangle_verts = triangle.to_vertices_array(vertices);
+                if let Some(existing_vertex_id) =
+                    find_existing_close_vertex(&triangle, &triangle_verts, vertex)
+                {
+                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                        vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
+                    }
+                    continue;
+                }
+
                 // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
                 let new_triangles = split_triangle_in_three_at_vertex(
                     &mut triangles,
@@ -308,12 +327,13 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
                 #[cfg(feature = "progress_log")]
                 {
-                    if _step % ((partitioned_vertices.len() / 50) + 1) == 0 {
-                        let progress = 100. * _step as f32 / partitioned_vertices.len() as f32;
+                    if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
+                        let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
                         info!(
-                            "Triangulation progress {}%: {}/{}",
+                            "Triangulation progress, step n°{}, {}%: {}/{}",
+                            debug_context.current_step,
                             progress,
-                            _step,
+                            _index,
                             partitioned_vertices.len()
                         );
                     }
@@ -323,7 +343,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 // TODO Error
                 error!(
                     "Found no triangle enclosing vertex {:?}, step {}",
-                    vertex_id, _step
+                    vertex_id, _index
                 );
                 break;
             }
@@ -403,12 +423,7 @@ pub(crate) fn remove_wrapping(
     };
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(
-        TriangulationPhase::RemoveWrapping,
-        &filtered_debug_triangles,
-        &[],
-        &[],
-    );
+    debug_context.push_snapshot(Phase::FilterTriangles, &filtered_debug_triangles, &[], &[]);
 
     indices
 }
@@ -543,11 +558,12 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     triangles.get_mut(t1).neighbors = neighbors;
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(
-        TriangulationPhase::SplitTriangle(vertex_id),
+    debug_context.push_snapshot_event(
+        Phase::SplitTriangle,
+        EventInfo::SplitTriangle(vertex_id),
         &triangles,
         &[t1, t2, t3],
-        // Neighbor data is out of date here and is nto that interesting
+        // Neighbor data is out of date here and is not that interesting
         &[],
     );
 
@@ -730,7 +746,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
         #[cfg(feature = "debug_context")]
         debug_context.push_snapshot(
-            TriangulationPhase::SwapQuadDiagonal,
+            Phase::DelaunayRestoreSwapQuadDiagonals,
             &triangles,
             &[from_triangle_id, opposite_triangle_id],
             &[triangle_3, triangles.get(from_triangle_id).neighbor31()],

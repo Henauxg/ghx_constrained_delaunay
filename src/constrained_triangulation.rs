@@ -4,13 +4,13 @@ use hashbrown::HashSet;
 use log::error;
 
 use crate::triangulation::{
-    normalize_vertices_coordinates, Triangulation, TriangulationConfiguration,
+    normalize_vertices_coordinates, Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{Float, TriangleEdgeIndex, Triangles, Vector3A, Vertex};
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
-use crate::debug::{DebugContext, TriangulationPhase};
+use crate::debug::{DebugConfiguration, DebugContext, Phase};
 
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
@@ -30,12 +30,19 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ConstrainedTriangulationConfiguration {
-    pub triangulation: TriangulationConfiguration,
+    /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
+    pub bin_vertex_density_power: f64,
+
+    #[cfg(feature = "debug_context")]
+    pub debug_config: DebugConfiguration,
 }
+
 impl Default for ConstrainedTriangulationConfiguration {
     fn default() -> Self {
         Self {
-            triangulation: TriangulationConfiguration::default(),
+            bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            #[cfg(feature = "debug_context")]
+            debug_config: DebugConfiguration::default(),
         }
     }
 }
@@ -79,34 +86,33 @@ pub fn constrained_triangulation_from_2d_vertices(
         normalize_vertices_coordinates(vertices);
 
     #[cfg(feature = "debug_context")]
-    let mut debug_context = DebugContext::new(
-        config.triangulation.debug_config.clone(),
-        _scale_factor,
-        _x_min,
-        _y_min,
-    );
+    let mut debug_context =
+        DebugContext::new(config.debug_config.clone(), _scale_factor, _x_min, _y_min);
 
+    let mut vertex_merge_mapping = Some((0..vertices.len() as VertexId).collect());
     let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
-        &config.triangulation,
+        config.bin_vertex_density_power,
+        &mut vertex_merge_mapping,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(TriangulationPhase::BeforeConstraints, &triangles, &[], &[]);
+    debug_context.push_snapshot(Phase::BeforeConstraints, &triangles, &[], &[]);
 
     // TODO Debug: consider adding debug support to this function
     let constrained_edges_set = apply_constraints(
         &normalized_vertices,
         &mut triangles,
         constrained_edges,
+        vertex_merge_mapping.unwrap(),
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(TriangulationPhase::AfterConstraints, &triangles, &[], &[]);
+    debug_context.push_snapshot(Phase::AfterConstraints, &triangles, &[], &[]);
 
     let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
@@ -225,12 +231,7 @@ fn remove_wrapping_and_unconstrained_domains(
     }
 
     #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(
-        TriangulationPhase::RemoveWrapping,
-        &filtered_debug_triangles,
-        &[],
-        &[],
-    );
+    debug_context.push_snapshot(Phase::FilterTriangles, &filtered_debug_triangles, &[], &[]);
 
     indices
 }
@@ -258,7 +259,8 @@ fn apply_constraints(
     vertices: &Vec<Vertex>,
     triangles: &mut Triangles,
     constrained_edges: &Vec<Edge>,
-    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
+    vertex_merge_mapping: Vec<VertexId>,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> HashSet<Edge> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "apply_constraints").entered();
@@ -266,11 +268,6 @@ fn apply_constraints(
     let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
     // Map each verticex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
-    // TODO Performance:
-    // let mut vertex_to_triangle = Vec::with_capacity(vertices.len());
-    // unsafe {
-    //     vertex_to_triangle.set_len(vertices.len());
-    // }
     for (index, t) in triangles.buffer().iter().enumerate() {
         vertex_to_triangle[t.v1() as usize] = index as TriangleId;
         vertex_to_triangle[t.v2() as usize] = index as TriangleId;
@@ -282,31 +279,47 @@ fn apply_constraints(
     let mut intersections = VecDeque::new();
     let mut new_diagonals_created = VecDeque::new();
 
-    for (_step, constrained_edge) in constrained_edges.iter().enumerate() {
+    for (_edge_index, constrained_edge) in constrained_edges.iter().enumerate() {
+        #[cfg(feature = "debug_context")]
+        {
+            let force_end = debug_context.advance_step();
+            if force_end {
+                break;
+            }
+        }
+
         #[cfg(feature = "progress_log")]
         {
-            if _step % ((constrained_edges.len() / 50) + 1) == 0 {
-                let progress = 100. * _step as f32 / constrained_edges.len() as f32;
+            if _edge_index % ((constrained_edges.len() / 50) + 1) == 0 {
+                let progress = 100. * _edge_index as f32 / constrained_edges.len() as f32;
                 info!(
-                    "Constraints progress {}%: {}/{}",
+                    "Constraints progress, step n°{}, {}%: {}/{}",
+                    debug_context.current_step,
                     progress,
-                    _step,
+                    _edge_index,
                     constrained_edges.len()
                 );
             }
         }
-        if constrained_edges_set.insert(*constrained_edge) == false {
+
+        // Transform the edge to use the merged vertices indices
+        let constrained_edge = Edge::new(
+            vertex_merge_mapping[constrained_edge.from as usize],
+            vertex_merge_mapping[constrained_edge.to as usize],
+        );
+
+        // Chekc for duplicate edges
+        if constrained_edges_set.insert(constrained_edge) == false {
             // Skipping duplicate constrained edge
             continue;
         }
 
-        let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
-
         // Stores all of the edges that cross the constrained edge
+        let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
         register_intersected_edges(
             triangles,
             vertices,
-            *constrained_edge,
+            constrained_edge,
             constrained_edge_vertices,
             &vertex_to_triangle,
             &mut intersections,
@@ -324,6 +337,8 @@ fn apply_constraints(
             constrained_edge_vertices,
             &mut intersections,
             &mut new_diagonals_created,
+            #[cfg(feature = "debug_context")]
+            debug_context,
         );
 
         // Restore Delaunay triangulation
@@ -333,11 +348,14 @@ fn apply_constraints(
             &mut vertex_to_triangle,
             constrained_edge,
             &mut new_diagonals_created,
+            #[cfg(feature = "debug_context")]
+            debug_context,
         );
     }
     constrained_edges_set
 }
 
+#[derive(Debug)]
 enum EdgeFirstIntersection {
     /// The constrained edge is already present in the triangulation
     EdgeAlreadyInTriangulation,
@@ -359,7 +377,12 @@ fn loop_around_vertex_and_search_intersection(
 
     // We search by circling around the first vertex of the constrained edge
     // We use `triangles.len()` as an upper bound on the number of triangles around a vertex
-    for _ in 0..triangles.count() {
+    for _i in 0..triangles.count() {
+        if _i > 0 && triangle_id == from_triangle_id {
+            error!("Intrnal error, aborting cycle when searching for the first intersection of an edge");
+            break;
+        }
+
         let triangle = triangles.get(triangle_id);
 
         if triangle.verts.contains(&constrained_edge.to) {
@@ -637,6 +660,7 @@ pub(crate) fn swap_quad_diagonal(
     edges_data_collections: &mut [&mut VecDeque<EdgeData>],
     edge_data: &EdgeData,
     quad: &Quad,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "swap_quad_diagonal").entered();
@@ -672,6 +696,14 @@ pub(crate) fn swap_quad_diagonal(
 
     vertex_to_triangle[quad.v1() as usize] = from;
     vertex_to_triangle[quad.v2() as usize] = to;
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(
+        Phase::ConstrainedSwapQuadDiagonals,
+        &triangles,
+        &[from, to],
+        &[tt_left_neighbor, tf_right_neighbor],
+    );
 
     // Update in memory collectiosn that may contain now out of date data
     for edges_data_collection in edges_data_collections.iter_mut() {
@@ -727,6 +759,7 @@ fn remove_crossed_edges(
     constrained_edge_vertices: &EdgeVertices,
     intersections: &mut VecDeque<EdgeData>,
     new_diagonals_created: &mut VecDeque<EdgeData>,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "remove_crossed_edges").entered();
@@ -747,6 +780,8 @@ fn remove_crossed_edges(
                 &mut [intersections, new_diagonals_created],
                 &intersection,
                 &quad,
+                #[cfg(feature = "debug_context")]
+                debug_context,
             );
             // TODO Clean: this could be returned by swap_quad_diagonal ?
             let edge_data = EdgeData::new(
@@ -773,14 +808,15 @@ fn restore_delaunay_triangulation_constrained(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
     vertex_to_triangle: &mut Vec<TriangleId>,
-    constrained_edge: &Edge,
+    constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation_constrained").entered();
 
     while let Some(new_edge) = new_diagonals_created.pop_front() {
-        if new_edge.edge.undirected_equals(constrained_edge) {
+        if new_edge.edge.undirected_equals(&constrained_edge) {
             continue;
         } else {
             let quad = new_edge.to_quad(triangles);
@@ -792,6 +828,8 @@ fn restore_delaunay_triangulation_constrained(
                     &mut [new_diagonals_created],
                     &new_edge,
                     &quad,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
                 );
 
                 new_diagonals_created.push_back(EdgeData::new(
@@ -817,6 +855,9 @@ mod tests {
     use crate::types::{Edge, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vertex};
 
     use super::{swap_quad_diagonal, EdgeData};
+
+    #[cfg(feature = "debug_context")]
+    use crate::debug::{DebugConfiguration, DebugContext};
 
     #[test]
     fn swap_quad_diag_constrained() {
@@ -854,12 +895,16 @@ mod tests {
 
         let quad = Quad::new([1, 3, 0, 2]);
 
+        #[cfg(feature = "debug_context")]
+        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
         swap_quad_diagonal(
             &mut triangles,
             &mut vertex_to_triangle,
             &mut edge_data_collection,
             &intersection,
             &quad,
+            #[cfg(feature = "debug_context")]
+            &mut debug_context,
         );
 
         assert_eq!(2, triangles.count());

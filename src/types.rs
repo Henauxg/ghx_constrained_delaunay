@@ -239,6 +239,14 @@ impl TriangleData {
             vertices[self.verts[VERT_3 as usize] as usize],
         )
     }
+    #[inline]
+    pub fn to_vertices_array(&self, vertices: &Vec<Vertex>) -> [Vertex; 3] {
+        [
+            vertices[self.verts[VERT_1 as usize] as usize],
+            vertices[self.verts[VERT_2 as usize] as usize],
+            vertices[self.verts[VERT_3 as usize] as usize],
+        ]
+    }
 
     /// `vertex` MUST be a vertex of the triangle
     #[inline]
