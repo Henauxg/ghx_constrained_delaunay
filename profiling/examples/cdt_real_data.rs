@@ -3,7 +3,6 @@ use std::time::Instant;
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     hashbrown::HashSet,
-    triangulation::TriangulationConfiguration,
     types::{Edge, Float, Vertex, VertexId},
     Triangulation,
 };
@@ -64,12 +63,6 @@ fn main() {
 fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangulation {
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
-    let config = ConstrainedTriangulationConfiguration {
-        triangulation: TriangulationConfiguration {
-            ..Default::default()
-        },
-    };
-
     println!("Loading cdt (ghx_cdt crate)");
     let edges = edges
         .iter()
@@ -80,7 +73,7 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
     let triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
         &vertices_clone,
         &edges,
-        config,
+        ConstrainedTriangulationConfiguration::default(),
     );
     println!(
         "loading time (ghx_cdt crate with constraints): {}ms",
