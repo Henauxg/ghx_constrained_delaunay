@@ -62,4 +62,3 @@ See the [spade](https://github.com/Stoeoef/spade) crate for the original benchma
 ## Differences with the original benchmark
 
 - Added the [ghx_constrained_delaunay]("https://github.com/Henauxg/ghx_constrained_delaunay") crate.
-- In the `real_data_benchmark`, duplicate input vertices are removed before being fed to all the crates algorithms.
