@@ -4,11 +4,9 @@ use anyhow::{Context, Ok};
 use env_logger::Env;
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
-    hashbrown::HashSet,
     triangulation::TriangulationConfiguration,
     types::{Edge, Float, Vertex, VertexId},
 };
-use ordered_float::OrderedFloat;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 use tiny_skia::{Paint, PathBuilder, Pixmap, Stroke, Transform};
 
@@ -30,18 +28,11 @@ fn main() -> anyhow::Result<()> {
 
     for shape_record in reader.iter_shapes_and_records() {
         let (shape, _) = shape_record?;
-
-        let mut uniques: HashSet<[OrderedFloat<f64>; 2]> = HashSet::new();
         match shape {
             shapefile::Shape::Polyline(line) => {
                 for part in line.parts() {
                     let first_vertex = vertices.len();
-                    for p in part.iter() {
-                        match uniques.insert([OrderedFloat(p.x), OrderedFloat(p.y)]) {
-                            true => vertices.push(Point2::new(p.x, p.y)),
-                            false => (),
-                        }
-                    }
+                    vertices.extend(part.iter().map(|p| Point2::new(p.x, p.y)));
                     let last_vertex = vertices.len() - 1;
                     edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
                 }

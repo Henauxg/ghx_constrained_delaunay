@@ -1,7 +1,7 @@
 use ghx_constrained_delaunay::triangulation_from_2d_vertices;
 use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertex};
 use rand::rngs::StdRng;
-use rand::{distributions::uniform::SampleUniform, Rng, SeedableRng};
+use rand::{Rng, SeedableRng};
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_tracy::TracyLayer;
 
@@ -12,14 +12,11 @@ pub fn walk_f64() -> impl Iterator<Item = [f64; 2]> {
     random_walk_distribution(1.0, *SEED)
 }
 
-pub fn random_walk_distribution<S>(step_size: S, seed: [u8; 32]) -> impl Iterator<Item = [S; 2]>
-where
-    S: SampleUniform + num_traits::Float,
-    S::Sampler: Copy,
+pub fn random_walk_distribution(step_size: f64, seed: [u8; 32]) -> impl Iterator<Item = [f64; 2]>
 {
     let range = rand::distributions::Uniform::new_inclusive(-step_size, step_size);
-    let mut last_x = S::zero();
-    let mut last_y = S::one();
+    let mut last_x =0.;
+    let mut last_y = 1.;
 
     let mut rng = StdRng::from_seed(seed);
     let step_fn = move || {
