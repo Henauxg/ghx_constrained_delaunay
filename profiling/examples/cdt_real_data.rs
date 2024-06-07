@@ -2,11 +2,9 @@ use std::time::Instant;
 
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
-    hashbrown::HashSet,
     types::{Edge, Float, Vertex, VertexId},
     Triangulation,
 };
-use ordered_float::OrderedFloat;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_tracy::TracyLayer;
 
@@ -30,19 +28,11 @@ fn main() {
     for shape_record in reader.iter_shapes_and_records() {
         let (shape, _) = shape_record.unwrap();
 
-        let mut uniques: HashSet<[OrderedFloat<Float>; 2]> = HashSet::new();
         match shape {
             shapefile::Shape::Polyline(line) => {
                 for part in line.parts() {
                     let first_vertex = vertices.len();
-                    for p in part.iter() {
-                        let x = p.x as Float;
-                        let y = p.y as Float;
-                        match uniques.insert([OrderedFloat(x), OrderedFloat(y)]) {
-                            true => vertices.push(Vertex::new(x, y)),
-                            false => (),
-                        }
-                    }
+                    vertices.extend(part.iter().map(|p| Vertex::new(p.x as Float, p.y as Float)));
                     let last_vertex = vertices.len() - 1;
                     edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
                 }

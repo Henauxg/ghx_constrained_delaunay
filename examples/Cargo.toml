@@ -56,5 +56,4 @@ bevy = { version = "0.13", default-features = false, features = [
     "wayland", # (Linux) Support Wayland windowing system
 ] }
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
-ordered-float = "4.2.0"
 shapefile = "0.6.0"

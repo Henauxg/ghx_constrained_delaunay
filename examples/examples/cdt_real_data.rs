@@ -16,14 +16,13 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     debug::{DebugConfiguration, Phase, PhaseRecord},
     hashbrown::HashSet,
-    types::{Edge, Float, Vector3, Vertex, VertexId},
+    types::{Edge,  Vector3, Vertex, VertexId},
     Triangulation,
 };
-use ordered_float::OrderedFloat;
 
-// const SHP_FILE_NAME: &str = "Europe_coastline";
+const SHP_FILE_NAME: &str = "Europe_coastline";
 // const SHP_FILE_NAME: &str = "ne_10m_coastline";
-const SHP_FILE_NAME: &str = "ne_50m_coastline";
+// const SHP_FILE_NAME: &str = "ne_50m_coastline";
 
 const SHP_FILES_PATH: &str = "../assets";
 
@@ -34,8 +33,6 @@ fn main() {
         .add_systems(Update, draw_origin_circle)
         .run();
 }
-
-const RESIZE_FACTOR: Float = 1.0;
 
 fn setup(mut commands: Commands) {
     let shape_file_path = format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.shp");
@@ -48,19 +45,11 @@ fn setup(mut commands: Commands) {
     for shape_record in reader.iter_shapes_and_records() {
         let (shape, _) = shape_record.unwrap();
 
-        let mut uniques: HashSet<[OrderedFloat<Float>; 2]> = HashSet::new();
         match shape {
             shapefile::Shape::Polyline(line) => {
                 for part in line.parts() {
                     let first_vertex = vertices.len();
-                    for p in part.iter() {
-                        let x = RESIZE_FACTOR * p.x as Float;
-                        let y = RESIZE_FACTOR * p.y as Float;
-                        match uniques.insert([OrderedFloat(x), OrderedFloat(y)]) {
-                            true => vertices.push(Vertex::new(x, y)),
-                            false => (),
-                        }
-                    }
+                    vertices.extend(part.iter().map(|p| Vertex::new(p.x, p.y)));
                     let last_vertex = vertices.len() - 1;
                     edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
                 }
