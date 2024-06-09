@@ -1,4 +1,3 @@
-use hashbrown::HashSet;
 use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
@@ -99,7 +98,7 @@ pub fn triangulation_from_2d_vertices(
     let mut debug_context =
         DebugContext::new(config.debug_config.clone(), _scale_factor, _x_min, _y_min);
 
-    let (triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
+    let (triangles, min_container_vertex_id) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
         config.bin_vertex_density_power,
         &mut None,
@@ -109,7 +108,7 @@ pub fn triangulation_from_2d_vertices(
 
     let vert_indices = remove_wrapping(
         &triangles,
-        &container_triangle,
+        min_container_vertex_id,
         &config,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
@@ -226,10 +225,12 @@ fn search_enclosing_triangle(
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
 ///  This supertriangle initially defines a Delaunay triangulation which is comprised of a single triangle.
 ///  Its vertices are defined in terms of normalized coordinates and are usually located at a considerable distance from the window which encloses the set of points.
-pub(crate) fn add_container_triangle_vertices(vertices: &mut Vec<Vertex>) -> TriangleData {
+pub(crate) fn add_container_triangle_vertices(
+    vertices: &mut Vec<Vertex>,
+) -> (TriangleData, VertexId) {
     let container_triangle = TriangleData::new_container_triangle(vertices.len() as TriangleId);
     vertices.extend(CONTAINER_TRIANGLE_VERTICES.clone());
-    container_triangle
+    (container_triangle, vertices.len() as VertexId)
 }
 
 pub(crate) fn find_existing_close_vertex(
@@ -252,7 +253,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     bin_vertex_density_power: f64,
     vertex_merge_mapping: &mut Option<Vec<VertexId>>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> (Triangles, TriangleData) {
+) -> (Triangles, VertexId) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "wrap_and_triangulate_2d_normalized_vertices").entered();
 
@@ -261,10 +262,10 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
     let partitioned_vertices = VertexBinSort::sort(&vertices, bin_vertex_density_power);
 
-    let container_triangle = add_container_triangle_vertices(vertices);
+    let (container_triangle, min_container_vertex_id) = add_container_triangle_vertices(vertices);
 
     let mut triangles = Triangles::with_capacity(vertices.len() * 2 + 1);
-    triangles.buffer_mut().push(container_triangle.clone());
+    triangles.buffer_mut().push(container_triangle);
 
     // Id of the triangle we are looking at
     let mut triangle_id = Neighbor::new(0);
@@ -350,12 +351,12 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         }
     }
 
-    (triangles, container_triangle)
+    (triangles, min_container_vertex_id)
 }
 
 pub(crate) fn remove_wrapping(
     triangles: &Triangles,
-    container_triangle: &TriangleData,
+    min_container_vertex_id: VertexId,
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
@@ -365,15 +366,13 @@ pub(crate) fn remove_wrapping(
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
 
-    let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
-
     let indices = if triangles.count() > config.filter_parallel_tri_count_threshold {
         // Debug loop out of the // loop because filtered_debug_triangles cannot be accessed as mut from multiple tasks.
         #[cfg(feature = "debug_context")]
         for triangle in triangles.buffer().iter() {
             let mut filtered = false;
-            for vert in triangle.verts.iter() {
-                if container_verts.contains(vert) {
+            for &vert in triangle.verts.iter() {
+                if vert >= min_container_vertex_id {
                     filtered = true;
                     break;
                 }
@@ -389,8 +388,8 @@ pub(crate) fn remove_wrapping(
             .with_min_len(config.filter_parallel_min_batch_len)
             .filter_map(|t| {
                 let mut filtered = false;
-                for vert in t.verts.iter() {
-                    if container_verts.contains(vert) {
+                for &vert in t.verts.iter() {
+                    if vert >= min_container_vertex_id {
                         filtered = true;
                         break;
                     }
@@ -407,8 +406,8 @@ pub(crate) fn remove_wrapping(
         let mut indices = Vec::with_capacity(triangles.count());
         for t in triangles.buffer().iter() {
             let mut filtered = false;
-            for vert in t.verts.iter() {
-                if container_verts.contains(vert) {
+            for &vert in t.verts.iter() {
+                if vert >= min_container_vertex_id {
                     filtered = true;
                     break;
                 }
