@@ -90,7 +90,7 @@ pub fn constrained_triangulation_from_2d_vertices(
         DebugContext::new(config.debug_config.clone(), _scale_factor, _x_min, _y_min);
 
     let mut vertex_merge_mapping = Some((0..vertices.len() as VertexId).collect());
-    let (mut triangles, container_triangle) = wrap_and_triangulate_2d_normalized_vertices(
+    let (mut triangles, min_container_vertex_id) = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
         config.bin_vertex_density_power,
         &mut vertex_merge_mapping,
@@ -116,7 +116,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 
     let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
-        &container_triangle,
+        min_container_vertex_id,
         constrained_edges_set,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
@@ -153,7 +153,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 /// ```
 fn remove_wrapping_and_unconstrained_domains(
     triangles: &Triangles,
-    container_triangle: &TriangleData,
+    min_container_vertex_id: VertexId,
     constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
@@ -165,7 +165,6 @@ fn remove_wrapping_and_unconstrained_domains(
     // TODO Clean: Size approx
     let mut indices = Vec::with_capacity(3 * triangles.count());
     let mut triangles_to_explore = Vec::new();
-    let container_verts: HashSet<VertexId> = HashSet::from(container_triangle.verts);
 
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
@@ -188,7 +187,7 @@ fn remove_wrapping_and_unconstrained_domains(
             register_triangle(
                 &mut indices,
                 triangle,
-                &container_verts,
+                min_container_vertex_id,
                 #[cfg(feature = "debug_context")]
                 &mut filtered_debug_triangles,
             );
@@ -213,7 +212,7 @@ fn remove_wrapping_and_unconstrained_domains(
                     register_triangle(
                         &mut indices,
                         triangle,
-                        &container_verts,
+                        min_container_vertex_id,
                         #[cfg(feature = "debug_context")]
                         &mut filtered_debug_triangles,
                     );
@@ -239,12 +238,12 @@ fn remove_wrapping_and_unconstrained_domains(
 fn register_triangle(
     indices: &mut Vec<[VertexId; 3]>,
     triangle: &TriangleData,
-    container_verts: &HashSet<VertexId>,
+    min_container_vertex_id: VertexId,
     #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
 ) {
     let mut filtered = false;
-    for vert in triangle.verts.iter() {
-        if container_verts.contains(vert) {
+    for &vert in triangle.verts.iter() {
+        if vert >= min_container_vertex_id {
             filtered = true;
         }
     }
