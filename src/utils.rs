@@ -1,4 +1,4 @@
-use crate::types::{EdgeVertices, Vertex};
+use crate::types::{EdgeVertices, Float, Vertex};
 
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
@@ -74,10 +74,18 @@ pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
 
 /// Returns `true` if and only if the point `p` is on the right side of the oriented edge `e`
 ///
-/// Uses the ross product of vectors e0.e1 and e1.p
+/// Uses the cross product of vectors e0.e1 and e1.p
 #[inline]
 pub fn is_point_on_right_side_of_edge(e: EdgeVertices, p: Vertex) -> bool {
     ((p.x - e.0.x) * (e.1.y - e.0.y) - (p.y - e.0.y) * (e.1.x - e.0.x)) >= 0.
+}
+
+/// Returns the slope of the line going from `a` to `b`
+///
+/// - a and b MUST not share the same x coordinate
+#[inline]
+pub fn line_slope(a: Vertex, b: Vertex) -> Float {
+    (b.y - a.y) / (b.x - a.x)
 }
 
 /// Given three collinear points p, q, r, the function checks if point `q` lies on line segment 'pr'
