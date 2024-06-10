@@ -679,8 +679,14 @@ fn is_vertex_in_half_plane_2(
         quad_vertices.verts[infinite_vert_2 as usize],
     );
     let b = line_point.y - a * line_point.x;
-    // TODO Comparison depends of vertices order
-    quad_vertices.q4().y > a * quad_vertices.q4().x + b
+    // q1q2q3 is CCW
+    // q1 q2 ou q3 q1 => y > a.x + b
+    // q2 q3 => y < a.x + b
+    if infinite_vert_1 == VERT_2 && infinite_vert_2 == VERT_3 {
+        quad_vertices.q4().y < a * quad_vertices.q4().x + b
+    } else {
+        quad_vertices.q4().y > a * quad_vertices.q4().x + b
+    }
 }
 
 /// ```text
@@ -785,7 +791,6 @@ pub(crate) fn check_and_swap_quad_diagonal(
     } else if infinite_verts.len() == 1 {
         is_vertex_in_half_plane_1(infinite_verts[0], &quad_vertices)
     } else {
-        // TODO Comparison depends of vertices order
         is_vertex_in_half_plane_2(infinite_verts[0], infinite_verts[1], &quad_vertices)
     };
     // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
