@@ -2,9 +2,13 @@ use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::types::{
-    Float, Neighbor, Quad, TriangleData, TriangleId, Triangles, Vector3A, Vertex, VertexId,
+    opposite_edge_index, Edge, Float, Neighbor, Quad, QuadVertices, TriangleData, TriangleId,
+    TriangleVertexIndex, Triangles, Vector3A, Vertex, VertexId, EDGE_TO_VERTS, VERT_1, VERT_2,
+    VERT_3,
 };
-use crate::utils::{is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle};
+use crate::utils::{
+    is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
+};
 
 #[cfg(feature = "progress_log")]
 use log::info;
@@ -315,6 +319,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 restore_delaunay_triangulation(
                     &mut triangles,
                     vertices,
+                    min_container_vertex_id,
                     vertex_id,
                     new_triangles,
                     &mut quads_to_check,
@@ -590,6 +595,7 @@ pub(crate) fn update_triangle_neighbor(
 fn restore_delaunay_triangulation(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
+    min_container_vertex_id: VertexId,
     from_vertex_id: VertexId,
     new_triangles: [TriangleId; 3],
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
@@ -610,6 +616,7 @@ fn restore_delaunay_triangulation(
         match check_and_swap_quad_diagonal(
             triangles,
             vertices,
+            min_container_vertex_id,
             from_vertex_id,
             from_triangle_id,
             opposite_triangle_id,
@@ -636,6 +643,44 @@ pub enum QuadSwapResult {
     /// Contains the new triangle pairs to check
     Swapped((TriangleId, Neighbor), (TriangleId, Neighbor)),
     NotSwapped,
+}
+
+#[cold]
+fn is_vertex_in_half_plane_1(
+    infinite_vert: TriangleVertexIndex,
+    quad_vertices: &QuadVertices,
+) -> bool {
+    // Test if q4 is inside the circle with 1 inifite point (half-plane defined by the 2 finite points)
+    // TODO Clean: utils functions in Quad/Triangle
+    let infinite_vert = infinite_vert;
+    let edge = opposite_edge_index(infinite_vert);
+    let finite_vert_indexes = EDGE_TO_VERTS[edge as usize];
+    // q1q2q3 is in a CCW order, so we reverse the edge
+    let edge_vertices = (
+        quad_vertices.verts[finite_vert_indexes[1] as usize],
+        quad_vertices.verts[finite_vert_indexes[0] as usize],
+    );
+    is_point_on_right_side_of_edge(edge_vertices, quad_vertices.q4())
+}
+
+#[cold]
+fn is_vertex_in_half_plane_2(
+    infinite_vert_1: TriangleVertexIndex,
+    infinite_vert_2: TriangleVertexIndex,
+    quad_vertices: &QuadVertices,
+) -> bool {
+    // Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
+    // Index of the finite vertex in q1q2q3
+    let finite_vert_index = (3 - infinite_vert_1 + infinite_vert_2) as usize;
+    let line_point = quad_vertices.verts[finite_vert_index];
+    // TODO Improvement: Could use a slope LUT since we know container vertices as const
+    let a = line_slope(
+        quad_vertices.verts[infinite_vert_1 as usize],
+        quad_vertices.verts[infinite_vert_2 as usize],
+    );
+    let b = line_point.y - a * line_point.x;
+    // TODO Comparison depends of vertices order
+    quad_vertices.q4().y > a * quad_vertices.q4().x + b
 }
 
 /// ```text
@@ -670,6 +715,7 @@ pub enum QuadSwapResult {
 pub(crate) fn check_and_swap_quad_diagonal(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
+    min_container_vertex_id: VertexId,
     from_vertex_id: VertexId,
     from_triangle_id: TriangleId,
     opposite_triangle_id: TriangleId,
@@ -719,8 +765,32 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     let quad_vertices = quad.to_vertices(vertices);
 
-    // Check if `from_vertex_id` is on the circumcircle of `opposite_triangle`:
-    if is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4()) {
+    // TODO Performance: try stack/pre-alloc
+    let mut infinite_verts = Vec::new();
+    if quad.v1() >= min_container_vertex_id {
+        infinite_verts.push(VERT_1);
+    }
+    if quad.v2() >= min_container_vertex_id {
+        infinite_verts.push(VERT_2);
+    }
+    if quad.v3() >= min_container_vertex_id {
+        infinite_verts.push(VERT_3);
+    }
+
+    // TODO Performance: try to play with the #cold attroibute for the infinite cases.
+    let swap = if infinite_verts.is_empty() {
+        // General case: no infinite vertices
+        // Test if `from_vertex_id` is inside the circumcircle of `opposite_triangle`
+        is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4())
+    } else if infinite_verts.len() == 1 {
+        is_vertex_in_half_plane_1(infinite_verts[0], &quad_vertices)
+    } else {
+        // TODO Comparison depends of vertices order
+        is_vertex_in_half_plane_2(infinite_verts[0], infinite_verts[1], &quad_vertices)
+    };
+    // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
+
+    if swap {
         let opposite_neighbor = opposite_triangle_id.into();
         let from_neighbor = from_triangle_id.into();
 
@@ -894,6 +964,7 @@ mod tests {
         let quad_swap = check_and_swap_quad_diagonal(
             &mut triangles,
             &vertices,
+            6,
             1,
             0,
             1,
@@ -932,6 +1003,7 @@ mod tests {
         let quad_swap = check_and_swap_quad_diagonal(
             &mut triangles,
             &vertices,
+            6,
             1,
             0,
             1,
