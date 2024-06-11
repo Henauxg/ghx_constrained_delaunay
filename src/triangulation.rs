@@ -628,7 +628,6 @@ fn is_vertex_in_half_plane_1(
 ) -> bool {
     // Test if q4 is inside the circle with 1 inifite point (half-plane defined by the 2 finite points)
     // TODO Clean: utils functions in Quad/Triangle
-    let infinite_vert = infinite_vert;
     let edge = opposite_edge_index(infinite_vert);
     let finite_vert_indexes = EDGE_TO_VERTS[edge as usize];
     // q1q2q3 is in a CCW order, so we reverse the edge
@@ -648,21 +647,16 @@ fn is_vertex_in_half_plane_2(
     // Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
     // Index of the finite vertex in q1q2q3
     let finite_vert_index = (3 - (infinite_vert_1 + infinite_vert_2)) as usize;
-    let line_point = quad_vertices.verts[finite_vert_index];
+    let line_point_1 = quad_vertices.verts[finite_vert_index];
     // TODO Improvement: Could use a slope LUT since we know container vertices as const
     let a = line_slope(
         quad_vertices.verts[infinite_vert_1 as usize],
         quad_vertices.verts[infinite_vert_2 as usize],
     );
-    let b = line_point.y - a * line_point.x;
-    // q1q2q3 is CCW
-    // q1 q2 ou q3 q1 => y > a.x + b
-    // q2 q3 => y < a.x + b
-    if infinite_vert_1 == VERT_2 && infinite_vert_2 == VERT_3 {
-        quad_vertices.q4().y < a * quad_vertices.q4().x + b
-    } else {
-        quad_vertices.q4().y > a * quad_vertices.q4().x + b
-    }
+    let b = line_point_1.y - a * line_point_1.x;
+    // Another point on the line, with p2.x = p1.x - 1
+    let line_point_2 = Vertex::new(line_point_1.x - 1., a * (line_point_1.x - 1.) + b);
+    is_point_on_right_side_of_edge((line_point_1, line_point_2), quad_vertices.q4())
 }
 
 #[inline(always)]
