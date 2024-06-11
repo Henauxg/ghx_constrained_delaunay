@@ -375,50 +375,32 @@ pub(crate) fn remove_wrapping(
     let indices = if triangles.count() > config.filter_parallel_tri_count_threshold {
         // Debug loop out of the // loop because filtered_debug_triangles cannot be accessed as mut from multiple tasks.
         #[cfg(feature = "debug_context")]
-        for triangle in triangles.buffer().iter() {
-            let mut filtered = false;
-            for &vert in triangle.verts.iter() {
-                if vert >= min_container_vertex_id {
-                    filtered = true;
-                    break;
-                }
-            }
-            if !filtered {
-                filtered_debug_triangles.push(triangle.clone());
-            }
+        {
+            filtered_debug_triangles.buffer = triangles
+                .buffer()
+                .iter()
+                .filter(|t| t.has_no_container_vertex(min_container_vertex_id))
+                .map(|t| t.clone())
+                .collect();
         }
 
         triangles
             .buffer()
             .par_iter()
             .with_min_len(config.filter_parallel_min_batch_len)
-            .filter_map(|t| {
-                let mut filtered = false;
-                for &vert in t.verts.iter() {
-                    if vert >= min_container_vertex_id {
-                        filtered = true;
-                        break;
-                    }
-                }
-                match filtered {
-                    true => None,
-                    false => Some(t.verts),
-                }
-            })
+            .filter_map(
+                |t| match t.has_no_container_vertex(min_container_vertex_id) {
+                    true => Some(t.verts),
+                    false => None,
+                },
+            )
             // TODO Is it possible to pre-set the capacity of indices ?
             // .collect_into_vec(&mut indices);
             .collect()
     } else {
         let mut indices = Vec::with_capacity(triangles.count());
         for t in triangles.buffer().iter() {
-            let mut filtered = false;
-            for &vert in t.verts.iter() {
-                if vert >= min_container_vertex_id {
-                    filtered = true;
-                    break;
-                }
-            }
-            if !filtered {
+            if t.has_no_container_vertex(min_container_vertex_id) {
                 indices.push(t.verts);
                 #[cfg(feature = "debug_context")]
                 filtered_debug_triangles.push(t.clone());

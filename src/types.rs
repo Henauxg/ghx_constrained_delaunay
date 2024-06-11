@@ -286,6 +286,13 @@ impl TriangleData {
             self.v3()
         }
     }
+
+    #[inline]
+    pub(crate) fn has_no_container_vertex(&self, min_container_vertex_id: VertexId) -> bool {
+        self.v1() < min_container_vertex_id
+            && self.v2() < min_container_vertex_id
+            && self.v3() < min_container_vertex_id
+    }
 }
 
 #[derive(Clone)]

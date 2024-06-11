@@ -186,13 +186,12 @@ fn remove_wrapping_and_unconstrained_domains(
         // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
         if triangle_edge_is_constrained.contains(&true) {
             triangles_to_explore.clear();
-            register_triangle(
-                &mut indices,
-                triangle,
-                min_container_vertex_id,
+
+            if triangle.has_no_container_vertex(min_container_vertex_id) {
+                indices.push(triangle.verts);
                 #[cfg(feature = "debug_context")]
-                &mut filtered_debug_triangles,
-            );
+                filtered_debug_triangles.push(triangle.clone());
+            }
             for (edge_index, is_constrained) in triangle_edge_is_constrained.iter().enumerate() {
                 if !is_constrained {
                     triangles_to_explore.push(triangle.neighbors[edge_index]);
@@ -210,20 +209,19 @@ fn remove_wrapping_and_unconstrained_domains(
                 if visited_triangles[triangle_id as usize] {
                     continue;
                 } else {
-                    let triangle = triangles.get(triangle_id);
-                    register_triangle(
-                        &mut indices,
-                        triangle,
-                        min_container_vertex_id,
+                    let t = triangles.get(triangle_id);
+                    if t.has_no_container_vertex(min_container_vertex_id) {
+                        indices.push(t.verts);
                         #[cfg(feature = "debug_context")]
-                        &mut filtered_debug_triangles,
-                    );
+                        filtered_debug_triangles.push(t.clone());
+                    }
+
                     visited_triangles[triangle_id as usize] = true;
 
-                    for (edge_index, edge) in triangle.edges().iter().enumerate() {
+                    for (edge_index, edge) in t.edges().iter().enumerate() {
                         if !constrained_edges.contains(edge) {
                             // TODO Clean: Would it be quicker to also check for visited before adding to the stack
-                            triangles_to_explore.push(triangle.neighbors[edge_index]);
+                            triangles_to_explore.push(t.neighbors[edge_index]);
                         }
                     }
                 }
@@ -235,25 +233,6 @@ fn remove_wrapping_and_unconstrained_domains(
     debug_context.push_snapshot(Phase::FilterTriangles, &filtered_debug_triangles, &[], &[]);
 
     indices
-}
-
-fn register_triangle(
-    indices: &mut Vec<[VertexId; 3]>,
-    triangle: &TriangleData,
-    min_container_vertex_id: VertexId,
-    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
-) {
-    let mut filtered = false;
-    for &vert in triangle.verts.iter() {
-        if vert >= min_container_vertex_id {
-            filtered = true;
-        }
-    }
-    if !filtered {
-        indices.push(triangle.verts);
-        #[cfg(feature = "debug_context")]
-        filtered_debug_triangles.push(triangle.clone());
-    }
 }
 
 fn apply_constraints(
