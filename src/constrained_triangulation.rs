@@ -4,10 +4,11 @@ use hashbrown::HashSet;
 use log::error;
 
 use crate::triangulation::{
-    normalize_vertices_coordinates, Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
+    normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
+    DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{Float, TriangleEdgeIndex, Triangles, Vector3A, Vertex};
-use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
+use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugConfiguration, DebugContext, Phase};
@@ -105,6 +106,7 @@ pub fn constrained_triangulation_from_2d_vertices(
     let constrained_edges_set = apply_constraints(
         &normalized_vertices,
         &mut triangles,
+        min_container_vertex_id,
         constrained_edges,
         vertex_merge_mapping.unwrap(),
         #[cfg(feature = "debug_context")]
@@ -257,6 +259,7 @@ fn register_triangle(
 fn apply_constraints(
     vertices: &Vec<Vertex>,
     triangles: &mut Triangles,
+    min_container_vertex_id: VertexId,
     constrained_edges: &Vec<Edge>,
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
@@ -344,6 +347,7 @@ fn apply_constraints(
         restore_delaunay_triangulation_constrained(
             triangles,
             vertices,
+            min_container_vertex_id,
             &mut vertex_to_triangle,
             constrained_edge,
             &mut new_diagonals_created,
@@ -806,6 +810,7 @@ fn remove_crossed_edges(
 fn restore_delaunay_triangulation_constrained(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
+    min_container_vertex_id: VertexId,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
@@ -819,8 +824,8 @@ fn restore_delaunay_triangulation_constrained(
             continue;
         } else {
             let quad = new_edge.to_quad(triangles);
-            let quad_vertices = quad.to_vertices(vertices);
-            if is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4()) {
+
+            if should_swap_diagonals(&quad, vertices, min_container_vertex_id) {
                 swap_quad_diagonal(
                     triangles,
                     vertex_to_triangle,

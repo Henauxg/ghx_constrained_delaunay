@@ -2,7 +2,7 @@ use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::types::{
-    opposite_edge_index, Edge, Float, Neighbor, Quad, QuadVertices, TriangleData, TriangleId,
+    opposite_edge_index, Float, Neighbor, Quad, QuadVertices, TriangleData, TriangleId,
     TriangleVertexIndex, Triangles, Vector3A, Vertex, VertexId, EDGE_TO_VERTS, VERT_1, VERT_2,
     VERT_3,
 };
@@ -638,13 +638,6 @@ fn restore_delaunay_triangulation(
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
-pub enum QuadSwapResult {
-    /// Contains the new triangle pairs to check
-    Swapped((TriangleId, Neighbor), (TriangleId, Neighbor)),
-    NotSwapped,
-}
-
 #[cold]
 fn is_vertex_in_half_plane_1(
     infinite_vert: TriangleVertexIndex,
@@ -687,6 +680,45 @@ fn is_vertex_in_half_plane_2(
     } else {
         quad_vertices.q4().y > a * quad_vertices.q4().x + b
     }
+}
+
+#[inline(always)]
+pub(crate) fn should_swap_diagonals(
+    quad: &Quad,
+    vertices: &Vec<Vertex>,
+    min_container_vertex_id: VertexId,
+) -> bool {
+    let quad_vertices = quad.to_vertices(vertices);
+    // TODO Performance: try stack/pre-alloc
+    let mut infinite_verts = Vec::new();
+    if quad.v1() >= min_container_vertex_id {
+        infinite_verts.push(VERT_1);
+    }
+    if quad.v2() >= min_container_vertex_id {
+        infinite_verts.push(VERT_2);
+    }
+    if quad.v3() >= min_container_vertex_id {
+        infinite_verts.push(VERT_3);
+    }
+
+    // TODO Performance: try to play with the #cold attribute for the infinite cases.
+    if infinite_verts.is_empty() {
+        // General case: no infinite vertices
+        // Test if `from_vertex_id` is inside the circumcircle of `opposite_triangle`
+        is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4())
+    } else if infinite_verts.len() == 1 {
+        is_vertex_in_half_plane_1(infinite_verts[0], &quad_vertices)
+    } else {
+        is_vertex_in_half_plane_2(infinite_verts[0], infinite_verts[1], &quad_vertices)
+    }
+    // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum QuadSwapResult {
+    /// Contains the new triangle pairs to check
+    Swapped((TriangleId, Neighbor), (TriangleId, Neighbor)),
+    NotSwapped,
 }
 
 /// ```text
@@ -769,33 +801,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
             )
         };
 
-    let quad_vertices = quad.to_vertices(vertices);
-
-    // TODO Performance: try stack/pre-alloc
-    let mut infinite_verts = Vec::new();
-    if quad.v1() >= min_container_vertex_id {
-        infinite_verts.push(VERT_1);
-    }
-    if quad.v2() >= min_container_vertex_id {
-        infinite_verts.push(VERT_2);
-    }
-    if quad.v3() >= min_container_vertex_id {
-        infinite_verts.push(VERT_3);
-    }
-
-    // TODO Performance: try to play with the #cold attroibute for the infinite cases.
-    let swap = if infinite_verts.is_empty() {
-        // General case: no infinite vertices
-        // Test if `from_vertex_id` is inside the circumcircle of `opposite_triangle`
-        is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4())
-    } else if infinite_verts.len() == 1 {
-        is_vertex_in_half_plane_1(infinite_verts[0], &quad_vertices)
-    } else {
-        is_vertex_in_half_plane_2(infinite_verts[0], infinite_verts[1], &quad_vertices)
-    };
-    // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
-
-    if swap {
+    if should_swap_diagonals(&quad, vertices, min_container_vertex_id) {
         let opposite_neighbor = opposite_triangle_id.into();
         let from_neighbor = from_triangle_id.into();
 
