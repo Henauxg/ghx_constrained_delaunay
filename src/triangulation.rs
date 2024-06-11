@@ -665,7 +665,7 @@ fn is_vertex_in_half_plane_2(
 ) -> bool {
     // Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
     // Index of the finite vertex in q1q2q3
-    let finite_vert_index = (3 - infinite_vert_1 + infinite_vert_2) as usize;
+    let finite_vert_index = (3 - (infinite_vert_1 + infinite_vert_2)) as usize;
     let line_point = quad_vertices.verts[finite_vert_index];
     // TODO Improvement: Could use a slope LUT since we know container vertices as const
     let a = line_slope(
