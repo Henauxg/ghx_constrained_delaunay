@@ -232,9 +232,10 @@ fn search_enclosing_triangle(
 pub(crate) fn add_container_triangle_vertices(
     vertices: &mut Vec<Vertex>,
 ) -> (TriangleData, VertexId) {
-    let container_triangle = TriangleData::new_container_triangle(vertices.len() as TriangleId);
+    let min_container_triangle_vertex_id = vertices.len() as VertexId;
+    let container_triangle = TriangleData::new_container_triangle(min_container_triangle_vertex_id);
     vertices.extend(CONTAINER_TRIANGLE_VERTICES.clone());
-    (container_triangle, vertices.len() as VertexId)
+    (container_triangle, min_container_triangle_vertex_id)
 }
 
 pub(crate) fn find_existing_close_vertex(

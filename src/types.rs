@@ -132,7 +132,7 @@ pub struct TriangleData {
 }
 
 impl TriangleData {
-    pub(crate) fn new_container_triangle(first_index: TriangleId) -> Self {
+    pub(crate) fn new_container_triangle(first_index: VertexId) -> Self {
         TriangleData {
             verts: [first_index, first_index + 1, first_index + 2],
             neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::NONE],
