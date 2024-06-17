@@ -352,6 +352,11 @@ impl Triangles {
 }
 
 #[inline]
+pub fn is_infinite(vert_id: VertexId, min_container_vertex_id: VertexId) -> bool {
+    vert_id >= min_container_vertex_id
+}
+
+#[inline]
 pub fn next_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
     NEXT_CLOCKWISE_EDGE_INDEX[edge_index as usize]
 }
