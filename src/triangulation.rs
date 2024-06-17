@@ -2,9 +2,9 @@ use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::types::{
-    opposite_edge_index, Float, Neighbor, Quad, QuadVertices, TriangleData, TriangleId,
-    TriangleVertexIndex, Triangles, Vector3A, Vertex, VertexId, EDGE_TO_VERTS, VERT_1, VERT_2,
-    VERT_3,
+    is_infinite, opposite_edge_index, Float, Neighbor, Quad, QuadVertices, TriangleData,
+    TriangleId, TriangleVertexIndex, Triangles, Vector3A, Vertex, VertexId, EDGE_TO_VERTS, QUAD_1,
+    QUAD_2, QUAD_3,
 };
 use crate::utils::{
     is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
@@ -640,22 +640,24 @@ fn is_vertex_in_half_plane_1(
 
 #[cold]
 fn is_vertex_in_half_plane_2(
-    infinite_vert_1: TriangleVertexIndex,
-    infinite_vert_2: TriangleVertexIndex,
+    infinite_v1: TriangleVertexIndex,
+    infinite_v2: TriangleVertexIndex,
     quad_vertices: &QuadVertices,
 ) -> bool {
     // Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
     // Index of the finite vertex in q1q2q3
-    let finite_vert_index = (3 - (infinite_vert_1 + infinite_vert_2)) as usize;
+    let finite_vert_index = (3 - (infinite_v1 + infinite_v2)) as usize;
     let line_point_1 = quad_vertices.verts[finite_vert_index];
     // TODO Improvement: Could use a slope LUT since we know container vertices as const
     let a = line_slope(
-        quad_vertices.verts[infinite_vert_1 as usize],
-        quad_vertices.verts[infinite_vert_2 as usize],
+        quad_vertices.verts[infinite_v1 as usize],
+        quad_vertices.verts[infinite_v2 as usize],
     );
     let b = line_point_1.y - a * line_point_1.x;
-    // Another point on the line, with p2.x = p1.x - 1
-    let line_point_2 = Vertex::new(line_point_1.x - 1., a * (line_point_1.x - 1.) + b);
+    // Another point on the line, its position depends of which infinite vertices are considered
+    let delta_x = if a == 0. { 1. } else { -1. };
+    let line_point_2_x = line_point_1.x + delta_x;
+    let line_point_2 = Vertex::new(line_point_2_x, a * (line_point_2_x) + b);
     is_point_on_right_side_of_edge((line_point_1, line_point_2), quad_vertices.q4())
 }
 
@@ -668,14 +670,14 @@ pub(crate) fn should_swap_diagonals(
     let quad_vertices = quad.to_vertices(vertices);
     // TODO Performance: try stack/pre-alloc
     let mut infinite_verts = Vec::new();
-    if quad.v1() >= min_container_vertex_id {
-        infinite_verts.push(VERT_1);
+    if is_infinite(quad.v1(), min_container_vertex_id) {
+        infinite_verts.push(QUAD_1);
     }
-    if quad.v2() >= min_container_vertex_id {
-        infinite_verts.push(VERT_2);
+    if is_infinite(quad.v2(), min_container_vertex_id) {
+        infinite_verts.push(QUAD_2);
     }
-    if quad.v3() >= min_container_vertex_id {
-        infinite_verts.push(VERT_3);
+    if is_infinite(quad.v3(), min_container_vertex_id) {
+        infinite_verts.push(QUAD_3);
     }
 
     // TODO Performance: try to play with the #cold attribute for the infinite cases.
