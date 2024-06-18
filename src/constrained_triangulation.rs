@@ -5,9 +5,9 @@ use log::error;
 
 use crate::triangulation::{
     normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
-    DEFAULT_BIN_VERTEX_DENSITY_POWER,
+    DEFAULT_BIN_VERTEX_DENSITY_POWER, INFINITE_VERTS_DELTAS, INFINITE_VERTS_SLOPES,
 };
-use crate::types::{Float, TriangleEdgeIndex, Triangles, Vector3A, Vertex};
+use crate::types::{is_infinite, Float, TriangleEdgeIndex, Triangles, Vector3A, Vertex};
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
@@ -247,7 +247,7 @@ fn apply_constraints(
     let _span = span!(Level::TRACE, "apply_constraints").entered();
 
     let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
-    // Map each verticex to one of the triangles (the last) that contains it
+    // Map each vertex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
     for (index, t) in triangles.buffer().iter().enumerate() {
         vertex_to_triangle[t.v1() as usize] = index as TriangleId;
@@ -289,7 +289,7 @@ fn apply_constraints(
             vertex_merge_mapping[constrained_edge.to as usize],
         );
 
-        // Chekc for duplicate edges
+        // Check for duplicate edges
         if constrained_edges_set.insert(constrained_edge) == false {
             // Skipping duplicate constrained edge
             continue;
@@ -345,6 +345,52 @@ enum EdgeFirstIntersection {
     Intersection(EdgeData),
     /// No intersection found
     NotFound,
+}
+
+fn check_edge_constrained_edge_intersection(
+    edge: &Edge,
+    edge_vertices: &EdgeVertices,
+    constrained_edge_verts: &EdgeVertices,
+    min_container_vertex_id: VertexId,
+) -> EdgesIntersectionResult {
+    // We know that constrained_edge_verts are finite here
+    let mut infinite_verts = Vec::new();
+    if is_infinite(edge.from, min_container_vertex_id) {
+        infinite_verts.push((edge.from - min_container_vertex_id, edge_vertices.1));
+    }
+    if is_infinite(edge.to, min_container_vertex_id) {
+        infinite_verts.push((edge.to - min_container_vertex_id, edge_vertices.0));
+    }
+
+    if infinite_verts.is_empty() {
+        egdes_intersect(&constrained_edge_verts, &edge_vertices)
+    } else if infinite_verts.len() == 1 {
+        // TODO Cold function  ?
+        // Test if intersection between edge and computed infinite sub edge
+        let (infinite_vert_id, finite_vert) = infinite_verts[0];
+        // TODO Doc comment, 1 is the top infinite vertex
+        if infinite_vert_id == 1 {
+            // TODO Const
+            // Line in an "x=b" form
+            // TODO Re-Check limit cases (==)
+            // Both points of the constrained edge cannot (prove it ?) be on the vertical line
+            let line_point_1 = finite_vert;
+            let line_point_2 = Vertex::new(line_point_1.x, line_point_1.y + 1.42); // TODO Const
+            egdes_intersect(&(line_point_1, line_point_2), &constrained_edge_verts)
+        } else {
+            let line_point_1 = finite_vert;
+            let a = INFINITE_VERTS_SLOPES[infinite_vert_id as usize];
+            let b = line_point_1.y - a * line_point_1.x;
+            // We care about the delta sign here since we create a segment from an infinite line,
+            // starting from the finite point and aimed towards the infinite point with a X span of "1.".
+            // "1" is enough since all our vertices coordinates are normalized inside the unit square.
+            let line_point_2_x = line_point_1.x + INFINITE_VERTS_DELTAS[infinite_vert_id as usize];
+            let line_point_2 = Vertex::new(line_point_2_x, a * (line_point_2_x) + b);
+            egdes_intersect(&(line_point_1, line_point_2), &constrained_edge_verts)
+        }
+    } else {
+        EdgesIntersectionResult::None
+    }
 }
 
 fn loop_around_vertex_and_search_intersection(
