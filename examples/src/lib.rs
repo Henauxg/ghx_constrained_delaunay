@@ -29,4 +29,5 @@ pub const COLORS: &'static [Color] = &[
     Color::TURQUOISE,
     Color::YELLOW_GREEN,
     Color::TEAL,
+    Color::TOMATO,
 ];
