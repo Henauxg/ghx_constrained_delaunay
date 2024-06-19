@@ -4,6 +4,7 @@ use bevy::{
     app::{App, Startup, Update},
     ecs::system::{Commands, Res},
     gizmos::gizmos::Gizmos,
+    log::info,
     math::{primitives::Direction3d, Vec3},
     render::color::Color,
     DefaultPlugins,
@@ -16,7 +17,8 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     debug::{DebugConfiguration, Phase, PhaseRecord},
     hashbrown::HashSet,
-    types::{Edge,  Vector3, Vertex, VertexId},
+    types::{Edge, Vector3, Vertex, VertexId},
+    utils::check_degenerate_triangles,
     Triangulation,
 };
 
@@ -36,7 +38,7 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let shape_file_path = format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.shp");
-    println!("Loading {} ...", shape_file_path);
+    info!("Loading {} ...", shape_file_path);
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
 
     let mut vertices = Vec::new();
@@ -58,8 +60,8 @@ fn setup(mut commands: Commands) {
         }
     }
 
-    println!("{} vertices", vertices.len());
-    println!("{} constraint edges", edges.len());
+    info!("{} vertices", vertices.len());
+    info!("{} constraint edges", edges.len());
 
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
@@ -104,7 +106,7 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
         ..Default::default()
     };
 
-    println!("Loading cdt (ghx_cdt crate)");
+    info!("Loading cdt (ghx_cdt crate)");
     let edges = edges
         .iter()
         // TODO into()
@@ -116,10 +118,13 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
         &edges,
         config,
     );
-    println!(
+    info!(
         "loading time (ghx_cdt crate with constraints): {}ms",
         now.elapsed().as_millis()
     );
+
+    let delaunay_quality = check_degenerate_triangles(&triangulation, &vertices_clone);
+    info!("Delaunay quality info:: {:?}", delaunay_quality);
 
     triangulation
 }

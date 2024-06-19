@@ -1,6 +1,7 @@
 use bevy::{
     app::{App, Startup},
     ecs::system::Commands,
+    log::info,
     DefaultPlugins,
 };
 
@@ -12,7 +13,8 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::{
         constrained_triangulation_from_3d_planar_vertices, ConstrainedTriangulationConfiguration,
     },
-    types::{Edge, Vector3},
+    types::{Edge, Vector3, Vertex},
+    utils::check_delaunay_optimal,
 };
 
 fn main() {
@@ -70,6 +72,12 @@ fn setup(mut commands: Commands) {
         &constrained_edges,
         ConstrainedTriangulationConfiguration::default(),
     );
+
+    let delaunay_quality = check_delaunay_optimal(
+        &triangulation,
+        &vertices.iter().map(|v| Vertex::new(v[0], v[1])).collect(),
+    );
+    info!("Delaunay quality info:: {:?}", delaunay_quality);
 
     let mut displayed_vertices = vertices.iter().map(|v| Vector3::from_slice(v)).collect();
     extend_displayed_vertices_with_container_vertice(
