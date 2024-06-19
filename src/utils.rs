@@ -1,4 +1,10 @@
-use crate::types::{EdgeVertices, Float, Vertex};
+use crate::{
+    types::{EdgeVertices, Float, Vertex},
+    Triangulation,
+};
+
+#[cfg(feature = "progress_log")]
+use log::info;
 
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
@@ -72,12 +78,44 @@ pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
     }
 }
 
+pub struct EdgeSideTestResult(Float);
+impl EdgeSideTestResult {
+    #[inline]
+    pub fn is_on_right_side(&self) -> bool {
+        self.0 < 0.
+    }
+    #[inline]
+    pub fn is_on_left_side(&self) -> bool {
+        self.0 > 0.
+    }
+    #[inline]
+    pub fn is_colinear(&self) -> bool {
+        self.0 == 0.
+    }
+}
+
+/// Returns the position of the point `p` when compared to the oriented edge `e`
+///
+/// Uses the perp cross product of vectors e0.e1 and e1.p
+#[inline]
+pub fn test_point_edge_side(e: EdgeVertices, p: Vertex) -> EdgeSideTestResult {
+    EdgeSideTestResult((p.y - e.0.y) * (e.1.x - e.0.x) - (p.x - e.0.x) * (e.1.y - e.0.y))
+}
+
 /// Returns `true` if and only if the point `p` is on the right side of the oriented edge `e`
 ///
-/// Uses the cross product of vectors e0.e1 and e1.p
+/// Uses the perp cross product of vectors e0.e1 and e1.p
 #[inline]
 pub fn is_point_on_right_side_of_edge(e: EdgeVertices, p: Vertex) -> bool {
-    ((p.x - e.0.x) * (e.1.y - e.0.y) - (p.y - e.0.y) * (e.1.x - e.0.x)) >= 0.
+    (p.y - e.0.y) * (e.1.x - e.0.x) - (p.x - e.0.x) * (e.1.y - e.0.y) <= 0.
+}
+
+/// Returns `true` if and only if the point `p` is strictly on the right side of the oriented edge `e`
+///
+/// Uses the perp cross product of vectors e0.e1 and e1.p
+#[inline]
+pub fn is_point_strictly_on_right_side_of_edge(e: EdgeVertices, p: Vertex) -> bool {
+    (p.y - e.0.y) * (e.1.x - e.0.x) - (p.x - e.0.x) * (e.1.y - e.0.y) <= -Float::EPSILON
 }
 
 /// Returns the slope of the line going from `a` to `b`
@@ -116,6 +154,7 @@ pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
 /// A storage efficient method for construction of a Thiessen triangulation.
 /// Rocky Mounfain J. Math. 14, 119-139 (1984)
 ///
+/// Note: Seems to return false for a flat triangle
 #[inline(always)]
 pub(crate) fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
     #[cfg(feature = "profile_traces")]
@@ -143,6 +182,125 @@ pub(crate) fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex)
         let sin_ab = sin_a * cos_b + sin_b * cos_a;
         sin_ab < 0.
     }
+}
+
+#[derive(Debug)]
+pub struct DegenerateTrianglesInfo {
+    pub flat_triangles_count: u64,
+    pub ccw_triangles_count: u64,
+}
+impl DegenerateTrianglesInfo {
+    fn new(flat_triangles_count: u64, ccw_triangles_count: u64) -> Self {
+        Self {
+            flat_triangles_count,
+            ccw_triangles_count,
+        }
+    }
+}
+
+/// Check degenerate (flat) triangles
+pub fn check_degenerate_triangles(
+    triangulation: &Triangulation,
+    vertices: &Vec<Vertex>,
+) -> DegenerateTrianglesInfo {
+    let mut flat_triangles_count = 0;
+    let mut ccw_triangles_count = 0;
+
+    for t in triangulation.triangles.iter() {
+        let (v1, v2, v3) = (
+            vertices[t[0] as usize],
+            vertices[t[1] as usize],
+            vertices[t[2] as usize],
+        );
+        let orientation = triplet_orientation(v1, v2, v3);
+        match orientation {
+            Orientation::Colinear => flat_triangles_count += 1,
+            Orientation::CounterClockwise => ccw_triangles_count += 1,
+            Orientation::Clockwise => (),
+        }
+    }
+    DegenerateTrianglesInfo::new(flat_triangles_count, ccw_triangles_count)
+}
+
+#[derive(Debug)]
+pub struct CircumcirclesQualityInfo {
+    // pub invalid_triangles: Vec<(TriangleId, usize)>,
+    pub non_optimal_triangles_count: usize,
+}
+impl CircumcirclesQualityInfo {
+    fn new(non_optimal_triangles_count: usize) -> Self {
+        Self {
+            non_optimal_triangles_count,
+        }
+    }
+}
+
+/// Check that all triangles in the triangulation have a circumcircle which does not contain any other vertices from the triangulation.
+pub fn check_circumcircles(
+    triangulation: &Triangulation,
+    vertices: &Vec<Vertex>,
+) -> CircumcirclesQualityInfo {
+    let mut non_optimal_triangle = 0;
+    for (_t_id, t) in triangulation.triangles.iter().enumerate() {
+        #[cfg(feature = "progress_log")]
+        {
+            if _t_id % ((triangulation.triangles.len() / 50) + 1) == 0 {
+                let progress = 100. * _t_id as f32 / triangulation.triangles.len() as f32;
+                info!(
+                    "check_circumcircles progress, {}%: {}/{}",
+                    progress,
+                    _t_id,
+                    triangulation.triangles.len()
+                );
+            }
+        }
+
+        let verts = [
+            vertices[t[0] as usize],
+            vertices[t[1] as usize],
+            vertices[t[2] as usize],
+        ];
+
+        for (v_id, v) in vertices.iter().enumerate() {
+            if v_id == t[0] as usize || v_id == t[1] as usize || v_id == t[2] as usize {
+                continue;
+            }
+            if is_vertex_in_triangle_circumcircle(&verts, *v) {
+                non_optimal_triangle += 1;
+                break;
+            }
+        }
+    }
+
+    CircumcirclesQualityInfo::new(non_optimal_triangle)
+}
+
+#[derive(Debug)]
+pub struct DelaunayQualityInfo {
+    pub degen_triangles: DegenerateTrianglesInfo,
+    pub circumcircles: CircumcirclesQualityInfo,
+}
+impl DelaunayQualityInfo {
+    fn new(
+        degen_triangles: DegenerateTrianglesInfo,
+        circumcircles: CircumcirclesQualityInfo,
+    ) -> Self {
+        Self {
+            degen_triangles,
+            circumcircles,
+        }
+    }
+}
+
+/// Slow and simple check of the Delaunay optimality of a triangulation
+pub fn check_delaunay_optimal(
+    triangulation: &Triangulation,
+    vertices: &Vec<Vertex>,
+) -> DelaunayQualityInfo {
+    let degenerate_triangles_info = check_degenerate_triangles(triangulation, vertices);
+    let circumcircles_info = check_circumcircles(triangulation, vertices);
+
+    DelaunayQualityInfo::new(degenerate_triangles_info, circumcircles_info)
 }
 
 ///////////////////////////////////////////////////////////
