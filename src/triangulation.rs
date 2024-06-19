@@ -69,10 +69,6 @@ pub const INFINITE_VERTS_SLOPES: [Float; 3] = [2., 0., -2.];
 pub const DELTA_VALUE: Float = 1.42;
 pub const INFINITE_VERTS_DELTAS: [Float; 3] = [-DELTA_VALUE, 0., DELTA_VALUE];
 
-pub const INFINITE_VERTS_SLOPES: [Float; 3] = [2., 0., -2.];
-// Slightly higher values than 1.0 to be safe.
-pub const INFINITE_VERTS_DELTAS: [Float; 3] = [-1.42, 0., 1.42];
-
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
 pub fn triangulation_from_3d_planar_vertices(
