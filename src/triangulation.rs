@@ -2,12 +2,14 @@ use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::types::{
-    is_infinite, opposite_edge_index, Float, Neighbor, Quad, QuadVertices, TriangleData,
-    TriangleId, TriangleVertexIndex, Triangles, Vector3A, Vertex, VertexId, EDGE_TO_VERTS, QUAD_1,
-    QUAD_2, QUAD_3,
+    is_infinite, next_ccw_edge_index, next_clockwise_edge_index, next_counter_clockwise_edge_index,
+    next_cw_edge_index, opposite_edge_index, opposite_vertex_index, Float, Neighbor, Quad,
+    QuadVertices, TriangleData, TriangleEdgeIndex, TriangleId, TriangleVertexIndex, Triangles,
+    Vector3A, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31, EDGE_TO_VERTS, QUAD_1, QUAD_2, QUAD_3,
 };
 use crate::utils::{
-    is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
+    is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
+    on_segment, test_point_edge_side,
 };
 
 #[cfg(feature = "progress_log")]
@@ -60,6 +62,12 @@ pub const CONTAINER_TRIANGLE_VERTICES: [Vertex; 3] = [
         -CONTAINER_TRIANGLE_COORDINATE,
     ),
 ];
+pub const CONTAINER_TRIANGLE_TOP_VERTEX_INDEX: TriangleVertexIndex = 1;
+pub const INFINITE_VERTS_SLOPES: [Float; 3] = [2., 0., -2.];
+
+// Slightly higher values than 1.0 to be safe.
+pub const DELTA_VALUE: Float = 1.42;
+pub const INFINITE_VERTS_DELTAS: [Float; 3] = [-DELTA_VALUE, 0., DELTA_VALUE];
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
@@ -186,7 +194,8 @@ pub(crate) fn normalize_vertices_coordinates(
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum SearchResult {
-    EnlosingTriangle(TriangleId),
+    EnclosingTriangle(TriangleId),
+    OnTriangleEdge(TriangleId, TriangleEdgeIndex),
     NotFound,
 }
 
@@ -210,17 +219,40 @@ fn search_enclosing_triangle(
         let triangle = triangles.get(neighbor.id);
         let (v1, v2, v3) = triangle.to_vertices(vertices);
 
-        // Check if the point is inside the triangle, if not check the neighbours
-        if !is_point_on_right_side_of_edge((v1, v2), vertex) {
+        // Check if the point is inside the triangle's neighbors
+        let edge_12_test = test_point_edge_side((v1, v2), vertex);
+        if edge_12_test.is_on_left_side() {
             neighbor = triangle.neighbor12();
-        } else if !is_point_on_right_side_of_edge((v2, v3), vertex) {
+            continue;
+        }
+        let edge_23_test = test_point_edge_side((v2, v3), vertex);
+        if edge_23_test.is_on_left_side() {
             neighbor = triangle.neighbor23();
-        } else if !is_point_on_right_side_of_edge((v3, v1), vertex) {
+            continue;
+        }
+        let edge_31_test = test_point_edge_side((v3, v1), vertex);
+        if edge_31_test.is_on_left_side() {
             neighbor = triangle.neighbor31();
-        } else {
-            search_result = SearchResult::EnlosingTriangle(neighbor.id);
+            continue;
+        }
+
+        // Check if the point is on an edge of the triangle
+        if edge_12_test.is_colinear() && on_segment(v1, vertex, v2) {
+            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_12);
             break;
         }
+        if edge_23_test.is_colinear() && on_segment(v2, vertex, v3) {
+            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_23);
+            break;
+        }
+        if edge_31_test.is_colinear() && on_segment(v3, vertex, v1) {
+            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_31);
+            break;
+        }
+
+        // Point is inside the current triangle
+        search_result = SearchResult::EnclosingTriangle(neighbor.id);
+        break;
     }
 
     search_result
@@ -295,7 +327,58 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         // Find an existing triangle which encloses P
         let vertex = vertices[vertex_id as usize];
         match search_enclosing_triangle(vertex, triangle_id, &triangles, &vertices) {
-            SearchResult::EnlosingTriangle(enclosing_triangle_id) => {
+            SearchResult::OnTriangleEdge(enclosing_triangle_id, edge_index) => {
+                // Compare to the points in the triangle, if too close to one, continue
+                let triangle = &triangles.get(enclosing_triangle_id);
+                let triangle_verts = triangle.to_vertices_array(vertices);
+                if let Some(existing_vertex_id) =
+                    find_existing_close_vertex(&triangle, &triangle_verts, vertex)
+                {
+                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                        vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
+                    }
+                    continue;
+                }
+
+                let new_triangles = split_quad_into_four_triangles(
+                    &mut triangles,
+                    enclosing_triangle_id,
+                    edge_index,
+                    vertex_id,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
+                );
+
+                restore_delaunay_triangulation(
+                    &mut triangles,
+                    vertices,
+                    min_container_vertex_id,
+                    vertex_id,
+                    new_triangles,
+                    &mut quads_to_check,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
+                );
+
+                // We'll start the search for the next enclosing triangle from the last created triangle.
+                // This is a pretty good heuristic since the vertices were spatially partitionned
+                triangle_id = Neighbor::new(triangles.last_id());
+
+                #[cfg(feature = "progress_log")]
+                {
+                    if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
+                        let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
+                        info!(
+                            "Triangulation progress, step n°{}, {}%: {}/{}",
+                            debug_context.current_step,
+                            progress,
+                            _index,
+                            partitioned_vertices.len()
+                        );
+                    }
+                }
+            }
+            SearchResult::EnclosingTriangle(enclosing_triangle_id) => {
                 // Compare to the points in the triangle, if too close to one, continue
                 let triangle = &triangles.get(enclosing_triangle_id);
                 let triangle_verts = triangle.to_vertices_array(vertices);
@@ -478,6 +561,93 @@ impl VertexBinSort {
     }
 }
 
+// TODO Ascii art
+pub(crate) fn split_quad_into_four_triangles(
+    triangles: &mut Triangles,
+    triangle_id: TriangleId,
+    edge_index: TriangleEdgeIndex,
+    vertex_id: VertexId,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+) -> Vec<TriangleId> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "split_quad_into_four_triangles").entered();
+
+    // Re-use the existing triangle id for the first triangle
+    let t1 = triangle_id;
+    // The triangle is always guaranteed to have a neighbor on the edge since a vertex
+    // cannot land on a container triangle's edge.
+    let t2 = triangles.get(triangle_id).neighbor(edge_index);
+    // Create two new triangles for the other two
+    let t3 = triangles.next_id();
+    let t4 = triangles.next_id() + 1;
+
+    let edge = triangles.get(t1).edge(edge_index);
+
+    // t3
+    let t3_neighbor_23 = triangles
+        .get(t1)
+        .neighbor(next_clockwise_edge_index(edge_index));
+    let t3_v3 = triangles.get(t1).v(opposite_vertex_index(edge_index));
+    triangles.create(
+        [vertex_id, edge.to, t3_v3],
+        [t4.into(), t3_neighbor_23, t1.into()],
+    );
+
+    let t2_opposite_v_id = triangles.get(t2.id).get_opposite_vertex_index(&edge);
+    let t2_opposite_v_index = triangles.get(t2.id).vertex_index(t2_opposite_v_id);
+
+    // t4
+    let t4_neighbor_23 = triangles
+        .get(t2.id)
+        .neighbor(next_cw_edge_index(t2_opposite_v_index));
+    triangles.create(
+        [vertex_id, t2_opposite_v_id, edge.to],
+        [t2.into(), t4_neighbor_23, t3.into()],
+    );
+
+    // Update triangle indexes
+    update_triangle_neighbor(t3_neighbor_23, t1.into(), t3.into(), triangles);
+    update_triangle_neighbor(t4_neighbor_23, t2.into(), t4.into(), triangles);
+
+    // Update t1 verts
+    let verts = [vertex_id, t3_v3, edge.from];
+    triangles.get_mut(t1).verts = verts;
+    // Update t1 neighbors
+    let neighbors = [
+        t3.into(),
+        triangles
+            .get(t1)
+            .neighbor(next_counter_clockwise_edge_index(edge_index)),
+        t2.into(),
+    ];
+    triangles.get_mut(t1).neighbors = neighbors;
+
+    // Update t2 verts
+    let verts = [vertex_id, edge.from, t2_opposite_v_id];
+    triangles.get_mut(t2.id).verts = verts;
+    // Update t2 neighbors
+    let neighbors = [
+        t1.into(),
+        triangles
+            .get(t2.id)
+            .neighbor(next_ccw_edge_index(t2_opposite_v_index)),
+        t4.into(),
+    ];
+    triangles.get_mut(t2.id).neighbors = neighbors;
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot_event(
+        Phase::SplitTriangle,
+        EventInfo::SplitTriangle(vertex_id),
+        &triangles,
+        &[t1, t2.id, t3, t4],
+        // Neighbor data is out of date here and is not that interesting
+        &[],
+    );
+
+    vec![t1, t2.id, t3, t4]
+}
+
 /// Splits `triangle_id` into 3 triangles (re-using the existing triangle id)
 ///
 /// All the resulting triangles will share `vertex_id` as their frist vertex, and will be oriented in a CW order
@@ -503,7 +673,7 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     triangle_id: TriangleId,
     vertex_id: VertexId,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> [TriangleId; 3] {
+) -> Vec<TriangleId> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "split_triangle_in_three_at_vertex").entered();
 
@@ -538,9 +708,10 @@ pub(crate) fn split_triangle_in_three_at_vertex(
         triangles,
     );
 
+    // Update t1 verts
     let verts = [vertex_id, triangles.get(t1).v3(), triangles.get(t1).v1()];
     triangles.get_mut(t1).verts = verts;
-
+    // Update t1 neighbors
     let neighbors = [t2.into(), triangles.get(t1).neighbor31(), t3.into()];
     triangles.get_mut(t1).neighbors = neighbors;
 
@@ -554,7 +725,7 @@ pub(crate) fn split_triangle_in_three_at_vertex(
         &[],
     );
 
-    [t1, t2, t3]
+    vec![t1, t2, t3]
 }
 
 pub(crate) fn update_triangle_neighbor(
@@ -580,14 +751,14 @@ fn restore_delaunay_triangulation(
     vertices: &Vec<Vertex>,
     min_container_vertex_id: VertexId,
     from_vertex_id: VertexId,
-    new_triangles: [TriangleId; 3],
+    new_triangles: Vec<TriangleId>,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
 
-    for &from_triangle_id in &new_triangles {
+    for &from_triangle_id in new_triangles.iter() {
         // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
         let neighbor = triangles.get(from_triangle_id).neighbor23();
         if neighbor.exists() {
@@ -626,7 +797,7 @@ fn is_vertex_in_half_plane_1(
     infinite_vert: TriangleVertexIndex,
     quad_vertices: &QuadVertices,
 ) -> bool {
-    // Test if q4 is inside the circle with 1 inifite point (half-plane defined by the 2 finite points)
+    // Test if q4 is inside the circle with 1 infinite point (half-plane defined by the 2 finite points)
     // TODO Clean: utils functions in Quad/Triangle
     let edge = opposite_edge_index(infinite_vert);
     let finite_vert_indexes = EDGE_TO_VERTS[edge as usize];
@@ -635,7 +806,8 @@ fn is_vertex_in_half_plane_1(
         quad_vertices.verts[finite_vert_indexes[1] as usize],
         quad_vertices.verts[finite_vert_indexes[0] as usize],
     );
-    is_point_on_right_side_of_edge(edge_vertices, quad_vertices.q4())
+    // Strict seems to be necessary here, in order to avoid creating flat triangles
+    is_point_strictly_on_right_side_of_edge(edge_vertices, quad_vertices.q4())
 }
 
 #[cold]
@@ -657,8 +829,9 @@ fn is_vertex_in_half_plane_2(
     // Another point on the line, its position depends of which infinite vertices are considered
     let delta_x = if a == 0. { 1. } else { -1. };
     let line_point_2_x = line_point_1.x + delta_x;
-    let line_point_2 = Vertex::new(line_point_2_x, a * (line_point_2_x) + b);
-    is_point_on_right_side_of_edge((line_point_1, line_point_2), quad_vertices.q4())
+    let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
+    // Strict seems to be necessary here, in order to avoid creating flat triangles
+    is_point_strictly_on_right_side_of_edge((line_point_1, line_point_2), quad_vertices.q4())
 }
 
 #[inline(always)]
