@@ -23,17 +23,21 @@ pub use u64::IndexType;
 pub type VertexId = IndexType;
 pub type TriangleId = IndexType;
 
-// TODO New types to avoid some bugs
+// TODO Could use new types to avoid possible unwanted misuses
+
+/// Local index of a vertex in a triangle
 pub type TriangleVertexIndex = u8;
 pub const VERT_1: TriangleVertexIndex = 0;
 pub const VERT_2: TriangleVertexIndex = 1;
 pub const VERT_3: TriangleVertexIndex = 2;
 
+/// Local index of an edge in a triangle
 pub type TriangleEdgeIndex = u8;
 pub const EDGE_12: TriangleEdgeIndex = 0;
 pub const EDGE_23: TriangleEdgeIndex = 1;
 pub const EDGE_31: TriangleEdgeIndex = 2;
 
+/// Local index of a vertex in a quad
 pub type QuadVertexIndex = u8;
 pub const QUAD_1: QuadVertexIndex = 0;
 pub const QUAD_2: QuadVertexIndex = 1;
@@ -47,15 +51,26 @@ pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, 
 /// From a TriangleEdgeIndex, gives the corresponding pair of TriangleVertexIndex
 pub const EDGE_TO_VERTS: [[TriangleVertexIndex; 2]; 3] =
     [[VERT_1, VERT_2], [VERT_2, VERT_3], [VERT_3, VERT_1]];
+/// From a TriangleEdgeIndex, gives the opposite vertex index
+pub const OPPOSITE_VERTEX_INDEX: [TriangleVertexIndex; 3] = [VERT_3, VERT_1, VERT_2];
 
 /// From a TriangleVertexIndex, gives the opposite edge index
 pub const OPPOSITE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
+/// From a TriangleVertexIndex, gives the opposite edge index
+pub const NEXT_CCW_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
 /// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
 pub const NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
     [EDGE_31, EDGE_12, EDGE_23];
-/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
+/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a counter-clockwise order
 pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
     [EDGE_12, EDGE_23, EDGE_31];
+
+pub const ADJACENT_QUAD_VERTICES_INDEXES: [[TriangleVertexIndex; 2]; 4] = [
+    [QUAD_3, QUAD_4],
+    [QUAD_4, QUAD_3],
+    [QUAD_2, QUAD_1],
+    [QUAD_1, QUAD_2],
+];
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct Edge {
@@ -139,6 +154,10 @@ impl TriangleData {
         }
     }
 
+    #[inline]
+    pub fn v(&self, vertex_index: TriangleVertexIndex) -> VertexId {
+        self.verts[vertex_index as usize]
+    }
     #[inline]
     pub fn v1(&self) -> VertexId {
         self.verts[VERT_1 as usize]
@@ -381,6 +400,23 @@ pub fn next_counter_clockwise_edge_index_around(
 #[inline]
 pub fn opposite_edge_index(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
     OPPOSITE_EDGE_INDEX[vert_index as usize]
+}
+
+#[inline]
+pub fn opposite_vertex_index(edge_index: TriangleEdgeIndex) -> TriangleVertexIndex {
+    OPPOSITE_VERTEX_INDEX[edge_index as usize]
+}
+
+/// From a TriangleVertexIndex, returns the next edge index in a CW order
+#[inline]
+pub fn next_cw_edge_index(edge_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    edge_index as TriangleEdgeIndex
+}
+
+/// From a TriangleVertexIndex, returns the next edge index in a CCW order
+#[inline]
+pub fn next_ccw_edge_index(edge_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    NEXT_CCW_EDGE_INDEX[edge_index as usize]
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
