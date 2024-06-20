@@ -33,6 +33,10 @@ A quite fast Rust library for 2D constrained Delaunay triangulation
 
 Examples use `Bevy` to visualize & explore the resulting triangulation.
 
+# Benchmarks
+
+See [benchmarks](benchmarks/README.md)
+
 # Implementation
 
 Implementation is based on *"A fast algorithm for generating constrained delaunay triangulations"* by S. W. Sloan (1993). It was chosen because the path from DT (*Delaunay Triangulation*) to CDT (*Constrained Delaunay Triangulation*) seemed quite straight-forward. However some modifications were made to the original algorithm.
