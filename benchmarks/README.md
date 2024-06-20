@@ -1,4 +1,4 @@
-# delaunay_compare
+# Benchmarks
 
 Small benchmark suite for comparing different (constrained) Delaunay triangulation implementations in rust, modified from the [spade](https://github.com/Stoeoef/spade/tree/master/delaunay_compare) crate comparison benchmark.
 
