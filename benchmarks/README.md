@@ -34,9 +34,7 @@ For better comparability, measurements are grouped in point sets with less than 
 
 ## CDT bulk loading
 
-The CDT bulk loading uses real world data consisting of roughly 2.9e6 input vertices and 2.8e6 input constraint edges:
-
-<img src="examples/europe.png" alt="European coastline dataset" style="width:500px">
+The CDT bulk loading uses real world data consisting of roughly 2.9e6 input vertices and 2.8e6 input constraint edges
 
 ### CDT Loading times
 
@@ -46,18 +44,17 @@ The benchmark also includes a stable bulk load variant for spade that keeps the 
 
 | CDT Bulk load            | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| Without constraint edges | **908ms**                | 1592ms | 4728ms*   |
+| Without constraint edges | **908ms**                | 1592ms | 4728ms(*) |
 | With constraint edges    | **1443ms**               | 2020ms | 2026ms    |
 | With stable vertex order | -                        | 3109ms | -         |
 
 _Results obtained on an i7-14700KF CPU @ 3.40GHz_
 
-(*) It seems weird that the `cdt` crate takes less time with constraints than without. I need to look at the implementation.
+(*) It seems weird that the `cdt` crate takes **less** time with constraints than without on this specific dataset. I need to look at the implementation.
 
 # Credits
 
 See the [spade](https://github.com/Stoeoef/spade) crate for the original benchmark.
-
 
 ## Differences with the original benchmark
 
