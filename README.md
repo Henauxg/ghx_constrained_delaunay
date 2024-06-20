@@ -33,6 +33,8 @@ A quite fast Rust library for 2D constrained Delaunay triangulation
 
 Examples use `Bevy` to visualize & explore the resulting triangulation.
 
+https://github.com/Henauxg/ghx_constrained_delaunay/assets/19689618/fe30023b-da80-471f-bf6e-a978ab8e0ea2
+
 # Benchmarks
 
 See [benchmarks](benchmarks/README.md)
