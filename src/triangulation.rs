@@ -136,8 +136,8 @@ pub fn triangulation_from_2d_vertices(
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
 /// - Input vertices need to all belong to the same 3d plan
 /// - There must be at least two vertices
-pub(crate) fn transform_to_2d_planar_coordinate_system(
-    vertices: &mut Vec<Vector3A>,
+pub fn transform_to_2d_planar_coordinate_system(
+    vertices: &Vec<Vector3A>,
     plane_normal: Vector3A,
 ) -> Vec<Vertex> {
     // Create a base, using the first two vertices as the first base vector and plane_normal as the second
