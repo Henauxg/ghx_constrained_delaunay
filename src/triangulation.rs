@@ -5,7 +5,8 @@ use crate::types::{
     is_infinite, next_ccw_edge_index, next_clockwise_edge_index, next_counter_clockwise_edge_index,
     next_cw_edge_index, opposite_edge_index, opposite_vertex_index, Float, Neighbor, Quad,
     QuadVertices, TriangleData, TriangleEdgeIndex, TriangleId, TriangleVertexIndex, Triangles,
-    Vector3A, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31, EDGE_TO_VERTS, QUAD_1, QUAD_2, QUAD_3,
+    Vector3, Vector3A, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31, EDGE_TO_VERTS, QUAD_1, QUAD_2,
+    QUAD_3,
 };
 use crate::utils::{
     is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
@@ -72,19 +73,11 @@ pub const INFINITE_VERTS_DELTAS: [Float; 3] = [-DELTA_VALUE, 0., DELTA_VALUE];
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
 pub fn triangulation_from_3d_planar_vertices(
-    vertices: &Vec<[Float; 3]>,
+    vertices: &Vec<Vector3>,
     plane_normal: Vector3A,
     config: TriangulationConfiguration,
 ) -> Triangulation {
-    // TODO Clean: See what we need for input data format of `triangulate`
-    let mut vertices_data = Vec::with_capacity(vertices.len());
-    for v in vertices {
-        vertices_data.push(Vector3A::from_array(*v));
-    }
-
-    let mut planar_vertices =
-        transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
-
+    let mut planar_vertices = transform_to_2d_planar_coordinate_system(vertices, plane_normal);
     triangulation_from_2d_vertices(&mut planar_vertices, config)
 }
 pub struct Triangulation {
@@ -137,18 +130,18 @@ pub fn triangulation_from_2d_vertices(
 /// - Input vertices need to all belong to the same 3d plan
 /// - There must be at least two vertices
 pub fn transform_to_2d_planar_coordinate_system(
-    vertices: &Vec<Vector3A>,
+    vertices: &Vec<Vector3>,
     plane_normal: Vector3A,
 ) -> Vec<Vertex> {
-    // Create a base, using the first two vertices as the first base vector and plane_normal as the second
+    // Create a base B for the plan, using the first two vertices as the first base vector
     let basis_1 = (vertices[0] - vertices[1]).normalize();
-    // basis_3 is already normalized since basis_1 and plane_normal are normalized and orthogonal
-    let basis_3 = basis_1.cross(plane_normal);
+    let basis_2 = basis_1.cross((-plane_normal).into());
+    // basis_3 would be plane_normal
 
-    // Project every vertices into the base B
+    // Transform every vertices into base B 2D coordinates
     let mut vertices_2d = Vec::with_capacity(vertices.len());
     for vertex in vertices {
-        vertices_2d.push(Vertex::new(vertex.dot(basis_1), vertex.dot(basis_3)));
+        vertices_2d.push(Vertex::new(vertex.dot(basis_1), vertex.dot(basis_2)));
     }
     vertices_2d
 }

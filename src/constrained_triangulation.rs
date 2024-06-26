@@ -9,7 +9,7 @@ use crate::triangulation::{
     INFINITE_VERTS_DELTAS, INFINITE_VERTS_SLOPES,
 };
 use crate::types::{
-    is_infinite, Float, QuadVertices, TriangleEdgeIndex, Triangles, Vector3A, Vertex,
+    is_infinite, QuadVertices, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,
     ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
 };
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
@@ -58,20 +58,13 @@ impl Default for ConstrainedTriangulationConfiguration {
 ///     - be oriented: vi -> vj
 ///     - not contain edges with v0==v1
 pub fn constrained_triangulation_from_3d_planar_vertices(
-    vertices: &Vec<[Float; 3]>,
+    vertices: &Vec<Vector3>,
     plane_normal: Vector3A,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
-    // TODO Clean: See what we need for input data format of `triangulate`
-    let mut vertices_data = Vec::with_capacity(vertices.len());
-    for v in vertices {
-        vertices_data.push(Vector3A::from_array(*v));
-    }
-
     let mut planar_vertices =
-        triangulation::transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
-
+        triangulation::transform_to_2d_planar_coordinate_system(vertices, plane_normal);
     constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges, config)
 }
 
