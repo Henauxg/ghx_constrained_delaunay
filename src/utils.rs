@@ -221,7 +221,6 @@ pub fn check_degenerate_triangles(
 
 #[derive(Debug)]
 pub struct CircumcirclesQualityInfo {
-    // pub invalid_triangles: Vec<(TriangleId, usize)>,
     pub non_optimal_triangles_count: usize,
 }
 impl CircumcirclesQualityInfo {
@@ -231,24 +230,39 @@ impl CircumcirclesQualityInfo {
         }
     }
 }
+pub fn get_circumcircle_info(verts: &[Vertex; 3]) -> (Vertex, Float) {
+    let (v1, v2, v3) = (verts[0], verts[1], verts[2]);
+    let b = v2 - v1;
+    let c = v3 - v1;
+    let d = 2. * (b.x * c.y - b.y * c.x);
+    let u = Vertex::new(
+        (c.y * (b.x * b.x + b.y * b.y) - b.y * (c.x * c.x + c.y * c.y)) / d,
+        (b.x * (c.x * c.x + c.y * c.y) - c.x * (b.x * b.x + b.y * b.y)) / d,
+    );
+    let center = u + v1;
+    let radius = (u.x * u.x + u.y * u.y).sqrt();
+    (center, radius)
+}
 
 /// Checks that all triangles in the triangulation have a circumcircle which does not contain any other vertices from the triangulation.
+///
+/// TODO Results may not be true if used on infinite vertices DURING the triangulation. After the triangulation, infintie vertices are always remove,d so this is not an issue.
 pub fn check_circumcircles(
-    triangles: impl IntoIterator<Item = [VertexId; 3]>,
+    triangles: impl IntoIterator<Item = [VertexId; 3]> + Clone,
     vertices: &Vec<Vertex>,
     progress_log: bool,
 ) -> CircumcirclesQualityInfo {
-    let triangles = triangles.into_iter();
-    let triangle_count = triangles.size_hint().0;
-    let mut non_optimal_triangle = 0;
-    for (_t_id, t) in triangles.enumerate() {
+    let triangles1 = triangles.clone().into_iter();
+    let triangle_count = triangles1.size_hint().0;
+    let mut non_optimal_triangles_count = 0;
+    for (t_id, t) in triangles1.enumerate() {
         #[cfg(feature = "progress_log")]
         {
-            if progress_log && _t_id % ((triangle_count / 50) + 1) == 0 {
-                let progress = 100. * _t_id as f32 / triangle_count as f32;
+            if progress_log && t_id % ((triangle_count / 50) + 1) == 0 {
+                let progress = 100. * t_id as f32 / triangle_count as f32;
                 info!(
                     "check_circumcircles progress, {}%: {}/{}",
-                    progress, _t_id, triangle_count
+                    progress, t_id, triangle_count
                 );
             }
         }
@@ -259,18 +273,30 @@ pub fn check_circumcircles(
             vertices[t[2] as usize],
         ];
 
-        for (v_id, v) in vertices.iter().enumerate() {
-            if v_id == t[0] as usize || v_id == t[1] as usize || v_id == t[2] as usize {
-                continue;
+        let circumcircle = get_circumcircle_info(&verts);
+
+        let mut found_contained_vertex = false;
+        for other_t_verts in triangles.clone().into_iter() {
+            for &v_id in other_t_verts.iter() {
+                if v_id == t[0] || v_id == t[1] || v_id == t[2] {
+                    continue;
+                }
+                let v = vertices[v_id as usize];
+                // We cannot use is_vertex_in_triangle_circumcircle here since its results depends highly on the input vertices orientation.
+                let dist = (v - circumcircle.0).length();
+                if dist < circumcircle.1 {
+                    non_optimal_triangles_count += 1;
+                    found_contained_vertex = true;
+                    break;
+                }
             }
-            if is_vertex_in_triangle_circumcircle(&verts, *v) {
-                non_optimal_triangle += 1;
+            if found_contained_vertex {
                 break;
             }
         }
     }
 
-    CircumcirclesQualityInfo::new(non_optimal_triangle)
+    CircumcirclesQualityInfo::new(non_optimal_triangles_count)
 }
 
 #[derive(Debug)]
