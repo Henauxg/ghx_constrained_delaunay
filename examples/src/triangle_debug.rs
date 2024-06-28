@@ -72,11 +72,11 @@ pub fn extend_displayed_vertices_with_container_vertice(
     }
     if detransform {
         let e1 = (displayed_vertices[0] - displayed_vertices[1]).normalize();
-        let e2 = plane_normal;
-        let e3 = e1.cross(e2);
+        let e2 = e1.cross(-plane_normal);
+        let _e3 = plane_normal;
         let plane_origin = displayed_vertices[1];
         for v in container_vertices.iter_mut() {
-            *v = plane_origin + v.x * e1 + v.y * e3 // + 0. * e2
+            *v = plane_origin + v.x * e1 + v.y * e2 // + 0. * e3
         }
     }
 
