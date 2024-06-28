@@ -1,5 +1,5 @@
-use log::error;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use tracing::error;
 
 use crate::types::{
     is_infinite, next_ccw_edge_index, next_clockwise_edge_index, next_counter_clockwise_edge_index,
@@ -14,7 +14,7 @@ use crate::utils::{
 };
 
 #[cfg(feature = "progress_log")]
-use log::info;
+use tracing::info;
 
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugConfiguration, DebugContext, EventInfo, Phase};
@@ -80,6 +80,7 @@ pub fn triangulation_from_3d_planar_vertices(
     let mut planar_vertices = transform_to_2d_planar_coordinate_system(vertices, plane_normal);
     triangulation_from_2d_vertices(&mut planar_vertices, config)
 }
+
 pub struct Triangulation {
     /// Indices of the original vertices by groups of 3 to from triangles.
     pub triangles: Vec<[VertexId; 3]>,
@@ -834,6 +835,7 @@ pub(crate) fn should_swap_diagonals(
     min_container_vertex_id: VertexId,
 ) -> bool {
     let quad_vertices = quad.to_vertices(vertices);
+
     // TODO Performance: try stack/pre-alloc
     let mut infinite_verts = Vec::new();
     if is_infinite(quad.v1(), min_container_vertex_id) {
