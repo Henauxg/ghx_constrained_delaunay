@@ -250,19 +250,19 @@ pub fn get_circumcircle_info(verts: &[Vertex; 3]) -> (Vertex, Float) {
 pub fn check_circumcircles(
     triangles: impl IntoIterator<Item = [VertexId; 3]> + Clone,
     vertices: &Vec<Vertex>,
-    progress_log: bool,
+    _progress_log: bool,
 ) -> CircumcirclesQualityInfo {
     let triangles1 = triangles.clone().into_iter();
-    let triangle_count = triangles1.size_hint().0;
+    let _triangle_count = triangles1.size_hint().0;
     let mut non_optimal_triangles_count = 0;
-    for (t_id, t) in triangles1.enumerate() {
+    for (_t_id, t) in triangles1.enumerate() {
         #[cfg(feature = "progress_log")]
         {
-            if progress_log && t_id % ((triangle_count / 50) + 1) == 0 {
-                let progress = 100. * t_id as f32 / triangle_count as f32;
+            if _progress_log && _t_id % ((_triangle_count / 50) + 1) == 0 {
+                let progress = 100. * _t_id as f32 / _triangle_count as f32;
                 info!(
                     "check_circumcircles progress, {}%: {}/{}",
-                    progress, t_id, triangle_count
+                    progress, _t_id, _triangle_count
                 );
             }
         }
