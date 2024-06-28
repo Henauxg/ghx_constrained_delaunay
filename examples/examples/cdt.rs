@@ -30,22 +30,22 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let vertices = vec![
-        [0., 0., 0.],
-        [2., 0., 0.],
-        [2., 2., 0.],
-        [2., 4., 0.],
-        [11., 4., 0.],
-        [11., 1., 0.],
-        [7., -1., 0.],
-        [1., -2., 0.],
-        [-5., 0., 0.],
-        [-7., 4., 0.],
-        [-4., 6., 0.],
-        [0., 6., 0.],
-        [6., 1., 0.],
-        [8., 3., 0.],
-        [-3., 1., 0.],
-        [-4., 4., 0.],
+        Vector3::new(0., 0., 0.),
+        Vector3::new(2., 0., 0.),
+        Vector3::new(2., 2., 0.),
+        Vector3::new(2., 4., 0.),
+        Vector3::new(11., 4., 0.),
+        Vector3::new(11., 1., 0.),
+        Vector3::new(7., -1., 0.),
+        Vector3::new(1., -2., 0.),
+        Vector3::new(-5., 0., 0.),
+        Vector3::new(-7., 4., 0.),
+        Vector3::new(-4., 6., 0.),
+        Vector3::new(0., 6., 0.),
+        Vector3::new(6., 1., 0.),
+        Vector3::new(8., 3., 0.),
+        Vector3::new(-3., 1., 0.),
+        Vector3::new(-4., 4., 0.),
     ];
 
     let constrained_edges = vec![
@@ -74,12 +74,13 @@ fn setup(mut commands: Commands) {
     );
 
     let delaunay_quality = check_delaunay_optimal(
-        &triangulation,
+        triangulation.triangles,
         &vertices.iter().map(|v| Vertex::new(v[0], v[1])).collect(),
+        false,
     );
     info!("Delaunay quality info:: {:?}", delaunay_quality);
 
-    let mut displayed_vertices = vertices.iter().map(|v| Vector3::from_slice(v)).collect();
+    let mut displayed_vertices = vertices.clone();
     extend_displayed_vertices_with_container_vertice(
         &mut displayed_vertices,
         plane_normal,
