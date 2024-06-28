@@ -10,7 +10,7 @@ use crate::types::{
 };
 use crate::utils::{
     is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
-    on_segment, test_point_edge_side,
+    test_point_edge_side,
 };
 
 #[cfg(feature = "progress_log")]
@@ -187,24 +187,26 @@ pub(crate) fn normalize_vertices_coordinates(
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum SearchResult {
-    EnclosingTriangle(TriangleId),
+enum VertexPlacement {
+    InsideTriangle(TriangleId),
     OnTriangleEdge(TriangleId, TriangleEdgeIndex),
-    NotFound,
+    OnVertex(VertexId),
 }
 
-fn search_enclosing_triangle(
+// TODO Details
+pub struct TriangulationError;
+
+fn find_vertex_placement(
     vertex: Vertex,
     from: Neighbor,
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
-) -> SearchResult {
+) -> Result<VertexPlacement, TriangulationError> {
     #[cfg(feature = "profile_traces")]
-    let _span = span!(Level::TRACE, "search_enclosing_triangle").entered();
+    let _span = span!(Level::TRACE, "find_vertex_placement").entered();
 
     let mut neighbor = from;
 
-    let mut search_result = SearchResult::NotFound;
     // We use `triangles.len()` as an upper bound on the number of triangles
     for _ in 0..triangles.count() {
         if !neighbor.exists() {
@@ -230,26 +232,47 @@ fn search_enclosing_triangle(
             continue;
         }
 
-        // Check if the point is on an edge of the triangle
-        if edge_12_test.is_colinear() && on_segment(v1, vertex, v2) {
-            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_12);
-            break;
+        // Check the point's position relative to this triangle's vertices
+        if edge_12_test.is_colinear() {
+            if is_vertex_pair_too_close(v1, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v1()));
+            }
+            if is_vertex_pair_too_close(v2, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v2()));
+            }
+            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_12));
+        } else if edge_23_test.is_colinear() {
+            if is_vertex_pair_too_close(v2, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v2()));
+            }
+            if is_vertex_pair_too_close(v3, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v3()));
+            }
+            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_23));
+        } else if edge_31_test.is_colinear() {
+            if is_vertex_pair_too_close(v3, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v3()));
+            }
+            if is_vertex_pair_too_close(v1, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v1()));
+            }
+            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_31));
+        } else {
+            if is_vertex_pair_too_close(v1, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v1()));
+            }
+            if is_vertex_pair_too_close(v2, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v2()));
+            }
+            if is_vertex_pair_too_close(v3, vertex) {
+                return Ok(VertexPlacement::OnVertex(triangle.v3()));
+            }
+            // Point is inside the current triangle
+            return Ok(VertexPlacement::InsideTriangle(neighbor.id));
         }
-        if edge_23_test.is_colinear() && on_segment(v2, vertex, v3) {
-            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_23);
-            break;
-        }
-        if edge_31_test.is_colinear() && on_segment(v3, vertex, v1) {
-            search_result = SearchResult::OnTriangleEdge(neighbor.id, EDGE_31);
-            break;
-        }
-
-        // Point is inside the current triangle
-        search_result = SearchResult::EnclosingTriangle(neighbor.id);
-        break;
     }
 
-    search_result
+    Err(TriangulationError)
 }
 
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
@@ -264,18 +287,10 @@ pub(crate) fn add_container_triangle_vertices(
     (container_triangle, min_container_triangle_vertex_id)
 }
 
-pub(crate) fn find_existing_close_vertex(
-    triangle: &TriangleData,
-    triangle_verts: &[Vertex; 3],
-    vertex: Vertex,
-) -> Option<VertexId> {
-    for (vertex_index, triangle_vertex) in triangle_verts.iter().enumerate() {
-        let dist = *triangle_vertex - vertex;
-        if dist.x.abs() < Float::EPSILON && dist.y.abs() < Float::EPSILON {
-            return Some(triangle.verts[vertex_index]);
-        }
-    }
-    None
+#[inline]
+pub(crate) fn is_vertex_pair_too_close(a: Vertex, b: Vertex) -> bool {
+    let dist = a - b;
+    dist.x.abs() < Float::EPSILON && dist.y.abs() < Float::EPSILON
 }
 
 /// - `vertices` should be normalized with their cooridnates in [0,1]
@@ -320,116 +335,71 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         // Find an existing triangle which encloses P
         let vertex = vertices[vertex_id as usize];
-        match search_enclosing_triangle(vertex, triangle_id, &triangles, &vertices) {
-            SearchResult::OnTriangleEdge(enclosing_triangle_id, edge_index) => {
-                // Compare to the points in the triangle, if too close to one, continue
-                let triangle = &triangles.get(enclosing_triangle_id);
-                let triangle_verts = triangle.to_vertices_array(vertices);
-                if let Some(existing_vertex_id) =
-                    find_existing_close_vertex(&triangle, &triangle_verts, vertex)
-                {
-                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                        vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
-                    }
-                    continue;
-                }
+        let Ok(vertex_place) = find_vertex_placement(vertex, triangle_id, &triangles, &vertices)
+        else {
+            // TODO Internal error
+            error!(
+                "Internal error, found no triangle containing vertex {:?}, step {}",
+                vertex_id, _index
+            );
+            break;
+        };
 
-                let new_triangles = split_quad_into_four_triangles(
+        let new_triangles = match vertex_place {
+            VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
+                // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
+                split_triangle_in_three_at_vertex(
+                    &mut triangles,
+                    enclosing_triangle_id,
+                    vertex_id,
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
+                )
+            }
+            VertexPlacement::OnTriangleEdge(enclosing_triangle_id, edge_index) => {
+                split_quad_into_four_triangles(
                     &mut triangles,
                     enclosing_triangle_id,
                     edge_index,
                     vertex_id,
                     #[cfg(feature = "debug_context")]
                     debug_context,
-                );
-
-                restore_delaunay_triangulation(
-                    &mut triangles,
-                    vertices,
-                    min_container_vertex_id,
-                    vertex_id,
-                    new_triangles,
-                    &mut quads_to_check,
-                    #[cfg(feature = "debug_context")]
-                    debug_context,
-                );
-
-                // We'll start the search for the next enclosing triangle from the last created triangle.
-                // This is a pretty good heuristic since the vertices were spatially partitionned
-                triangle_id = Neighbor::new(triangles.last_id());
-
-                #[cfg(feature = "progress_log")]
-                {
-                    if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
-                        let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
-                        info!(
-                            "Triangulation progress, step n°{}, {}%: {}/{}",
-                            debug_context.current_step,
-                            progress,
-                            _index,
-                            partitioned_vertices.len()
-                        );
-                    }
-                }
+                )
             }
-            SearchResult::EnclosingTriangle(enclosing_triangle_id) => {
-                // Compare to the points in the triangle, if too close to one, continue
-                let triangle = &triangles.get(enclosing_triangle_id);
-                let triangle_verts = triangle.to_vertices_array(vertices);
-                if let Some(existing_vertex_id) =
-                    find_existing_close_vertex(&triangle, &triangle_verts, vertex)
-                {
-                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                        vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
-                    }
-                    continue;
+            VertexPlacement::OnVertex(existing_vertex_id) => {
+                if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                    vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
                 }
-
-                // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
-                let new_triangles = split_triangle_in_three_at_vertex(
-                    &mut triangles,
-                    enclosing_triangle_id,
-                    vertex_id,
-                    #[cfg(feature = "debug_context")]
-                    debug_context,
-                );
-
-                restore_delaunay_triangulation(
-                    &mut triangles,
-                    vertices,
-                    min_container_vertex_id,
-                    vertex_id,
-                    new_triangles,
-                    &mut quads_to_check,
-                    #[cfg(feature = "debug_context")]
-                    debug_context,
-                );
-
-                // We'll start the search for the next enclosing triangle from the last created triangle.
-                // This is a pretty good heuristic since the vertices were spatially partitionned
-                triangle_id = Neighbor::new(triangles.last_id());
-
-                #[cfg(feature = "progress_log")]
-                {
-                    if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
-                        let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
-                        info!(
-                            "Triangulation progress, step n°{}, {}%: {}/{}",
-                            debug_context.current_step,
-                            progress,
-                            _index,
-                            partitioned_vertices.len()
-                        );
-                    }
-                }
+                continue;
             }
-            SearchResult::NotFound => {
-                // TODO Error
-                error!(
-                    "Found no triangle enclosing vertex {:?}, step {}",
-                    vertex_id, _index
+        };
+
+        restore_delaunay_triangulation(
+            &mut triangles,
+            vertices,
+            min_container_vertex_id,
+            vertex_id,
+            new_triangles,
+            &mut quads_to_check,
+            #[cfg(feature = "debug_context")]
+            debug_context,
+        );
+
+        // We'll start the search for the next enclosing triangle from the last created triangle.
+        // This is a pretty good heuristic since the vertices were spatially partitionned
+        triangle_id = Neighbor::new(triangles.last_id());
+
+        #[cfg(feature = "progress_log")]
+        {
+            if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
+                let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
+                info!(
+                    "Triangulation progress, step n°{}, {}%: {}/{}",
+                    debug_context.current_step,
+                    progress,
+                    _index,
+                    partitioned_vertices.len()
                 );
-                break;
             }
         }
     }
