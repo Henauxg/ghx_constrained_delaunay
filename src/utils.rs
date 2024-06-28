@@ -4,7 +4,7 @@ use crate::{
 };
 
 #[cfg(feature = "progress_log")]
-use log::info;
+use tracing::info;
 
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};

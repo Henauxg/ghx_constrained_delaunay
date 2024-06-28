@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use hashbrown::HashSet;
-use log::error;
+use tracing::error;
 
 use crate::triangulation::{
     normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
@@ -21,7 +21,7 @@ use crate::debug::{DebugConfiguration, DebugContext, Phase};
 use tracing::{span, Level};
 
 #[cfg(feature = "progress_log")]
-use log::info;
+use tracing::info;
 
 use crate::{
     triangulation::{self, wrap_and_triangulate_2d_normalized_vertices},
