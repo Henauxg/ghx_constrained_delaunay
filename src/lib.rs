@@ -32,7 +32,7 @@ mod tests {
             ConstrainedTriangulationConfiguration,
         },
         triangulation::{triangulation_from_3d_planar_vertices, TriangulationConfiguration},
-        types::{Edge, Float},
+        types::{Edge, Vector3},
     };
 
     #[test]
@@ -43,12 +43,12 @@ mod tests {
         // |        \    |
         // |           \ |
         // ---------------
-        let mut vertices = Vec::<[Float; 3]>::new();
+        let mut vertices = Vec::<Vector3>::new();
 
-        vertices.push([0., 0., 0.]);
-        vertices.push([0., 5., 0.]);
-        vertices.push([5., 5., 0.]);
-        vertices.push([5., 0., 0.]);
+        vertices.push([0., 0., 0.].into());
+        vertices.push([0., 5., 0.].into());
+        vertices.push([5., 5., 0.].into());
+        vertices.push([5., 0., 0.].into());
 
         let plane_normal = Vec3::Z;
         let triangulation = triangulation_from_3d_planar_vertices(
@@ -73,14 +73,14 @@ mod tests {
         // |        \    |
         // |           \ |
         // ---------------
-        let mut vertices = Vec::<[Float; 3]>::new();
-
-        vertices.push([0., 0., 0.]);
-        vertices.push([0., 10., 0.]);
-        vertices.push([0., 5., 0.]);
-        vertices.push([5., 0., 0.]);
-        vertices.push([5., 5., 0.]);
-        vertices.push([5., 10., 0.]);
+        let vertices = vec![
+            Vector3::new(0., 0., 0.),
+            Vector3::new(0., 10., 0.),
+            Vector3::new(0., 5., 0.),
+            Vector3::new(5., 0., 0.),
+            Vector3::new(5., 5., 0.),
+            Vector3::new(5., 10., 0.),
+        ];
 
         let plane_normal = Vec3::Z;
         let triangulation = triangulation_from_3d_planar_vertices(
@@ -110,27 +110,24 @@ mod tests {
         // |   -----------<---------------------------------   |
         // |                                                   |
         // --------------->-------------------------------------
-        let mut vertices = Vec::<[Float; 3]>::new();
-
-        vertices.push([-4., 3., 0.]);
-        vertices.push([3., 3., 0.]);
-        vertices.push([3., -2., 0.]);
-        vertices.push([-4., -2., 0.]);
-
-        vertices.push([-3., 2., 0.]);
-        vertices.push([2., 2., 0.]);
-        vertices.push([2., -1., 0.]);
-        vertices.push([-3., -1., 0.]);
-
-        vertices.push([-2., 1., 0.]);
-        vertices.push([-1., 1., 0.]);
-        vertices.push([-1., 0., 0.]);
-        vertices.push([-2., 0., 0.]);
-
-        vertices.push([0., 1., 0.]);
-        vertices.push([1., 1., 0.]);
-        vertices.push([1., 0., 0.]);
-        vertices.push([0., 0., 0.]);
+        let vertices = vec![
+            Vector3::new(-4., 3., 0.),
+            Vector3::new(3., 3., 0.),
+            Vector3::new(3., -2., 0.),
+            Vector3::new(-4., -2., 0.),
+            Vector3::new(-3., 2., 0.),
+            Vector3::new(2., 2., 0.),
+            Vector3::new(2., -1., 0.),
+            Vector3::new(-3., -1., 0.),
+            Vector3::new(-2., 1., 0.),
+            Vector3::new(-1., 1., 0.),
+            Vector3::new(-1., 0., 0.),
+            Vector3::new(-2., 0., 0.),
+            Vector3::new(0., 1., 0.),
+            Vector3::new(1., 1., 0.),
+            Vector3::new(1., 0., 0.),
+            Vector3::new(0., 0., 0.),
+        ];
 
         let mut constrained_edges = Vec::new();
 
@@ -180,71 +177,68 @@ mod tests {
         // TODO Compare indices
         assert_eq!(36, constrained_vertices.len());
         assert_eq!(
-            Vec::from([
-                [1.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0],
-                [1.0, 1.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [3.0, -2.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [3.0, -2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-3.0, 2.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-3.0, 2.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-1.0, 1.0, 0.0],
-                [-2.0, 0.0, 0.0],
-                [-1.0, 0.0, 0.0],
-                [-2.0, 1.0, 0.0],
-                [-2.0, 0.0, 0.0],
-                [-1.0, 1.0, 0.0],
-            ]),
+            vec![
+                Vector3::new(1.0, 1.0, 0.0),
+                Vector3::new(0.0, 0.0, 0.0),
+                Vector3::new(1.0, 0.0, 0.0),
+                Vector3::new(0.0, 1.0, 0.0),
+                Vector3::new(0.0, 0.0, 0.0),
+                Vector3::new(1.0, 1.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(3.0, -2.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(3.0, -2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-3.0, 2.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-3.0, 2.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-1.0, 1.0, 0.0),
+                Vector3::new(-2.0, 0.0, 0.0),
+                Vector3::new(-1.0, 0.0, 0.0),
+                Vector3::new(-2.0, 1.0, 0.0),
+                Vector3::new(-2.0, 0.0, 0.0),
+                Vector3::new(-1.0, 1.0, 0.0),
+            ],
             constrained_vertices
         );
     }
 
     #[test]
     fn constrained_delaunay_level_4() {
-        let mut vertices = Vec::<[Float; 3]>::new();
-
-        vertices.push([-4., 3., 0.]);
-        vertices.push([3., 3., 0.]);
-        vertices.push([3., -2., 0.]);
-        vertices.push([-4., -2., 0.]);
-
-        vertices.push([-3., 2., 0.]);
-        vertices.push([2., 2., 0.]);
-        vertices.push([2., -1., 0.]);
-        vertices.push([-3., -1., 0.]);
-
-        vertices.push([-2., 1., 0.]);
-        vertices.push([-1., 1., 0.]);
-        vertices.push([-1., 0., 0.]);
-        vertices.push([-2., 0., 0.]);
-
-        vertices.push([0., 1., 0.]);
-        vertices.push([1., 1., 0.]);
-        vertices.push([1., 0., 0.]);
-        vertices.push([0., 0., 0.]);
+        let vertices = vec![
+            Vector3::new(-4., 3., 0.),
+            Vector3::new(3., 3., 0.),
+            Vector3::new(3., -2., 0.),
+            Vector3::new(-4., -2., 0.),
+            Vector3::new(-3., 2., 0.),
+            Vector3::new(2., 2., 0.),
+            Vector3::new(2., -1., 0.),
+            Vector3::new(-3., -1., 0.),
+            Vector3::new(-2., 1., 0.),
+            Vector3::new(-1., 1., 0.),
+            Vector3::new(-1., 0., 0.),
+            Vector3::new(-2., 0., 0.),
+            Vector3::new(0., 1., 0.),
+            Vector3::new(1., 1., 0.),
+            Vector3::new(1., 0., 0.),
+            Vector3::new(0., 0., 0.),
+        ];
 
         let mut constrained_edges = Vec::new();
 
@@ -294,44 +288,44 @@ mod tests {
         // TODO Compare indices
         assert_eq!(36, constrained_vertices.len());
         assert_eq!(
-            Vec::from([
-                [1.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0],
-                [1.0, 1.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [3.0, -2.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [3.0, -2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-4.0, -2.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-3.0, -1.0, 0.0],
-                [-3.0, 2.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [-3.0, 2.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [-4.0, 3.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [3.0, 3.0, 0.0],
-                [2.0, 2.0, 0.0],
-                [2.0, -1.0, 0.0],
-                [-1.0, 1.0, 0.0],
-                [-2.0, 0.0, 0.0],
-                [-1.0, 0.0, 0.0],
-                [-2.0, 1.0, 0.0],
-                [-2.0, 0.0, 0.0],
-                [-1.0, 1.0, 0.0],
-            ]),
+            vec![
+                Vector3::new(1.0, 1.0, 0.0),
+                Vector3::new(0.0, 0.0, 0.0),
+                Vector3::new(1.0, 0.0, 0.0),
+                Vector3::new(0.0, 1.0, 0.0),
+                Vector3::new(0.0, 0.0, 0.0),
+                Vector3::new(1.0, 1.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(3.0, -2.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(3.0, -2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-4.0, -2.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-3.0, -1.0, 0.0),
+                Vector3::new(-3.0, 2.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(-3.0, 2.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(-4.0, 3.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(3.0, 3.0, 0.0),
+                Vector3::new(2.0, 2.0, 0.0),
+                Vector3::new(2.0, -1.0, 0.0),
+                Vector3::new(-1.0, 1.0, 0.0),
+                Vector3::new(-2.0, 0.0, 0.0),
+                Vector3::new(-1.0, 0.0, 0.0),
+                Vector3::new(-2.0, 1.0, 0.0),
+                Vector3::new(-2.0, 0.0, 0.0),
+                Vector3::new(-1.0, 1.0, 0.0),
+            ],
             constrained_vertices
         );
     }
