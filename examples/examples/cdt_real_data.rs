@@ -123,7 +123,8 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
         now.elapsed().as_millis()
     );
 
-    let delaunay_quality = check_degenerate_triangles(&triangulation, &vertices_clone);
+    let delaunay_quality =
+        check_degenerate_triangles(triangulation.triangles.iter().copied(), &vertices_clone);
     info!("Delaunay quality info:: {:?}", delaunay_quality);
 
     triangulation

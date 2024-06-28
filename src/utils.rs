@@ -1,7 +1,4 @@
-use crate::{
-    types::{EdgeVertices, Float, Vertex},
-    Triangulation,
-};
+use crate::types::{EdgeVertices, Float, Vertex, VertexId};
 
 #[cfg(feature = "progress_log")]
 use tracing::info;
@@ -200,13 +197,13 @@ impl DegenerateTrianglesInfo {
 
 /// Check degenerate (flat) triangles
 pub fn check_degenerate_triangles(
-    triangulation: &Triangulation,
+    triangles: impl IntoIterator<Item = [VertexId; 3]>,
     vertices: &Vec<Vertex>,
 ) -> DegenerateTrianglesInfo {
     let mut flat_triangles_count = 0;
     let mut ccw_triangles_count = 0;
 
-    for t in triangulation.triangles.iter() {
+    for t in triangles.into_iter() {
         let (v1, v2, v3) = (
             vertices[t[0] as usize],
             vertices[t[1] as usize],
@@ -235,22 +232,23 @@ impl CircumcirclesQualityInfo {
     }
 }
 
-/// Check that all triangles in the triangulation have a circumcircle which does not contain any other vertices from the triangulation.
+/// Checks that all triangles in the triangulation have a circumcircle which does not contain any other vertices from the triangulation.
 pub fn check_circumcircles(
-    triangulation: &Triangulation,
+    triangles: impl IntoIterator<Item = [VertexId; 3]>,
     vertices: &Vec<Vertex>,
+    progress_log: bool,
 ) -> CircumcirclesQualityInfo {
+    let triangles = triangles.into_iter();
+    let triangle_count = triangles.size_hint().0;
     let mut non_optimal_triangle = 0;
-    for (_t_id, t) in triangulation.triangles.iter().enumerate() {
+    for (_t_id, t) in triangles.enumerate() {
         #[cfg(feature = "progress_log")]
         {
-            if _t_id % ((triangulation.triangles.len() / 50) + 1) == 0 {
-                let progress = 100. * _t_id as f32 / triangulation.triangles.len() as f32;
+            if progress_log && _t_id % ((triangle_count / 50) + 1) == 0 {
+                let progress = 100. * _t_id as f32 / triangle_count as f32;
                 info!(
                     "check_circumcircles progress, {}%: {}/{}",
-                    progress,
-                    _t_id,
-                    triangulation.triangles.len()
+                    progress, _t_id, triangle_count
                 );
             }
         }
@@ -293,12 +291,16 @@ impl DelaunayQualityInfo {
 }
 
 /// Slow and simple check of the Delaunay optimality of a triangulation
-pub fn check_delaunay_optimal(
-    triangulation: &Triangulation,
+pub fn check_delaunay_optimal<T>(
+    triangles: T,
     vertices: &Vec<Vertex>,
-) -> DelaunayQualityInfo {
-    let degenerate_triangles_info = check_degenerate_triangles(triangulation, vertices);
-    let circumcircles_info = check_circumcircles(triangulation, vertices);
+    progress_log: bool,
+) -> DelaunayQualityInfo
+where
+    T: IntoIterator<Item = [VertexId; 3]> + Clone,
+{
+    let degenerate_triangles_info = check_degenerate_triangles(triangles.clone(), vertices);
+    let circumcircles_info = check_circumcircles(triangles, vertices, progress_log);
 
     DelaunayQualityInfo::new(degenerate_triangles_info, circumcircles_info)
 }
