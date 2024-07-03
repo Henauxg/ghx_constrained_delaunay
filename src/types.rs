@@ -97,6 +97,14 @@ impl Edge {
     pub fn contains(&self, vert: VertexId) -> bool {
         self.from == vert || self.to == vert
     }
+
+    #[inline]
+    pub fn opposite(&self) -> Self {
+        Self {
+            from: self.to,
+            to: self.from,
+        }
+    }
 }
 impl From<(VertexId, VertexId)> for Edge {
     fn from(vertices: (VertexId, VertexId)) -> Edge {
