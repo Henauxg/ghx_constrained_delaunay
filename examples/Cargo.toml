@@ -57,3 +57,5 @@ bevy = { version = "0.13", default-features = false, features = [
 ] }
 bevy_mod_billboard = { version = "0.6.0", git = "https://github.com/kulkalkul/bevy_mod_billboard.git" }
 shapefile = "0.6.0"
+rmp-serde = "1.3.0"
+serde = { version = "1.0.203", features = ["derive"] }
