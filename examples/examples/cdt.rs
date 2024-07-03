@@ -49,20 +49,20 @@ fn setup(mut commands: Commands) {
     ];
 
     let constrained_edges = vec![
-        Edge::new(0, 11),
-        Edge::new(11, 10),
-        Edge::new(10, 9),
-        Edge::new(9, 8),
-        Edge::new(8, 7),
-        Edge::new(7, 6),
-        Edge::new(6, 5),
-        Edge::new(5, 4),
-        Edge::new(4, 3),
-        Edge::new(3, 2),
-        Edge::new(2, 1),
-        Edge::new(1, 0),
-        Edge::new(12, 13),
-        Edge::new(14, 15),
+        Edge::new(11, 0),
+        Edge::new(10, 11),
+        Edge::new(9, 10),
+        Edge::new(8, 9),
+        Edge::new(7, 8),
+        Edge::new(6, 7),
+        Edge::new(5, 6),
+        Edge::new(4, 5),
+        Edge::new(3, 4),
+        Edge::new(2, 3),
+        Edge::new(1, 2),
+        Edge::new(0, 1),
+        Edge::new(13, 12),
+        Edge::new(15, 14),
     ];
 
     let plane_normal = Vector3::Z;
@@ -87,12 +87,13 @@ fn setup(mut commands: Commands) {
         &triangulation.debug_context,
         true,
     );
-    commands.insert_resource(TrianglesDebugData::new(
+    commands.insert_resource(TrianglesDebugData::new_with_constraintss(
         displayed_vertices,
+        &constrained_edges,
         triangulation.debug_context,
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::All,
-        TrianglesDrawMode::AllAsGizmos,
+        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
     ));
 }
