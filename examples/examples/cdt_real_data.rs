@@ -66,7 +66,7 @@ fn setup(mut commands: Commands) {
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
 
-    let triangulation = load_with_ghx_cdt_crate(&vertices, &edges);
+    let (triangulation, edges) = load_with_ghx_cdt_crate(&vertices, &edges);
 
     let plane_normal = Vector3::Z;
     let mut displayed_vertices = vertices
@@ -80,8 +80,9 @@ fn setup(mut commands: Commands) {
         false,
     );
 
-    commands.insert_resource(TrianglesDebugData::new(
+    commands.insert_resource(TrianglesDebugData::new_with_constraintss(
         displayed_vertices,
+        &edges,
         triangulation.debug_context,
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
@@ -91,7 +92,10 @@ fn setup(mut commands: Commands) {
     // TODO Center camera on data
 }
 
-fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangulation {
+fn load_with_ghx_cdt_crate(
+    vertices: &[Vertex],
+    edges: &[[usize; 2]],
+) -> (Triangulation, Vec<Edge>) {
     let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
 
     let config = ConstrainedTriangulationConfiguration {
@@ -127,7 +131,7 @@ fn load_with_ghx_cdt_crate(vertices: &[Vertex], edges: &[[usize; 2]]) -> Triangu
         check_degenerate_triangles(triangulation.triangles.iter().copied(), &vertices_clone);
     info!("Delaunay quality info:: {:?}", delaunay_quality);
 
-    triangulation
+    (triangulation, edges)
 }
 
 fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebugData>) {
