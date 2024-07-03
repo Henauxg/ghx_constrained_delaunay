@@ -370,10 +370,8 @@ fn edge_and_constrained_edge_intersection(
         // TODO Cold function  ?
         // Test intersection between edge and infinite edge segment
         let (infinite_vert_id, finite_vert) = infinite_verts[0];
-        egdes_intersect(
-            &constrained_edge_verts,
-            &get_segment_from_infinite_edge(finite_vert, infinite_vert_id),
-        )
+        let extrapolated_segment = get_segment_from_infinite_edge(finite_vert, infinite_vert_id);
+        egdes_intersect(&constrained_edge_verts, &extrapolated_segment)
     } else {
         EdgesIntersectionResult::None
     }
@@ -409,13 +407,13 @@ fn loop_around_vertex_and_search_intersection(
         let edge = triangle.edge(edge_index);
         let edge_vertices = edge.to_vertices(vertices);
 
-        if edge_and_constrained_edge_intersection(
+        let intersection = edge_and_constrained_edge_intersection(
             &edge,
             &edge_vertices,
             constrained_edge_verts,
             min_container_vertex_id,
-        ) == EdgesIntersectionResult::Crossing
-        {
+        );
+        if intersection == EdgesIntersectionResult::Crossing {
             let neighbor_triangle = triangle.neighbor(edge_index);
             if neighbor_triangle.exists() {
                 return EdgeFirstIntersection::Intersection(EdgeData {
@@ -451,7 +449,7 @@ fn search_first_interstected_quad(
     let _span = span!(Level::TRACE, "search_first_interstected_quad").entered();
 
     // Search clockwise
-    let res = loop_around_vertex_and_search_intersection(
+    let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
         min_container_vertex_id,
@@ -460,9 +458,9 @@ fn search_first_interstected_quad(
         constrained_edge_vertices,
         next_clockwise_edge_index_around,
     );
-    match &res {
+    match &intersection {
         EdgeFirstIntersection::NotFound => (),
-        _ => return res,
+        _ => return intersection,
     }
 
     // Get the counter-clockwise neighbor of the starting triangle
@@ -474,7 +472,7 @@ fn search_first_interstected_quad(
     let neighbor_triangle = triangle.neighbor(edge_index).id;
 
     // Search counterclockwise
-    let res = loop_around_vertex_and_search_intersection(
+    let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
         min_container_vertex_id,
@@ -483,14 +481,14 @@ fn search_first_interstected_quad(
         constrained_edge_vertices,
         next_counter_clockwise_edge_index_around,
     );
-    match &res {
+    match &intersection {
         EdgeFirstIntersection::NotFound => {
             // TODO Return an internal error ?
             error!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from);
         }
         _ => (),
     }
-    return res;
+    return intersection;
 }
 
 fn register_intersected_edges(
