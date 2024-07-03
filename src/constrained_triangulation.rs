@@ -68,9 +68,25 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges, config)
 }
 
-/// - `constrained_edges` **MUST**:
-///     - be oriented: from -> to
-///     - not contain edges with from == to
+/// - Constrained edges **MUST** not contain edges with from == to
+///
+/// As visible in the figure below,
+/// - Contours (set of constrained edges) forming a CW cycle indicate a domain to triangulate.
+/// - Contours forming a CCW cycle indicate a domain that should be discarded from the triangulation.
+///
+/// ```text
+/// ------------->-----------------------------------
+/// |                   keep (CW)                   |
+/// | -----------<--------------------------------- |
+/// | |                remove (CCW)               | |
+/// | |   ------->--------     ------->--------   | |
+/// | |   |              |     |              |   | |
+/// ^ v   ^   keep (CW)  v     ^   keep (CW)  v   ^ v
+/// | |   |              |     |              |   | |
+/// | |   -------<--------     -------<--------   | |
+/// | ----------->--------------------------------- |
+/// -------------<-----------------------------------
+/// ```
 pub fn constrained_triangulation_from_2d_vertices(
     vertices: &Vec<Vertex>,
     constrained_edges: &Vec<Edge>,
@@ -130,26 +146,6 @@ pub fn constrained_triangulation_from_2d_vertices(
 
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
 /// the container triangle.
-///
-/// This supposes that all groups of constrained edges are cycles, and oriented, as shown below:
-///
-/// ```text
-///
-/// ---------------<-------------------------------------
-/// |                        keep                       |
-/// |   ----------->---------------------------------   |
-/// |   |                   remove                  |   |
-/// |   |   -------<--------     -------<--------   |   |
-/// |   |   |              |     |              |   |   |
-/// v   ∧   v     keep     ∧     v     keep     ∧   v   ∧
-/// |   |   |              |     |              |   |   |
-/// |   |   ------->--------     ------->--------   |   |
-/// |   |                                           |   |
-/// |   -----------<---------------------------------   |
-/// |                                                   |
-/// --------------->-------------------------------------
-///
-/// ```
 fn remove_wrapping_and_unconstrained_domains(
     triangles: &Triangles,
     min_container_vertex_id: VertexId,
