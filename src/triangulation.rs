@@ -64,7 +64,7 @@ pub const CONTAINER_TRIANGLE_VERTICES: [Vertex; 3] = [
     ),
 ];
 pub const CONTAINER_TRIANGLE_TOP_VERTEX_INDEX: TriangleVertexIndex = 1;
-pub const INFINITE_VERTS_SLOPES: [Float; 3] = [2., 0., -2.];
+pub const INFINITE_VERTS_SLOPES: [Float; 3] = [1., 0., -1.];
 
 // Slightly higher values than 1.0 to be safe.
 pub const DELTA_VALUE: Float = 1.42;
