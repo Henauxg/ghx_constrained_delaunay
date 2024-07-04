@@ -458,6 +458,10 @@ impl Quad {
     }
 
     #[inline]
+    pub fn v(&self, vertex_index: TriangleVertexIndex) -> VertexId {
+        self.verts[vertex_index as usize]
+    }
+    #[inline]
     pub fn v1(&self) -> VertexId {
         self.verts[QUAD_1 as usize]
     }
