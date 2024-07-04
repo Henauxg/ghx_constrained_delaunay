@@ -54,15 +54,24 @@ pub const EDGE_TO_VERTS: [[TriangleVertexIndex; 2]; 3] =
 /// From a TriangleEdgeIndex, gives the opposite vertex index
 pub const OPPOSITE_VERTEX_INDEX: [TriangleVertexIndex; 3] = [VERT_3, VERT_1, VERT_2];
 
+/// From a TriangleVertexIndex, gives the next vertex index in a clockwise order
+pub const NEXT_CW_VERTEX_INDEX: [TriangleVertexIndex; 3] = [VERT_2, VERT_3, VERT_1];
+/// From a TriangleVertexIndex, gives the next vertex index in a counter-clockwise order
+pub const NEXT_CCW_VERTEX_INDEX: [TriangleVertexIndex; 3] = [VERT_3, VERT_1, VERT_2];
 /// From a TriangleVertexIndex, gives the opposite edge index
 pub const OPPOSITE_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_23, EDGE_31, EDGE_12];
-/// From a TriangleVertexIndex, gives the opposite edge index
+/// From a TriangleVertexIndex, gives the next edge index in a CCW order
 pub const NEXT_CCW_EDGE_INDEX: [TriangleEdgeIndex; 3] = [EDGE_31, EDGE_12, EDGE_23];
-/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a clockwise order
-pub const NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
+
+/// From a TriangleVertexIndex, gives the outermost TriangleEdgeIndex in a clockwise order
+///
+/// Used for looping around a vertex
+pub const OUTERMOST_CW_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
     [EDGE_31, EDGE_12, EDGE_23];
-/// From a TriangleVertexIndex, gives the next TriangleEdgeIndex in a counter-clockwise order
-pub const NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
+/// From a TriangleVertexIndex, gives the outermost TriangleEdgeIndex in a counter-clockwise order
+///
+/// Used for looping around a vertex
+pub const OUTERMOST_CCW_EDGE_INDEX_AROUND_VERTEX: [TriangleEdgeIndex; 3] =
     [EDGE_12, EDGE_23, EDGE_31];
 
 pub const ADJACENT_QUAD_VERTICES_INDEXES: [[TriangleVertexIndex; 2]; 4] = [
@@ -394,15 +403,15 @@ pub fn next_counter_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> Trian
 }
 
 #[inline]
-pub fn next_clockwise_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-    NEXT_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
+pub fn outermost_clockwise_edge_index_around(vert_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    OUTERMOST_CW_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
 }
 
 #[inline]
-pub fn next_counter_clockwise_edge_index_around(
+pub fn outermost_counter_clockwise_edge_index_around(
     vert_index: TriangleVertexIndex,
 ) -> TriangleEdgeIndex {
-    NEXT_COUNTER_CLOCKWISE_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
+    OUTERMOST_CCW_EDGE_INDEX_AROUND_VERTEX[vert_index as usize]
 }
 
 #[inline]
@@ -417,14 +426,25 @@ pub fn opposite_vertex_index(edge_index: TriangleEdgeIndex) -> TriangleVertexInd
 
 /// From a TriangleVertexIndex, returns the next edge index in a CW order
 #[inline]
-pub fn next_cw_edge_index(edge_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-    edge_index as TriangleEdgeIndex
+pub fn vertex_next_cw_edge_index(vertex_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    vertex_index as TriangleEdgeIndex
 }
 
 /// From a TriangleVertexIndex, returns the next edge index in a CCW order
 #[inline]
-pub fn next_ccw_edge_index(edge_index: TriangleVertexIndex) -> TriangleEdgeIndex {
-    NEXT_CCW_EDGE_INDEX[edge_index as usize]
+pub fn vertex_next_ccw_edge_index(vertex_index: TriangleVertexIndex) -> TriangleEdgeIndex {
+    NEXT_CCW_EDGE_INDEX[vertex_index as usize]
+}
+
+#[inline]
+pub fn next_clockwise_vertex_index(vertex_index: TriangleVertexIndex) -> TriangleVertexIndex {
+    NEXT_CW_VERTEX_INDEX[vertex_index as usize]
+}
+#[inline]
+pub fn next_counter_clockwise_vertex_index(
+    vertex_index: TriangleVertexIndex,
+) -> TriangleVertexIndex {
+    NEXT_CCW_VERTEX_INDEX[vertex_index as usize]
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

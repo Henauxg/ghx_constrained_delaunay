@@ -2,11 +2,13 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use tracing::error;
 
 use crate::types::{
-    is_infinite, next_ccw_edge_index, next_clockwise_edge_index, next_counter_clockwise_edge_index,
-    next_cw_edge_index, opposite_edge_index, opposite_vertex_index, Float, Neighbor, Quad,
-    QuadVertices, TriangleData, TriangleEdgeIndex, TriangleId, TriangleVertexIndex, Triangles,
-    Vector3, Vector3A, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31, EDGE_TO_VERTS, QUAD_1, QUAD_2,
-    QUAD_3,
+    is_infinite, next_clockwise_edge_index, next_clockwise_vertex_index,
+    next_counter_clockwise_edge_index, next_counter_clockwise_vertex_index, opposite_edge_index,
+    opposite_vertex_index, vertex_next_ccw_edge_index, vertex_next_cw_edge_index, EdgeVertices,
+    Float, Neighbor, Quad, QuadVertices, TriangleData, TriangleEdgeIndex, TriangleId,
+    TriangleVertexIndex, Triangles, Vector3, Vector3A, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31,
+    EDGE_TO_VERTS, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, QUAD_1, QUAD_2, QUAD_3, VERT_1,
+    VERT_2, VERT_3,
 };
 use crate::utils::{
     is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
@@ -54,7 +56,7 @@ pub const CONTAINER_TRIANGLE_COORDINATE: Float = 5.;
 
 pub const CONTAINER_TRIANGLE_VERTICES: [Vertex; 3] = [
     Vertex::new(
-        -CONTAINER_TRIANGLE_COORDINATE,
+        CONTAINER_TRIANGLE_COORDINATE,
         -CONTAINER_TRIANGLE_COORDINATE,
     ),
     Vertex::new(0., CONTAINER_TRIANGLE_COORDINATE),
@@ -199,6 +201,7 @@ pub struct TriangulationError;
 fn find_vertex_placement(
     vertex: Vertex,
     from: Neighbor,
+    min_container_vertex_id: VertexId,
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
 ) -> Result<VertexPlacement, TriangulationError> {
@@ -212,52 +215,119 @@ fn find_vertex_placement(
         if !neighbor.exists() {
             break;
         }
-        let triangle = triangles.get(neighbor.id);
-        let (v1, v2, v3) = triangle.to_vertices(vertices);
+        let triangle_id = neighbor.id;
+        let triangle = triangles.get(triangle_id);
 
-        // Check if the point is inside the triangle's neighbors
-        let edge_12_test = test_point_edge_side((v1, v2), vertex);
-        if edge_12_test.is_on_left_side() {
-            neighbor = triangle.neighbor12();
-            continue;
+        // TODO Might switch super coordinates to +inf -inf ...
+        let mut infinite_verts = Vec::new();
+        if is_infinite(triangle.v1(), min_container_vertex_id) {
+            infinite_verts.push(VERT_1);
         }
-        let edge_23_test = test_point_edge_side((v2, v3), vertex);
-        if edge_23_test.is_on_left_side() {
-            neighbor = triangle.neighbor23();
-            continue;
+        if is_infinite(triangle.v2(), min_container_vertex_id) {
+            infinite_verts.push(VERT_2);
         }
-        let edge_31_test = test_point_edge_side((v3, v1), vertex);
-        if edge_31_test.is_on_left_side() {
-            neighbor = triangle.neighbor31();
-            continue;
+        if is_infinite(triangle.v3(), min_container_vertex_id) {
+            infinite_verts.push(VERT_3);
         }
 
-        // Check the point's position relative to this triangle's vertices
-        if edge_12_test.is_colinear() {
-            if is_vertex_pair_too_close(v1, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v1()));
+        if infinite_verts.len() == 3 {
+            return Ok(VertexPlacement::InsideTriangle(triangle_id));
+        } else if infinite_verts.len() == 2 {
+            let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
+            let finite_vert_id = triangle.v(finite_v_index);
+            let finite_vertex = vertices[finite_vert_id as usize];
+
+            // No need to check if vertex is too close to an infinite vertex here
+            if is_vertex_pair_too_close(finite_vertex, vertex) {
+                return Ok(VertexPlacement::OnVertex(finite_vert_id));
             }
-            if is_vertex_pair_too_close(v2, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v2()));
+
+            let infinite_vert_a_local_index =
+                (triangle.v(next_clockwise_vertex_index(finite_v_index)) - min_container_vertex_id)
+                    as TriangleVertexIndex;
+            let edge_a = get_segment_from_infinite_edge(finite_vertex, infinite_vert_a_local_index);
+            let edge_a_index = vertex_next_cw_edge_index(finite_v_index);
+            let edge_a_test = test_point_edge_side(edge_a, vertex);
+            if edge_a_test.is_on_left_side() {
+                neighbor = triangle.neighbor(edge_a_index);
+                continue;
             }
-            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_12));
-        } else if edge_23_test.is_colinear() {
-            if is_vertex_pair_too_close(v2, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v2()));
+
+            let infinite_vert_b_local_index =
+                (triangle.v(next_counter_clockwise_vertex_index(finite_v_index))
+                    - min_container_vertex_id) as TriangleVertexIndex;
+            let edge_b = get_segment_from_infinite_edge(finite_vertex, infinite_vert_b_local_index);
+            let edge_b_index = vertex_next_ccw_edge_index(finite_v_index);
+            let edge_b_test = test_point_edge_side(edge_b, vertex);
+            // Test for right side because edge_b is oriented the wrong way. We could also reverse edge_b
+            if edge_b_test.is_on_right_side() {
+                neighbor = triangle.neighbor(edge_b_index);
+                continue;
             }
-            if is_vertex_pair_too_close(v3, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v3()));
+
+            if edge_a_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
+            } else if edge_b_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
+            } else {
+                return Ok(VertexPlacement::InsideTriangle(triangle_id));
             }
-            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_23));
-        } else if edge_31_test.is_colinear() {
-            if is_vertex_pair_too_close(v3, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v3()));
+        } else if infinite_verts.len() == 1 {
+            let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
+            let finite_vert_a_id = triangle.v(finite_vert_a_index);
+            let finite_vertex_a = vertices[finite_vert_a_id as usize];
+
+            if is_vertex_pair_too_close(finite_vertex_a, vertex) {
+                return Ok(VertexPlacement::OnVertex(finite_vert_a_id));
             }
-            if is_vertex_pair_too_close(v1, vertex) {
-                return Ok(VertexPlacement::OnVertex(triangle.v1()));
+
+            let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
+            let finite_vert_b_id = triangle.v(finite_vert_b_index);
+            let finite_vertex_b = vertices[finite_vert_b_id as usize];
+
+            if is_vertex_pair_too_close(finite_vertex_b, vertex) {
+                return Ok(VertexPlacement::OnVertex(finite_vert_b_id));
             }
-            return Ok(VertexPlacement::OnTriangleEdge(neighbor.id, EDGE_31));
+
+            let edge_ab_test = test_point_edge_side((finite_vertex_a, finite_vertex_b), vertex);
+            let edge_ab_index = vertex_next_cw_edge_index(finite_vert_a_index);
+            if edge_ab_test.is_on_left_side() {
+                neighbor = triangle.neighbor(edge_ab_index);
+                continue;
+            }
+
+            let infinite_vert_local_index =
+                (triangle.v(infinite_verts[0]) - min_container_vertex_id) as TriangleVertexIndex;
+            let edge_a = get_segment_from_infinite_edge(finite_vertex_a, infinite_vert_local_index);
+            let edge_a_index = vertex_next_ccw_edge_index(finite_vert_a_index);
+            let edge_a_test = test_point_edge_side(edge_a, vertex);
+            // Test for right side because edge_a is oriented the wrong way. We could also reverse edge_a
+            if edge_a_test.is_on_right_side() {
+                neighbor = triangle.neighbor(edge_a_index);
+                continue;
+            }
+
+            let edge_b = get_segment_from_infinite_edge(finite_vertex_b, infinite_vert_local_index);
+            let edge_b_index = vertex_next_cw_edge_index(finite_vert_b_index);
+            let edge_b_test = test_point_edge_side(edge_b, vertex);
+            if edge_b_test.is_on_left_side() {
+                neighbor = triangle.neighbor(edge_b_index);
+                continue;
+            }
+
+            if edge_ab_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_ab_index));
+            } else if edge_a_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
+            } else if edge_b_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
+            } else {
+                return Ok(VertexPlacement::InsideTriangle(triangle_id));
+            }
         } else {
+            let (v1, v2, v3) = triangle.to_vertices(vertices);
+
+            // TODO Profile this check's position
             if is_vertex_pair_too_close(v1, vertex) {
                 return Ok(VertexPlacement::OnVertex(triangle.v1()));
             }
@@ -267,12 +337,63 @@ fn find_vertex_placement(
             if is_vertex_pair_too_close(v3, vertex) {
                 return Ok(VertexPlacement::OnVertex(triangle.v3()));
             }
-            // Point is inside the current triangle
-            return Ok(VertexPlacement::InsideTriangle(neighbor.id));
+
+            // Check if the point is inside the triangle's neighbors
+            let edge_12_test = test_point_edge_side((v1, v2), vertex);
+            if edge_12_test.is_on_left_side() {
+                neighbor = triangle.neighbor12();
+                continue;
+            }
+            let edge_23_test = test_point_edge_side((v2, v3), vertex);
+            if edge_23_test.is_on_left_side() {
+                neighbor = triangle.neighbor23();
+                continue;
+            }
+            let edge_31_test = test_point_edge_side((v3, v1), vertex);
+            if edge_31_test.is_on_left_side() {
+                neighbor = triangle.neighbor31();
+                continue;
+            }
+
+            // Check the point's position relative to this triangle's vertices
+            if edge_12_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12));
+            } else if edge_23_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23));
+            } else if edge_31_test.is_colinear() {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
+            } else {
+                return Ok(VertexPlacement::InsideTriangle(triangle_id));
+            }
         }
     }
 
     Err(TriangulationError)
+}
+
+/// Returns a finite segment from an edge between a finite vertex and an infinite vertex
+///  - infinite_vert_local_index is the local index of the infinite vertex in the infinite container triangle
+pub(crate) fn get_segment_from_infinite_edge(
+    finite_vertex: Vertex,
+    infinite_vert_local_index: TriangleVertexIndex,
+) -> EdgeVertices {
+    if infinite_vert_local_index == CONTAINER_TRIANGLE_TOP_VERTEX_INDEX {
+        // Line in an "x=b" form
+        let line_point_1 = finite_vertex;
+        let line_point_2 = Vertex::new(line_point_1.x, line_point_1.y + DELTA_VALUE);
+        (line_point_1, line_point_2)
+    } else {
+        let line_point_1 = finite_vertex;
+        let a = INFINITE_VERTS_SLOPES[infinite_vert_local_index as usize];
+        let b = line_point_1.y - a * line_point_1.x;
+        // We care about the delta sign here since we create a segment from an infinite line,
+        // starting from the finite point and aimed towards the infinite point with a X span of "1.".
+        // "1" is enough since all our vertices coordinates are normalized inside the unit square.
+        let line_point_2_x =
+            line_point_1.x + INFINITE_VERTS_DELTAS[infinite_vert_local_index as usize];
+        let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
+        (line_point_1, line_point_2)
+    }
 }
 
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
@@ -335,8 +456,13 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         // Find an existing triangle which encloses P
         let vertex = vertices[vertex_id as usize];
-        let Ok(vertex_place) = find_vertex_placement(vertex, triangle_id, &triangles, &vertices)
-        else {
+        let Ok(vertex_place) = find_vertex_placement(
+            vertex,
+            triangle_id,
+            min_container_vertex_id,
+            &triangles,
+            &vertices,
+        ) else {
             // TODO Internal error
             error!(
                 "Internal error, found no triangle containing vertex {:?}, step {}",
@@ -563,7 +689,7 @@ pub(crate) fn split_quad_into_four_triangles(
     // t4
     let t4_neighbor_23 = triangles
         .get(t2.id)
-        .neighbor(next_cw_edge_index(t2_opposite_v_index));
+        .neighbor(vertex_next_cw_edge_index(t2_opposite_v_index));
     triangles.create(
         [vertex_id, t2_opposite_v_id, edge.to],
         [t2.into(), t4_neighbor_23, t3.into()],
@@ -594,7 +720,7 @@ pub(crate) fn split_quad_into_four_triangles(
         t1.into(),
         triangles
             .get(t2.id)
-            .neighbor(next_ccw_edge_index(t2_opposite_v_index)),
+            .neighbor(vertex_next_ccw_edge_index(t2_opposite_v_index)),
         t4.into(),
     ];
     triangles.get_mut(t2.id).neighbors = neighbors;

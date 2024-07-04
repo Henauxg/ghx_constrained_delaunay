@@ -4,13 +4,12 @@ use hashbrown::HashSet;
 use tracing::error;
 
 use crate::triangulation::{
-    normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
-    CONTAINER_TRIANGLE_TOP_VERTEX_INDEX, DEFAULT_BIN_VERTEX_DENSITY_POWER, DELTA_VALUE,
-    INFINITE_VERTS_DELTAS, INFINITE_VERTS_SLOPES,
+    get_segment_from_infinite_edge, normalize_vertices_coordinates, should_swap_diagonals,
+    Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
-    is_infinite, QuadVertices, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,
-    ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
+    is_infinite, next_counter_clockwise_edge_index, QuadVertices, TriangleEdgeIndex, Triangles,
+    Vector3, Vector3A, Vertex, ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
 };
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 
@@ -26,10 +25,9 @@ use tracing::info;
 use crate::{
     triangulation::{self, wrap_and_triangulate_2d_normalized_vertices},
     types::{
-        next_clockwise_edge_index, next_clockwise_edge_index_around,
-        next_counter_clockwise_edge_index, next_counter_clockwise_edge_index_around,
-        opposite_edge_index, Edge, EdgeVertices, Neighbor, Quad, TriangleData, TriangleId,
-        TriangleVertexIndex, TriangleVertices, VertexId,
+        next_clockwise_edge_index, opposite_edge_index, outermost_clockwise_edge_index_around,
+        outermost_counter_clockwise_edge_index_around, Edge, EdgeVertices, Neighbor, Quad,
+        TriangleData, TriangleId, TriangleVertexIndex, TriangleVertices, VertexId,
     },
 };
 
@@ -298,6 +296,8 @@ fn apply_constraints(
             constrained_edge_vertices,
             &vertex_to_triangle,
             &mut intersections,
+            #[cfg(feature = "debug_context")]
+            debug_context,
         );
         if intersections.is_empty() {
             // Skipping constrained edge already in triangulation
@@ -456,7 +456,7 @@ fn search_first_interstected_quad(
         start_triangle,
         constrained_edge,
         constrained_edge_vertices,
-        next_clockwise_edge_index_around,
+        outermost_clockwise_edge_index_around,
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => (),
@@ -467,7 +467,7 @@ fn search_first_interstected_quad(
     let triangle = triangles.get(start_triangle);
     // Not having the constrained edge first vertex in the starting triangle is not possible
     let vert_index = triangle.vertex_index(constrained_edge.from);
-    let edge_index = next_counter_clockwise_edge_index_around(vert_index);
+    let edge_index = outermost_counter_clockwise_edge_index_around(vert_index);
     // It is impossible to have no neighbor here. It would mean that there is no triangle with the constrained edge intersection
     let neighbor_triangle = triangle.neighbor(edge_index).id;
 
@@ -479,7 +479,7 @@ fn search_first_interstected_quad(
         neighbor_triangle,
         constrained_edge,
         constrained_edge_vertices,
-        next_counter_clockwise_edge_index_around,
+        outermost_counter_clockwise_edge_index_around,
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => {
@@ -499,6 +499,7 @@ fn register_intersected_edges(
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
     intersections: &mut VecDeque<EdgeData>,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
@@ -779,30 +780,6 @@ fn update_edges_data(
             }
         }
         // TODO Design: If we decide to store from_edge_index, we also need to update tfl<->tf and ttr<->tt pairs
-    }
-}
-
-/// Returns a finite segment from an edge between a finite vertex and an infinite vertex
-///  - infinite_vert_id is the index of the infinite vertex in the infinite container triangle
-fn get_segment_from_infinite_edge(
-    finite_vertex: Vertex,
-    infinite_vert_id: TriangleVertexIndex,
-) -> EdgeVertices {
-    if infinite_vert_id == CONTAINER_TRIANGLE_TOP_VERTEX_INDEX {
-        // Line in an "x=b" form
-        let line_point_1 = finite_vertex;
-        let line_point_2 = Vertex::new(line_point_1.x, line_point_1.y + DELTA_VALUE);
-        (line_point_1, line_point_2)
-    } else {
-        let line_point_1 = finite_vertex;
-        let a = INFINITE_VERTS_SLOPES[infinite_vert_id as usize];
-        let b = line_point_1.y - a * line_point_1.x;
-        // We care about the delta sign here since we create a segment from an infinite line,
-        // starting from the finite point and aimed towards the infinite point with a X span of "1.".
-        // "1" is enough since all our vertices coordinates are normalized inside the unit square.
-        let line_point_2_x = line_point_1.x + INFINITE_VERTS_DELTAS[infinite_vert_id as usize];
-        let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
-        (line_point_1, line_point_2)
     }
 }
 
