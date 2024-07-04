@@ -552,7 +552,7 @@ fn register_intersected_edges(
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct EdgeData {
     from_triangle_id: TriangleId,
     to_triangle_id: TriangleId,
@@ -778,7 +778,7 @@ fn update_edges_data(
                 // TODO Design: inter.from_edge_index becomes EDGE_23
             }
         }
-        // TODO Design: IF we decide to store from_edge_index, we also need to update tfl<->tf and ttr<->tt pairs
+        // TODO Design: If we decide to store from_edge_index, we also need to update tfl<->tf and ttr<->tt pairs
     }
 }
 
@@ -943,13 +943,19 @@ fn restore_delaunay_triangulation_constrained(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation_constrained").entered();
 
+    let mut swaps_history = HashSet::new();
     while let Some(new_edge) = new_diagonals_created.pop_front() {
         if new_edge.edge.undirected_equals(&constrained_edge) {
             continue;
         } else {
             let quad = new_edge.to_quad(triangles);
 
-            if should_swap_diagonals(&quad, vertices, min_container_vertex_id) {
+            let should_swap = should_swap_diagonals(&quad, vertices, min_container_vertex_id);
+
+            // Use a small swap history to detect infinite swap loops & cycles.
+            // Ideally we would like to prevent them instead of detecting them but this seems to be harder than it looks.
+            // Simply being a bit more more strict on the circumcircle test causes issues on some datasets.
+            if should_swap && swaps_history.insert(new_edge.clone()) {
                 swap_quad_diagonal(
                     triangles,
                     vertex_to_triangle,
