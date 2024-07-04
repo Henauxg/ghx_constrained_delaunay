@@ -44,6 +44,7 @@ impl Plugin for TriangleDebugPlugin {
         app.add_systems(
             Update,
             (
+                switch_vertex_label_mode.run_if(input_just_pressed(KeyCode::F2)),
                 switch_label_mode.run_if(input_just_pressed(KeyCode::F3)),
                 switch_triangles_draw_mode.run_if(input_just_pressed(KeyCode::F4)),
                 update_triangles_debug_index,
@@ -103,6 +104,13 @@ pub enum LabelMode {
     None,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum VertexLabelMode {
+    #[default]
+    LocalIndex,
+    GlobalIndex,
+}
+
 #[derive(Resource)]
 pub struct TrianglesDebugData {
     // Inputs
@@ -142,12 +150,18 @@ impl TrianglesDebugData {
 #[derive(Resource, Default, Clone, Copy)]
 pub struct TrianglesDebugViewConfig {
     pub label_mode: LabelMode,
+    pub vertex_label_mode: VertexLabelMode,
     pub triangles_draw_mode: TrianglesDrawMode,
 }
 impl TrianglesDebugViewConfig {
-    pub fn new(label_mode: LabelMode, draw_mode: TrianglesDrawMode) -> Self {
+    pub fn new(
+        label_mode: LabelMode,
+        vertex_label_mode: VertexLabelMode,
+        draw_mode: TrianglesDrawMode,
+    ) -> Self {
         Self {
             label_mode,
+            vertex_label_mode,
             triangles_draw_mode: draw_mode,
         }
     }
@@ -352,13 +366,25 @@ pub fn update_triangles_debug_entities(
     match view_config.label_mode {
         LabelMode::All => {
             for (index, triangle_data) in snapshot.triangles.buffer().iter().enumerate() {
-                spawn_label(&mut commands, vertices, index as TriangleId, triangle_data);
+                spawn_label(
+                    &mut commands,
+                    view_config.vertex_label_mode,
+                    vertices,
+                    index as TriangleId,
+                    triangle_data,
+                );
             }
         }
         LabelMode::Changed => {
             for index in snapshot.changed_ids.iter() {
                 let triangle_data = &snapshot.triangles.get(*index);
-                spawn_label(&mut commands, vertices, *index, triangle_data);
+                spawn_label(
+                    &mut commands,
+                    view_config.vertex_label_mode,
+                    vertices,
+                    *index,
+                    triangle_data,
+                );
             }
         }
         LabelMode::None => (),
@@ -412,6 +438,7 @@ pub fn spawn_triangle_mesh_batch(
 
 pub fn spawn_label(
     commands: &mut Commands,
+    vertex_label_mode: VertexLabelMode,
     vertices: &Vec<Vector3>,
     triangle_id: TriangleId,
     triangle_data: &TriangleData,
@@ -447,20 +474,22 @@ pub fn spawn_label(
         TriangleDebugEntity,
     ));
 
-    for (v, _v_id, label) in vec![
+    for (v, v_id, label) in vec![
         (v1, triangle_data.v1(), "v1"),
         (v2, triangle_data.v2(), "v2"),
         (v3, triangle_data.v3(), "v3"),
     ] {
         let v = v.as_vec3();
         let v_display_pos = v + (center - v) * 0.15;
+        let vertex_label = match vertex_label_mode {
+            VertexLabelMode::LocalIndex => label.to_string(),
+            VertexLabelMode::GlobalIndex => v_id.to_string(),
+        };
         commands.spawn((
             BillboardTextBundle {
                 transform: Transform::from_translation(v_display_pos).with_scale(billboard_scale),
                 text: Text::from_sections([TextSection {
-                    value: label.to_string(),
-                    // Uncomment to display the vertices ids
-                    // value: _v_id.to_string(),
+                    value: vertex_label,
                     style: TextStyle {
                         font_size: DEBUG_LABEL_FONT_SIZE,
                         color,
@@ -579,4 +608,19 @@ pub fn switch_label_mode(
     };
     debug_data_updates_events.send(TriangleDebugCursorUpdate);
     info!("Label mode changed to {:?}", view_config.label_mode);
+}
+
+pub fn switch_vertex_label_mode(
+    mut view_config: ResMut<TrianglesDebugViewConfig>,
+    mut debug_data_updates_events: EventWriter<TriangleDebugCursorUpdate>,
+) {
+    match view_config.vertex_label_mode {
+        VertexLabelMode::GlobalIndex => view_config.vertex_label_mode = VertexLabelMode::LocalIndex,
+        VertexLabelMode::LocalIndex => view_config.vertex_label_mode = VertexLabelMode::GlobalIndex,
+    };
+    debug_data_updates_events.send(TriangleDebugCursorUpdate);
+    info!(
+        "Vertex label mode changed to {:?}",
+        view_config.vertex_label_mode
+    );
 }

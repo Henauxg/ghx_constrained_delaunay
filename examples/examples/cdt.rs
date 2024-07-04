@@ -8,6 +8,7 @@ use bevy::{
 use examples::{
     extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
     TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
+    VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::{
@@ -94,6 +95,7 @@ fn setup(mut commands: Commands) {
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::All,
+        VertexLabelMode::LocalIndex,
         TrianglesDrawMode::AllAsContourAndInteriorMeshes,
     ));
 }
