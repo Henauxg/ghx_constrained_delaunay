@@ -12,7 +12,7 @@ use bevy::{
     gizmos::gizmos::Gizmos,
     hierarchy::DespawnRecursiveExt,
     input::{common_conditions::input_just_pressed, keyboard::KeyCode, ButtonInput},
-    log::info,
+    log::{error, info},
     math::primitives::Direction3d,
     pbr::{AlphaMode, MaterialMeshBundle, MaterialPlugin, StandardMaterial},
     prelude::default,
@@ -24,8 +24,15 @@ use bevy::{
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot, EventInfo},
-    triangulation::CONTAINER_TRIANGLE_VERTICES,
-    types::{Edge, Float, TriangleData, TriangleId, Triangles, Vector3},
+    triangulation::{
+        edge_from_semi_infinite_edge, CONTAINER_TRIANGLE_TOP_VERTEX_INDEX,
+        CONTAINER_TRIANGLE_VERTICES, DELTA_VALUE, INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS,
+    },
+    types::{
+        next_clockwise_vertex_index, next_counter_clockwise_vertex_index, Edge, Float,
+        TriangleData, TriangleId, TriangleVertexIndex, Triangles, Vector3, Vertex,
+        NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
+    },
 };
 use glam::{Quat, Vec2, Vec3};
 
@@ -77,12 +84,26 @@ pub fn extend_displayed_vertices_with_container_vertice(
         let e2 = e1.cross(-plane_normal);
         let _e3 = plane_normal;
         let plane_origin = displayed_vertices[1];
+        let basis = Basis {
+            plane_origin: plane_origin.as_vec3(),
+            e1: e2.as_vec3(),
+            e2: e2.as_vec3(),
+        };
         for v in container_vertices.iter_mut() {
             *v = plane_origin + v.x * e1 + v.y * e2 // + 0. * e3
         }
     }
 
     displayed_vertices.extend(container_vertices);
+}
+
+pub struct Basis {
+    plane_origin: Vec3,
+    e1: Vec3,
+    e2: Vec3,
+}
+pub fn detransfrom(point: Vec3, basis: &Basis) -> Vec3 {
+    basis.plane_origin + point.x * basis.e1 + point.y * basis.e2 // + 0. * e3
 }
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
@@ -117,6 +138,8 @@ pub struct TrianglesDebugData {
     pub vertices: Vec<Vector3>,
     pub constraints: HashSet<Edge>,
     pub context: DebugContext,
+    // TODO Rework
+    pub basis: Option<Basis>,
     // State
     pub current_buffer_index: usize,
     pub current_changes_bounds: (Vec3, Vec2),
@@ -127,6 +150,7 @@ impl TrianglesDebugData {
             vertices,
             constraints: HashSet::new(),
             context,
+            basis: None,
             current_buffer_index: 0,
             current_changes_bounds: (Vec3::ZERO, Vec2::ZERO),
         }
@@ -141,9 +165,22 @@ impl TrianglesDebugData {
             vertices,
             constraints: HashSet::from_iter(constraints.iter().cloned()),
             context,
+            basis: None,
             current_buffer_index: 0,
             current_changes_bounds: (Vec3::ZERO, Vec2::ZERO),
         }
+    }
+
+    pub fn with_basis_transformation(&mut self, plane_normal: Vector3) {
+        let e1 = (self.vertices[0] - self.vertices[1]).normalize();
+        let e2 = e1.cross(-plane_normal);
+        let _e3 = plane_normal;
+        let plane_origin = self.vertices[1];
+        self.basis = Some(Basis {
+            plane_origin: plane_origin.as_vec3(),
+            e1: e2.as_vec3(),
+            e2: e2.as_vec3(),
+        });
     }
 }
 
@@ -273,6 +310,7 @@ pub fn update_triangles_debug_entities(
         snapshot.changed_ids.len(),
         snapshot.triangles.count()
     );
+    // info!("triangles {:?}", snapshot.triangles.buffer);
 
     let vertices = &debug_data.vertices;
 
@@ -370,6 +408,7 @@ pub fn update_triangles_debug_entities(
                     &mut commands,
                     view_config.vertex_label_mode,
                     vertices,
+                    &debug_data.basis,
                     index as TriangleId,
                     triangle_data,
                 );
@@ -382,6 +421,7 @@ pub fn update_triangles_debug_entities(
                     &mut commands,
                     view_config.vertex_label_mode,
                     vertices,
+                    &debug_data.basis,
                     *index,
                     triangle_data,
                 );
@@ -395,22 +435,24 @@ pub fn update_triangles_debug_entities(
         (Float::MAX, Float::MIN, Float::MAX, Float::MIN);
     for index in snapshot.changed_ids.iter() {
         let t = &snapshot.triangles.get(*index);
-        for v in [
-            vertices[t.v1() as usize],
-            vertices[t.v2() as usize],
-            vertices[t.v3() as usize],
-        ] {
-            if v.x < x_min {
-                x_min = v.x;
-            }
-            if v.x > x_max {
-                x_max = v.x;
-            }
-            if v.y < y_min {
-                y_min = v.y;
-            }
-            if v.y > y_max {
-                y_max = v.y;
+
+        for v_id in t.verts.iter() {
+            if (*v_id as usize) < vertices.len() {
+                let v = vertices[*v_id as usize];
+                if v.x < x_min {
+                    x_min = v.x;
+                }
+                if v.x > x_max {
+                    x_max = v.x;
+                }
+                if v.y < y_min {
+                    y_min = v.y;
+                }
+                if v.y > y_max {
+                    y_max = v.y;
+                }
+            } else {
+                // TODO Infinite vert approx
             }
         }
     }
@@ -440,16 +482,104 @@ pub fn spawn_label(
     commands: &mut Commands,
     vertex_label_mode: VertexLabelMode,
     vertices: &Vec<Vector3>,
+    basis: &Option<Basis>,
     triangle_id: TriangleId,
-    triangle_data: &TriangleData,
+    triangle: &TriangleData,
 ) {
     let color = COLORS[(triangle_id as usize) % COLORS.len()];
-    let (v1, v2, v3) = (
-        vertices[triangle_data.v1() as usize],
-        vertices[triangle_data.v2() as usize],
-        vertices[triangle_data.v3() as usize],
-    );
-    let center = ((v1 + v2 + v3) / 3.).as_vec3();
+
+    let mut infinite_verts = Vec::new();
+    if triangle.v1() as usize >= vertices.len() {
+        infinite_verts.push(VERT_1);
+    }
+    if triangle.v2() as usize >= vertices.len() {
+        infinite_verts.push(VERT_2);
+    }
+    if triangle.v3() as usize >= vertices.len() {
+        infinite_verts.push(VERT_3);
+    }
+
+    let (v1, v2, v3) = if infinite_verts.is_empty() {
+        (
+            vertices[triangle.v1() as usize].as_vec3(),
+            vertices[triangle.v2() as usize].as_vec3(),
+            vertices[triangle.v3() as usize].as_vec3(),
+        )
+    } else if infinite_verts.len() == 1 {
+        let infinite_vert_local_index =
+            (triangle.v(infinite_verts[0]) as usize - vertices.len()) as TriangleVertexIndex;
+
+        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
+        let finite_vert_a_id = triangle.v(finite_vert_a_index);
+        let finite_vertex_a = vertices[finite_vert_a_id as usize];
+        let mut finite_tip_a =
+            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
+
+        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
+        let finite_vert_b_id = triangle.v(finite_vert_b_index);
+        let finite_vertex_b = vertices[finite_vert_b_id as usize];
+        let mut finite_tip_b =
+            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
+
+        // if let Some(basis) = basis {
+        //     finite_tip_a = detransfrom(finite_tip_a, basis);
+        //     finite_tip_b = detransfrom(finite_tip_b, basis);
+        // }
+
+        if infinite_verts[0] == VERT_1 {
+            (
+                (finite_tip_a + finite_tip_b) / 2.,
+                vertices[triangle.v2() as usize].as_vec3(),
+                vertices[triangle.v3() as usize].as_vec3(),
+            )
+        } else if infinite_verts[0] == VERT_2 {
+            (
+                vertices[triangle.v1() as usize].as_vec3(),
+                (finite_tip_a + finite_tip_b) / 2.,
+                vertices[triangle.v3() as usize].as_vec3(),
+            )
+        } else {
+            (
+                vertices[triangle.v1() as usize].as_vec3(),
+                vertices[triangle.v2() as usize].as_vec3(),
+                (finite_tip_a + finite_tip_b) / 2.,
+            )
+        }
+    } else if infinite_verts.len() == 2 {
+        let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
+        let finite_vert_id = triangle.v(finite_v_index);
+        let finite_vertex = vertices[finite_vert_id as usize];
+
+        let infinite_vert_a_local_index = (triangle.v(next_clockwise_vertex_index(finite_v_index))
+            as usize
+            - vertices.len()) as TriangleVertexIndex;
+        let mut finite_tip_a =
+            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
+
+        let infinite_vert_b_local_index =
+            (triangle.v(next_counter_clockwise_vertex_index(finite_v_index)) as usize
+                - vertices.len()) as TriangleVertexIndex;
+        let mut finite_tip_b =
+            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
+
+        // if let Some(basis) = basis {
+        //     finite_tip_a = detransfrom(finite_tip_a, basis);
+        //     finite_tip_b = detransfrom(finite_tip_b, basis);
+        // }
+
+        if finite_v_index == VERT_1 {
+            (finite_vertex.as_vec3(), finite_tip_a, finite_tip_b)
+        } else if finite_v_index == VERT_2 {
+            (finite_tip_b, finite_vertex.as_vec3(), finite_tip_a)
+        } else {
+            (finite_tip_a, finite_tip_b, finite_vertex.as_vec3())
+        }
+    } else {
+        error!("Handle 2 infinite vertices for labels");
+        return;
+    };
+
+    let center = (v1 + v2 + v3) / 3.;
 
     let v1v2 = v2 - v1;
     let v1v3 = v3 - v1;
@@ -462,7 +592,7 @@ pub fn spawn_label(
         BillboardTextBundle {
             transform: Transform::from_translation(center).with_scale(billboard_scale),
             text: Text::from_sections([TextSection {
-                value: triangle_id.to_string(),
+                value: format!("t{}", triangle_id.to_string()),
                 style: TextStyle {
                     font_size: DEBUG_LABEL_FONT_SIZE,
                     color,
@@ -475,15 +605,20 @@ pub fn spawn_label(
     ));
 
     for (v, v_id, label) in vec![
-        (v1, triangle_data.v1(), "v1"),
-        (v2, triangle_data.v2(), "v2"),
-        (v3, triangle_data.v3(), "v3"),
+        (v1, triangle.v1(), "v1"),
+        (v2, triangle.v2(), "v2"),
+        (v3, triangle.v3(), "v3"),
     ] {
-        let v = v.as_vec3();
         let v_display_pos = v + (center - v) * 0.15;
         let vertex_label = match vertex_label_mode {
             VertexLabelMode::LocalIndex => label.to_string(),
-            VertexLabelMode::GlobalIndex => v_id.to_string(),
+            VertexLabelMode::GlobalIndex => {
+                if (v_id as usize) < vertices.len() {
+                    v_id.to_string()
+                } else {
+                    format!("inf_{}", v_id.to_string())
+                }
+            }
         };
         commands.spawn((
             BillboardTextBundle {
@@ -505,23 +640,35 @@ pub fn spawn_label(
 
 pub fn draw_triangles_debug_data_gizmos(
     mut gizmos: Gizmos,
-    debug_vert_data: Res<TrianglesDebugData>,
+    debug_data: Res<TrianglesDebugData>,
     view_config: Res<TrianglesDebugViewConfig>,
 ) {
-    let snapshot = &debug_vert_data.current_snapshot();
-    let vertices = &debug_vert_data.vertices;
+    let snapshot = &debug_data.current_snapshot();
+    let vertices = &debug_data.vertices;
 
     // Draw triangles
     match view_config.triangles_draw_mode {
         TrianglesDrawMode::AllAsGizmos => {
-            for (index, triangle) in snapshot.triangles.buffer().iter().enumerate() {
-                draw_triangle_gizmo(&mut gizmos, vertices, index as TriangleId, triangle);
+            for (triangle_id, triangle) in snapshot.triangles.buffer().iter().enumerate() {
+                draw_triangle_gizmo(
+                    &mut gizmos,
+                    vertices,
+                    &debug_data.basis,
+                    triangle_id as TriangleId,
+                    triangle,
+                );
             }
         }
         TrianglesDrawMode::ChangedAsGizmos => {
-            for index in snapshot.changed_ids.iter() {
-                let triangle = &snapshot.triangles.get(*index);
-                draw_triangle_gizmo(&mut gizmos, vertices, *index, triangle);
+            for triangle_id in snapshot.changed_ids.iter() {
+                let triangle = &snapshot.triangles.get(*triangle_id);
+                draw_triangle_gizmo(
+                    &mut gizmos,
+                    vertices,
+                    &debug_data.basis,
+                    *triangle_id,
+                    triangle,
+                );
             }
         }
         _ => (),
@@ -529,20 +676,20 @@ pub fn draw_triangles_debug_data_gizmos(
 
     // Draw last changes boundaries
     gizmos.rect(
-        debug_vert_data.current_changes_bounds.0,
+        debug_data.current_changes_bounds.0,
         Quat::IDENTITY,
-        debug_vert_data.current_changes_bounds.1,
+        debug_data.current_changes_bounds.1,
         Color::WHITE,
     );
 
     // Draw specific event info
-    if let EventInfo::SplitTriangle(vertex_id) = snapshot.event {
+    if let EventInfo::Split(vertex_id) = snapshot.event {
         // Set circle radius as proportional to the changes bounding box
-        let circle_radius = debug_vert_data
+        let circle_radius = debug_data
             .current_changes_bounds
             .1
             .x
-            .min(debug_vert_data.current_changes_bounds.1.y)
+            .min(debug_data.current_changes_bounds.1.y)
             / 10.;
         gizmos.circle(
             vertices[vertex_id as usize].as_vec3(),
@@ -556,16 +703,103 @@ pub fn draw_triangles_debug_data_gizmos(
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
     vertices: &Vec<Vector3>,
+    basis: &Option<Basis>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
 ) {
-    let (v1, v2, v3) = (
-        vertices[triangle.v1() as usize].as_vec3(),
-        vertices[triangle.v2() as usize].as_vec3(),
-        vertices[triangle.v3() as usize].as_vec3(),
-    );
     let color = COLORS[triangle_id as usize % COLORS.len()];
-    gizmos.linestrip(vec![v1, v2, v3, v1], color);
+
+    let mut infinite_verts = Vec::new();
+    if triangle.v1() as usize >= vertices.len() {
+        infinite_verts.push(VERT_1);
+    }
+    if triangle.v2() as usize >= vertices.len() {
+        infinite_verts.push(VERT_2);
+    }
+    if triangle.v3() as usize >= vertices.len() {
+        infinite_verts.push(VERT_3);
+    }
+
+    let linestrip = if infinite_verts.is_empty() {
+        let (v1, v2, v3) = (
+            vertices[triangle.v1() as usize].as_vec3(),
+            vertices[triangle.v2() as usize].as_vec3(),
+            vertices[triangle.v3() as usize].as_vec3(),
+        );
+        vec![v1, v2, v3, v1]
+    } else if infinite_verts.len() == 1 {
+        let infinite_vert_local_index =
+            (triangle.v(infinite_verts[0]) as usize - vertices.len()) as TriangleVertexIndex;
+
+        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
+        let finite_vert_a_id = triangle.v(finite_vert_a_index);
+        let finite_vertex_a = vertices[finite_vert_a_id as usize];
+        let mut finite_tip_a =
+            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
+
+        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
+        let finite_vert_b_id = triangle.v(finite_vert_b_index);
+        let finite_vertex_b = vertices[finite_vert_b_id as usize];
+        let mut finite_tip_b =
+            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
+
+        // if let Some(basis) = basis {
+        //     finite_tip_a = detransfrom(finite_tip_a, basis);
+        //     finite_tip_b = detransfrom(finite_tip_b, basis);
+        // }
+        // info!("draw gizmos, infinite_verts.len() == 1");
+
+        vec![
+            finite_tip_a,
+            finite_vertex_a.as_vec3(),
+            finite_vertex_b.as_vec3(),
+            finite_tip_b,
+        ]
+    } else if infinite_verts.len() == 2 {
+        //TODO
+        let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
+        let finite_vert_id = triangle.v(finite_v_index);
+        let finite_vertex = vertices[finite_vert_id as usize];
+
+        let infinite_vert_a_local_index = (triangle.v(next_clockwise_vertex_index(finite_v_index))
+            as usize
+            - vertices.len()) as TriangleVertexIndex;
+        let mut finite_tip_a =
+            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
+
+        let infinite_vert_b_local_index =
+            (triangle.v(next_counter_clockwise_vertex_index(finite_v_index)) as usize
+                - vertices.len()) as TriangleVertexIndex;
+        let mut finite_tip_b =
+            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
+
+        // // TODO Really quick & dirty. Does not work, finite_vertex is not transformed. Would need transformed finite_vertex -> point extrapolation -> detransform
+        // if let Some(basis) = basis {
+        //     finite_tip_a = detransfrom(finite_tip_a, basis);
+        //     finite_tip_b = detransfrom(finite_tip_b, basis);
+        // }
+
+        vec![finite_tip_a, finite_vertex.as_vec3(), finite_tip_b]
+    } else {
+        vec![]
+    };
+    gizmos.linestrip(linestrip, color);
+    // TODO Could draw something for 3 infinite vertices
+}
+
+pub fn finite_vertex_from_semi_infinite_edge(
+    finite_vertex: Vector3,
+    infinite_vert_local_index: TriangleVertexIndex,
+) -> Vec3 {
+    // TODO Might need a detransformation
+    Vec3::new(
+        // TODO 100.0 Chane to a factor dependent on the triangle/triangulation
+        (finite_vertex.x + 20. * INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize])
+            as f32,
+        (finite_vertex.y + 20. * INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize])
+            as f32,
+        0.,
+    )
 }
 
 pub const DEFAULT_TRIANGLES_BATCH_SIZE: usize = 15;
