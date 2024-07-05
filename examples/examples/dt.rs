@@ -5,12 +5,12 @@ use bevy::{
     DefaultPlugins,
 };
 use examples::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
-    VertexLabelMode,
+    ExamplesPlugin, LabelMode, TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
+    TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
-    triangulation::{triangulation_from_3d_planar_vertices, TriangulationConfiguration},
+    triangulation::TriangulationConfiguration,
+    triangulation_from_2d_vertices,
     types::{Vector3, Vertex},
     utils::check_delaunay_optimal,
 };
@@ -26,19 +26,14 @@ fn main() {
         .run();
 }
 fn setup(mut commands: Commands) {
-    let plane_normal = Vector3::Z;
-
     let vertices = vec![
-        Vector3::new(0., 0., 0.),
-        Vector3::new(0., 5., 0.),
-        Vector3::new(5., 5., 0.),
-        Vector3::new(5., 0., 0.),
+        Vertex::new(0., 0.),
+        Vertex::new(0., 5.),
+        Vertex::new(5., 5.),
+        Vertex::new(5., 0.),
     ];
-    let triangulation = triangulation_from_3d_planar_vertices(
-        &vertices,
-        plane_normal,
-        TriangulationConfiguration::default(),
-    );
+    let triangulation =
+        triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default());
 
     let q = check_delaunay_optimal(
         triangulation.triangles.iter().copied(),
@@ -47,20 +42,12 @@ fn setup(mut commands: Commands) {
     );
     info!("DT quality: {:?}", q);
 
-    let mut displayed_vertices = vertices
+    let displayed_vertices = vertices
         .iter()
         .map(|v| Vector3::new(v.x, v.y, 0.))
         .collect();
-    extend_displayed_vertices_with_container_vertice(
-        &mut displayed_vertices,
-        plane_normal,
-        &triangulation.debug_context,
-        true, // Change depending on planar transformation
-    );
-    commands.insert_resource(TrianglesDebugData::new(
-        displayed_vertices,
-        triangulation.debug_context,
-    ));
+    let debug_data = TrianglesDebugData::new(displayed_vertices, triangulation.debug_context);
+    commands.insert_resource(debug_data);
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::All,
         VertexLabelMode::LocalIndex,
