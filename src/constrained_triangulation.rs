@@ -4,7 +4,7 @@ use hashbrown::HashSet;
 use tracing::error;
 
 use crate::triangulation::{
-    get_segment_from_infinite_edge, normalize_vertices_coordinates, should_swap_diagonals,
+    edge_from_semi_infinite_edge, normalize_vertices_coordinates, should_swap_diagonals,
     Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
@@ -347,6 +347,7 @@ fn edge_and_constrained_edge_intersection(
     edge_vertices: &EdgeVertices,
     constrained_edge_verts: &EdgeVertices,
     min_container_vertex_id: VertexId,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> EdgesIntersectionResult {
     // Handle infinite vertices
     // We know that constrained_edge_verts are finite here
@@ -370,7 +371,7 @@ fn edge_and_constrained_edge_intersection(
         // TODO Cold function  ?
         // Test intersection between edge and infinite edge segment
         let (infinite_vert_id, finite_vert) = infinite_verts[0];
-        let extrapolated_segment = get_segment_from_infinite_edge(finite_vert, infinite_vert_id);
+        let extrapolated_segment = edge_from_semi_infinite_edge(finite_vert, infinite_vert_id);
         egdes_intersect(&constrained_edge_verts, &extrapolated_segment)
     } else {
         EdgesIntersectionResult::None
@@ -385,6 +386,7 @@ fn loop_around_vertex_and_search_intersection(
     constrained_edge: Edge,
     constrained_edge_verts: &EdgeVertices,
     next_edge_index: fn(TriangleVertexIndex) -> TriangleEdgeIndex,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> EdgeFirstIntersection {
     let mut triangle_id = from_triangle_id;
 
@@ -412,6 +414,8 @@ fn loop_around_vertex_and_search_intersection(
             &edge_vertices,
             constrained_edge_verts,
             min_container_vertex_id,
+            #[cfg(feature = "debug_context")]
+            _debug_context,
         );
         if intersection == EdgesIntersectionResult::Crossing {
             let neighbor_triangle = triangle.neighbor(edge_index);
@@ -444,6 +448,7 @@ fn search_first_interstected_quad(
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> EdgeFirstIntersection {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "search_first_interstected_quad").entered();
@@ -457,6 +462,8 @@ fn search_first_interstected_quad(
         constrained_edge,
         constrained_edge_vertices,
         outermost_clockwise_edge_index_around,
+        #[cfg(feature = "debug_context")]
+        debug_context,
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => (),
@@ -480,6 +487,8 @@ fn search_first_interstected_quad(
         constrained_edge,
         constrained_edge_vertices,
         outermost_counter_clockwise_edge_index_around,
+        #[cfg(feature = "debug_context")]
+        debug_context,
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => {
@@ -499,7 +508,7 @@ fn register_intersected_edges(
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
     intersections: &mut VecDeque<EdgeData>,
-    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
@@ -511,6 +520,8 @@ fn register_intersected_edges(
         constrained_edge,
         constrained_edge_vertices,
         vertex_to_triangle[constrained_edge.from as usize],
+        #[cfg(feature = "debug_context")]
+        debug_context,
     );
 
     let mut intersection = match search_result {
@@ -539,6 +550,8 @@ fn register_intersected_edges(
             triangle,
             triangle_id,
             &intersection.edge,
+            #[cfg(feature = "debug_context")]
+            debug_context,
         ) {
             Some(next_intersection) => {
                 intersection = next_intersection;
@@ -604,10 +617,10 @@ impl EdgeData {
             self.edge.to,
             triangles
                 .get(self.to_triangle_id)
-                .get_opposite_vertex_index(&self.edge),
+                .get_opposite_vertex_id(&self.edge),
             triangles
                 .get(self.from_triangle_id)
-                .get_opposite_vertex_index(&self.edge),
+                .get_opposite_vertex_id(&self.edge),
         ])
     }
 }
@@ -619,6 +632,7 @@ fn get_next_triangle_edge_intersection(
     triangle: &TriangleData,
     triangle_id: TriangleId,
     from_crossed_edge: &Edge,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> Option<EdgeData> {
     for (edge_index, (edge_vertices, edge)) in vec![
         (triangle_verts.0, triangle_verts.1),
@@ -638,6 +652,8 @@ fn get_next_triangle_edge_intersection(
             &edge_vertices,
             constrained_edge,
             min_container_vertex_id,
+            #[cfg(feature = "debug_context")]
+            _debug_context,
         ) == EdgesIntersectionResult::Crossing
         {
             let neighbor_triangle = triangle.neighbors[edge_index];
@@ -835,17 +851,17 @@ fn quad_diagonals_intersection(
 
         egdes_intersect(
             &other_diagonal_edge,
-            &get_segment_from_infinite_edge(finite_vertex, infinite_vert_index),
+            &edge_from_semi_infinite_edge(finite_vertex, infinite_vert_index),
         )
     } else {
         // TODO Cold function
         let (infinite_vert_id_0, finite_vert_0, _) = infinite_verts[0];
         let infinite_edge_segment_0 =
-            get_segment_from_infinite_edge(finite_vert_0, infinite_vert_id_0);
+            edge_from_semi_infinite_edge(finite_vert_0, infinite_vert_id_0);
 
         let (infinite_vert_id_1, finite_vert_1, _) = infinite_verts[1];
         let infinite_edge_segment_1 =
-            get_segment_from_infinite_edge(finite_vert_1, infinite_vert_id_1);
+            edge_from_semi_infinite_edge(finite_vert_1, infinite_vert_id_1);
 
         egdes_intersect(&infinite_edge_segment_0, &infinite_edge_segment_1)
     }
@@ -898,6 +914,8 @@ fn remove_crossed_edges(
                 &(quad_vertices.q3(), quad_vertices.q4()),
                 constrained_edge_vertices,
                 min_container_vertex_id,
+                #[cfg(feature = "debug_context")]
+                debug_context,
             ) == EdgesIntersectionResult::Crossing
             {
                 intersections.push_back(edge_data);

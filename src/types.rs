@@ -313,7 +313,7 @@ impl TriangleData {
 
     /// `edge` MUST be an edge of the triangle
     #[inline]
-    pub fn get_opposite_vertex_index(&self, edge: &Edge) -> VertexId {
+    pub fn get_opposite_vertex_id(&self, edge: &Edge) -> VertexId {
         if !edge.contains(self.v1()) {
             self.v1()
         } else if !edge.contains(self.v2()) {

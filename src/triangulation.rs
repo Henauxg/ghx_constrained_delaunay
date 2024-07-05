@@ -11,7 +11,7 @@ use crate::types::{
     VERT_2, VERT_3,
 };
 use crate::utils::{
-    is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle, line_slope,
+    is_point_strictly_on_right_side_of_edge, is_vertex_in_triangle_circumcircle,
     test_point_edge_side,
 };
 
@@ -52,25 +52,17 @@ impl Default for TriangulationConfiguration {
     }
 }
 
-pub const CONTAINER_TRIANGLE_COORDINATE: Float = 5.;
+// pub const CONTAINER_TRIANGLE_COORDINATE: Float = 5.;
 
 pub const CONTAINER_TRIANGLE_VERTICES: [Vertex; 3] = [
-    Vertex::new(
-        CONTAINER_TRIANGLE_COORDINATE,
-        -CONTAINER_TRIANGLE_COORDINATE,
-    ),
-    Vertex::new(0., CONTAINER_TRIANGLE_COORDINATE),
-    Vertex::new(
-        CONTAINER_TRIANGLE_COORDINATE,
-        -CONTAINER_TRIANGLE_COORDINATE,
-    ),
+    Vertex::new(-Float::INFINITY, 0.),
+    Vertex::new(0., Float::INFINITY),
+    Vertex::new(Float::INFINITY, 0.),
 ];
 pub const CONTAINER_TRIANGLE_TOP_VERTEX_INDEX: TriangleVertexIndex = 1;
-pub const INFINITE_VERTS_SLOPES: [Float; 3] = [1., 0., -1.];
 
-// Slightly higher values than 1.0 to be safe.
+// Slightly higher values than 1.0 to be safe, which is enough since all our vertices coordinates are normalized inside the unit square.
 pub const DELTA_VALUE: Float = 1.42;
-pub const INFINITE_VERTS_DELTAS: [Float; 3] = [-DELTA_VALUE, 0., DELTA_VALUE];
 
 /// plane_normal must be normalized
 /// vertices must all belong to a 3d plane
@@ -150,7 +142,7 @@ pub fn transform_to_2d_planar_coordinate_system(
 }
 
 /// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
-/// The use of normalized coordinates, although not essential, reduces the effects of  roundoff error and is also convenient from a computational point of view.
+/// The use of normalized coordinates, although not essential, reduces the effects of roundoff error and is also convenient from a computational point of view.
 pub(crate) fn normalize_vertices_coordinates(
     vertices: &Vec<Vertex>,
 ) -> (Vec<Vertex>, Float, Float, Float) {
@@ -204,6 +196,7 @@ fn find_vertex_placement(
     min_container_vertex_id: VertexId,
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
+    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> Result<VertexPlacement, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "find_vertex_placement").entered();
@@ -218,7 +211,6 @@ fn find_vertex_placement(
         let triangle_id = neighbor.id;
         let triangle = triangles.get(triangle_id);
 
-        // TODO Might switch super coordinates to +inf -inf ...
         let mut infinite_verts = Vec::new();
         if is_infinite(triangle.v1(), min_container_vertex_id) {
             infinite_verts.push(VERT_1);
@@ -231,7 +223,11 @@ fn find_vertex_placement(
         }
 
         if infinite_verts.len() == 3 {
-            return Ok(VertexPlacement::InsideTriangle(triangle_id));
+            if vertex.y == 0. {
+                return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
+            } else {
+                return Ok(VertexPlacement::InsideTriangle(triangle_id));
+            }
         } else if infinite_verts.len() == 2 {
             let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
             let finite_vert_id = triangle.v(finite_v_index);
@@ -245,7 +241,7 @@ fn find_vertex_placement(
             let infinite_vert_a_local_index =
                 (triangle.v(next_clockwise_vertex_index(finite_v_index)) - min_container_vertex_id)
                     as TriangleVertexIndex;
-            let edge_a = get_segment_from_infinite_edge(finite_vertex, infinite_vert_a_local_index);
+            let edge_a = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
             let edge_a_index = vertex_next_cw_edge_index(finite_v_index);
             let edge_a_test = test_point_edge_side(edge_a, vertex);
             if edge_a_test.is_on_left_side() {
@@ -256,7 +252,7 @@ fn find_vertex_placement(
             let infinite_vert_b_local_index =
                 (triangle.v(next_counter_clockwise_vertex_index(finite_v_index))
                     - min_container_vertex_id) as TriangleVertexIndex;
-            let edge_b = get_segment_from_infinite_edge(finite_vertex, infinite_vert_b_local_index);
+            let edge_b = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
             let edge_b_index = vertex_next_ccw_edge_index(finite_v_index);
             let edge_b_test = test_point_edge_side(edge_b, vertex);
             // Test for right side because edge_b is oriented the wrong way. We could also reverse edge_b
@@ -270,7 +266,14 @@ fn find_vertex_placement(
             } else if edge_b_test.is_colinear() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
             } else {
-                return Ok(VertexPlacement::InsideTriangle(triangle_id));
+                if vertex.y == 0. {
+                    return Ok(VertexPlacement::OnTriangleEdge(
+                        triangle_id,
+                        next_clockwise_edge_index(edge_a_index),
+                    ));
+                } else {
+                    return Ok(VertexPlacement::InsideTriangle(triangle_id));
+                }
             }
         } else if infinite_verts.len() == 1 {
             let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
@@ -298,7 +301,7 @@ fn find_vertex_placement(
 
             let infinite_vert_local_index =
                 (triangle.v(infinite_verts[0]) - min_container_vertex_id) as TriangleVertexIndex;
-            let edge_a = get_segment_from_infinite_edge(finite_vertex_a, infinite_vert_local_index);
+            let edge_a = edge_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
             let edge_a_index = vertex_next_ccw_edge_index(finite_vert_a_index);
             let edge_a_test = test_point_edge_side(edge_a, vertex);
             // Test for right side because edge_a is oriented the wrong way. We could also reverse edge_a
@@ -307,7 +310,7 @@ fn find_vertex_placement(
                 continue;
             }
 
-            let edge_b = get_segment_from_infinite_edge(finite_vertex_b, infinite_vert_local_index);
+            let edge_b = edge_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
             let edge_b_index = vertex_next_cw_edge_index(finite_vert_b_index);
             let edge_b_test = test_point_edge_side(edge_b, vertex);
             if edge_b_test.is_on_left_side() {
@@ -322,6 +325,7 @@ fn find_vertex_placement(
             } else if edge_b_test.is_colinear() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
             } else {
+                // Imposssible to be on super triangle edge, would be colinear
                 return Ok(VertexPlacement::InsideTriangle(triangle_id));
             }
         } else {
@@ -371,29 +375,25 @@ fn find_vertex_placement(
     Err(TriangulationError)
 }
 
+pub const INFINITE_VERTS_Y_DELTAS: [Float; 3] = [0., DELTA_VALUE, 0.];
+pub const INFINITE_VERTS_X_DELTAS: [Float; 3] = [-DELTA_VALUE, 0., DELTA_VALUE];
+
 /// Returns a finite segment from an edge between a finite vertex and an infinite vertex
 ///  - infinite_vert_local_index is the local index of the infinite vertex in the infinite container triangle
-pub(crate) fn get_segment_from_infinite_edge(
+#[inline]
+pub fn edge_from_semi_infinite_edge(
     finite_vertex: Vertex,
     infinite_vert_local_index: TriangleVertexIndex,
 ) -> EdgeVertices {
-    if infinite_vert_local_index == CONTAINER_TRIANGLE_TOP_VERTEX_INDEX {
-        // Line in an "x=b" form
-        let line_point_1 = finite_vertex;
-        let line_point_2 = Vertex::new(line_point_1.x, line_point_1.y + DELTA_VALUE);
-        (line_point_1, line_point_2)
-    } else {
-        let line_point_1 = finite_vertex;
-        let a = INFINITE_VERTS_SLOPES[infinite_vert_local_index as usize];
-        let b = line_point_1.y - a * line_point_1.x;
-        // We care about the delta sign here since we create a segment from an infinite line,
-        // starting from the finite point and aimed towards the infinite point with a X span of "1.".
-        // "1" is enough since all our vertices coordinates are normalized inside the unit square.
-        let line_point_2_x =
-            line_point_1.x + INFINITE_VERTS_DELTAS[infinite_vert_local_index as usize];
-        let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
-        (line_point_1, line_point_2)
-    }
+    (
+        finite_vertex,
+        Vertex::new(
+            // We care about the delta sign here since we create a segment from an infinite line,
+            // starting from the finite point and aimed towards the infinite point.
+            finite_vertex.x + INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize],
+            finite_vertex.y + INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize],
+        ),
+    )
 }
 
 /// Select three dummy points to form a supertriangle that completely encompasses all of the points to be triangulated.
@@ -462,6 +462,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             min_container_vertex_id,
             &triangles,
             &vertices,
+            #[cfg(feature = "debug_context")]
+            debug_context,
         ) else {
             // TODO Internal error
             error!(
@@ -474,7 +476,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         let new_triangles = match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
                 // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
-                split_triangle_in_three_at_vertex(
+                split_triangle_into_three_triangles(
                     &mut triangles,
                     enclosing_triangle_id,
                     vertex_id,
@@ -483,14 +485,29 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 )
             }
             VertexPlacement::OnTriangleEdge(enclosing_triangle_id, edge_index) => {
-                split_quad_into_four_triangles(
-                    &mut triangles,
-                    enclosing_triangle_id,
-                    edge_index,
-                    vertex_id,
-                    #[cfg(feature = "debug_context")]
-                    debug_context,
-                )
+                if triangles
+                    .get(enclosing_triangle_id)
+                    .neighbor(edge_index)
+                    .exists()
+                {
+                    split_quad_into_four_triangles(
+                        &mut triangles,
+                        enclosing_triangle_id,
+                        edge_index,
+                        vertex_id,
+                        #[cfg(feature = "debug_context")]
+                        debug_context,
+                    )
+                } else {
+                    split_triangle_into_two_triangles(
+                        &mut triangles,
+                        enclosing_triangle_id,
+                        vertex_id,
+                        edge_index,
+                        #[cfg(feature = "debug_context")]
+                        debug_context,
+                    )
+                }
             }
             VertexPlacement::OnVertex(existing_vertex_id) => {
                 if let Some(vertex_merge_mapping) = vertex_merge_mapping {
@@ -651,7 +668,38 @@ impl VertexBinSort {
     }
 }
 
-// TODO Ascii art
+/// Splits a quad (triangle pair) into 4 triangles
+///```text
+///      from
+///      /|\
+///     / | \
+///    /  |  \
+///   /   |   \
+///  /    |    \
+/// /  t1 | t2  \
+/// \     |     /
+///  \    |    /
+///   \   |   /
+///    \  |  /
+///     \ | /
+///      \|/
+///       to
+///
+/// Becomes
+///
+///      /|\
+///     /3|2\
+///    /  |  \
+///   / t1|t2 \
+///  /    |    \
+/// /2___1|1___3\
+/// \3   1|1   2/
+///  \ t3 | t4 /
+///   \   |   /
+///    \  |  /
+///     \2|3/
+///      \|/
+/// ```
 pub(crate) fn split_quad_into_four_triangles(
     triangles: &mut Triangles,
     triangle_id: TriangleId,
@@ -664,6 +712,7 @@ pub(crate) fn split_quad_into_four_triangles(
 
     // Re-use the existing triangle id for the first triangle
     let t1 = triangle_id;
+    // TODO Comment is not true anymore in the general sense, but still true in this function
     // The triangle is always guaranteed to have a neighbor on the edge since a vertex
     // cannot land on a container triangle's edge.
     let t2 = triangles.get(triangle_id).neighbor(edge_index);
@@ -683,7 +732,7 @@ pub(crate) fn split_quad_into_four_triangles(
         [t4.into(), t3_neighbor_23, t1.into()],
     );
 
-    let t2_opposite_v_id = triangles.get(t2.id).get_opposite_vertex_index(&edge);
+    let t2_opposite_v_id = triangles.get(t2.id).get_opposite_vertex_id(&edge);
     let t2_opposite_v_index = triangles.get(t2.id).vertex_index(t2_opposite_v_id);
 
     // t4
@@ -727,8 +776,8 @@ pub(crate) fn split_quad_into_four_triangles(
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot_event(
-        Phase::SplitTriangle,
-        EventInfo::SplitTriangle(vertex_id),
+        Phase::SplitQuad,
+        EventInfo::Split(vertex_id),
         &triangles,
         &[t1, t2.id, t3, t4],
         // Neighbor data is out of date here and is not that interesting
@@ -740,7 +789,7 @@ pub(crate) fn split_quad_into_four_triangles(
 
 /// Splits `triangle_id` into 3 triangles (re-using the existing triangle id)
 ///
-/// All the resulting triangles will share `vertex_id` as their frist vertex, and will be oriented in a CW order
+/// All the resulting triangles will share `vertex_id` as their first vertex, and will be oriented in a CW order
 ///
 /// ```text
 ///                  v1
@@ -758,7 +807,7 @@ pub(crate) fn split_quad_into_four_triangles(
 ///     / / 3                 2 \ \
 ///   v3 ------------------------- v2
 /// ```
-pub(crate) fn split_triangle_in_three_at_vertex(
+pub(crate) fn split_triangle_into_three_triangles(
     triangles: &mut Triangles,
     triangle_id: TriangleId,
     vertex_id: VertexId,
@@ -808,7 +857,7 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot_event(
         Phase::SplitTriangle,
-        EventInfo::SplitTriangle(vertex_id),
+        EventInfo::Split(vertex_id),
         &triangles,
         &[t1, t2, t3],
         // Neighbor data is out of date here and is not that interesting
@@ -816,6 +865,77 @@ pub(crate) fn split_triangle_in_three_at_vertex(
     );
 
     vec![t1, t2, t3]
+}
+
+/// Splits `triangle_id` into 2 triangles (re-using the existing triangle id)
+///
+/// All the resulting triangles will share `vertex_id` as their frist vertex, and will be oriented in a CW order
+///
+/// ```text
+///                 v_top
+///                / | \
+///               / 3|2 \
+///              /   |   \
+///             /    |    \
+///            /     |     \
+///    t_left /      |      \ t_right
+///          /       |       \
+///         /    t1  |  t2    \
+///        /         |         \
+///       /          |          \
+///      /           |           \
+///     / 2        1 | 1        3 \
+///   e.to ----------v------------ e.from
+/// ```
+pub(crate) fn split_triangle_into_two_triangles(
+    triangles: &mut Triangles,
+    triangle_id: TriangleId,
+    vertex_id: VertexId,
+    edge_index: TriangleEdgeIndex,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+) -> Vec<TriangleId> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "split_triangle_in_three_at_vertex").entered();
+
+    let t1 = triangle_id;
+    let t2 = triangles.next_id();
+
+    let edge = triangles.get(t1).edge(edge_index);
+    let v_top = triangles.get(t1).v(opposite_vertex_index(edge_index));
+    let t_right = triangles
+        .get(t1)
+        .neighbor(next_counter_clockwise_edge_index(edge_index));
+    let t_left = triangles
+        .get(t1)
+        .neighbor(next_clockwise_edge_index(edge_index));
+
+    // t2
+    triangles.create(
+        [vertex_id, v_top, edge.from],
+        [t1.into(), t_right, Neighbor::NONE],
+    );
+
+    // Update triangle indexes
+    update_triangle_neighbor(t_right, t1.into(), t2.into(), triangles);
+
+    // Update t1 verts
+    let verts = [vertex_id, edge.to, v_top];
+    triangles.get_mut(t1).verts = verts;
+    // Update t1 neighbors
+    let neighbors = [Neighbor::NONE, t_left, t2.into()];
+    triangles.get_mut(t1).neighbors = neighbors;
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot_event(
+        Phase::SplitTriangleInHalf,
+        EventInfo::Split(vertex_id),
+        &triangles,
+        &[t1, t2],
+        // Neighbor data is out of date here and is not that interesting
+        &[],
+    );
+
+    vec![t1, t2]
 }
 
 pub(crate) fn update_triangle_neighbor(
@@ -889,8 +1009,8 @@ fn is_vertex_in_half_plane_1(
 ) -> bool {
     // Test if q4 is inside the circle with 1 infinite point (half-plane defined by the 2 finite points)
     // TODO Clean: utils functions in Quad/Triangle
-    let edge = opposite_edge_index(infinite_vert);
-    let finite_vert_indexes = EDGE_TO_VERTS[edge as usize];
+    let edge_index = opposite_edge_index(infinite_vert);
+    let finite_vert_indexes = EDGE_TO_VERTS[edge_index as usize];
     // q1q2q3 is in a CCW order, so we reverse the edge
     let edge_vertices = (
         quad_vertices.verts[finite_vert_indexes[1] as usize],
@@ -900,25 +1020,31 @@ fn is_vertex_in_half_plane_1(
     is_point_strictly_on_right_side_of_edge(edge_vertices, quad_vertices.q4())
 }
 
+const INFINITE_VERTICES_PAIR_TO_DELTA_X: [Float; 3] = [-DELTA_VALUE, DELTA_VALUE, -DELTA_VALUE];
+pub const INFINITE_VERTS_SLOPES: [Float; 3] = [1., 0., -1.];
+
 #[cold]
 fn is_vertex_in_half_plane_2(
+    quad: &Quad,
+    quad_vertices: &QuadVertices,
     infinite_v1: TriangleVertexIndex,
     infinite_v2: TriangleVertexIndex,
-    quad_vertices: &QuadVertices,
+    min_container_vertex_id: VertexId,
 ) -> bool {
     // Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
+    let infinite_vert_1_local_index = quad.v(infinite_v1) - min_container_vertex_id;
+    let infinite_vert_2_local_index = quad.v(infinite_v2) - min_container_vertex_id;
+    let infinite_vertices_pair_index =
+        (infinite_vert_1_local_index + infinite_vert_2_local_index - 1) as usize;
+
     // Index of the finite vertex in q1q2q3
     let finite_vert_index = (3 - (infinite_v1 + infinite_v2)) as usize;
     let line_point_1 = quad_vertices.verts[finite_vert_index];
-    // TODO Improvement: Could use a slope LUT since we know container vertices as const
-    let a = line_slope(
-        quad_vertices.verts[infinite_v1 as usize],
-        quad_vertices.verts[infinite_v2 as usize],
-    );
+    let a = INFINITE_VERTS_SLOPES[infinite_vertices_pair_index];
     let b = line_point_1.y - a * line_point_1.x;
     // Another point on the line, its position depends of which infinite vertices are considered
-    let delta_x = if a == 0. { 1. } else { -1. };
-    let line_point_2_x = line_point_1.x + delta_x;
+    let line_point_2_x =
+        line_point_1.x + INFINITE_VERTICES_PAIR_TO_DELTA_X[infinite_vertices_pair_index];
     let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
     // Strict seems to be necessary here, in order to avoid creating flat triangles
     is_point_strictly_on_right_side_of_edge((line_point_1, line_point_2), quad_vertices.q4())
@@ -943,6 +1069,10 @@ pub(crate) fn should_swap_diagonals(
     if is_infinite(quad.v3(), min_container_vertex_id) {
         infinite_verts.push(QUAD_3);
     }
+    // TODO Fix: Remove this debug code
+    // if is_infinite(quad.v4(), min_container_vertex_id) {
+    //     error!("Temporary debug log, infinite q4, should not be possible");
+    // }
 
     // TODO Performance: try to play with the #cold attribute for the infinite cases.
     if infinite_verts.is_empty() {
@@ -952,7 +1082,13 @@ pub(crate) fn should_swap_diagonals(
     } else if infinite_verts.len() == 1 {
         is_vertex_in_half_plane_1(infinite_verts[0], &quad_vertices)
     } else {
-        is_vertex_in_half_plane_2(infinite_verts[0], infinite_verts[1], &quad_vertices)
+        is_vertex_in_half_plane_2(
+            quad,
+            &quad_vertices,
+            infinite_verts[0],
+            infinite_verts[1],
+            min_container_vertex_id,
+        )
     }
     // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
 }
@@ -1097,7 +1233,7 @@ mod tests {
     use crate::{
         triangulation::{
             check_and_swap_quad_diagonal, normalize_vertices_coordinates,
-            split_triangle_in_three_at_vertex, transform_to_2d_planar_coordinate_system,
+            split_triangle_into_three_triangles, transform_to_2d_planar_coordinate_system,
             QuadSwapResult,
         },
         types::{Float, Neighbor, TriangleData, TriangleId, Triangles, Vector3A, Vertex},
@@ -1180,7 +1316,7 @@ mod tests {
 
         #[cfg(feature = "debug_context")]
         let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
-        let _new_triangles = split_triangle_in_three_at_vertex(
+        let _new_triangles = split_triangle_into_three_triangles(
             &mut triangles,
             0,
             0,
