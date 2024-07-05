@@ -9,6 +9,8 @@
 
 A quite fast Rust library for 2D constrained Delaunay triangulation
 
+> **WARNING: the library is still "Work In Progress" and unreleased.**
+
 # Examples
 
 - Triangulation on a simple square
