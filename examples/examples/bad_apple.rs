@@ -16,8 +16,8 @@ use bevy::{
 };
 use bevy_ghx_utils::camera::{update_pan_orbit_camera, PanOrbitCamera};
 use examples::{
-    extend_displayed_vertices_with_container_vertice, LabelMode, TriangleDebugCursorUpdate,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
+    LabelMode, TriangleDebugCursorUpdate, TriangleDebugPlugin, TrianglesDebugData,
+    TrianglesDebugViewConfig, TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
@@ -28,7 +28,7 @@ use ghx_constrained_delaunay::{
 use serde::Deserialize;
 
 const FRAMES_FILE: &str = "./assets/bad_apple_frames.msgpack";
-const DEFAULT_FRAME_DISPLAY_PERIOD_MS: u64 = 60;
+const DEFAULT_FRAME_DISPLAY_PERIOD_MS: u64 = 20;
 const DEFAULT_FRAME_SWITCH_MODE: FrameSwitchMode = FrameSwitchMode::Auto;
 
 pub enum FrameSwitchMode {
@@ -96,7 +96,7 @@ fn setup(mut commands: Commands) {
         debug_config: DebugConfiguration {
             phase_record: PhaseRecord::In(Phase::FilterTriangles),
             // phase_record: PhaseRecord::All,
-            // force_end_at_step: Some(160),
+            // force_end_at_step: Some(119),
             ..Default::default()
         },
         ..Default::default()
@@ -104,6 +104,9 @@ fn setup(mut commands: Commands) {
 
     let mut triangulated_frames = Vec::new();
     for (i, frame) in frames.iter().enumerate() {
+        // if i != 460 {
+        //     continue;
+        // }
         info!("Loading frame n°{}", i);
         let edges = frame
             .edges
@@ -126,13 +129,6 @@ fn setup(mut commands: Commands) {
             .collect();
 
         let plane_normal = Vector3::Z;
-        // TODO Tmp debug, remove
-        extend_displayed_vertices_with_container_vertice(
-            &mut displayed_vertices,
-            plane_normal,
-            &triangulation.debug_context,
-            false,
-        );
 
         triangulated_frames.push(TriangulatedFrame {
             triangulation,
@@ -148,8 +144,9 @@ fn setup(mut commands: Commands) {
     ));
 
     commands.insert_resource(TrianglesDebugViewConfig::new(
-        LabelMode::None,
-        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
+        LabelMode::All,
+        VertexLabelMode::GlobalIndex,
+        TrianglesDrawMode::AllAsGizmos,
     ));
 
     commands.insert_resource(Frames {
