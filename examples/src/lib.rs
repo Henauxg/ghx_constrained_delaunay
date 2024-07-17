@@ -8,6 +8,8 @@ pub use example_setup::*;
 
 pub mod lines;
 
+pub mod camera;
+
 pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
 
 pub const COLORS: &'static [Color] = &[

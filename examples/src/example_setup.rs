@@ -6,7 +6,8 @@ use bevy::{
     transform::components::Transform,
     utils::default,
 };
-use bevy_ghx_utils::camera::{update_pan_orbit_camera, PanOrbitCamera};
+
+use crate::camera::{update_pan_orbit_camera, PanOrbitCamera};
 
 pub struct ExamplesPlugin;
 
