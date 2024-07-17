@@ -98,6 +98,10 @@ impl EdgeSideTestResult {
     pub fn is_colinear(&self) -> bool {
         self.0 == 0.
     }
+    #[inline]
+    pub fn is_near_edge(&self) -> bool {
+        self.0.abs() < Float::EPSILON
+    }
 }
 
 /// Returns the position of the point `p` when compared to the oriented edge `e`
