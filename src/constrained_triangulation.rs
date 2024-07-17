@@ -292,13 +292,14 @@ fn apply_constraints(
         );
 
         // Check for duplicate edges
+        // We will use this Set built iteratively for domains removal at the end anyway
         if constrained_edges_set.insert(constrained_edge) == false {
             // Skipping duplicate constrained edge
             continue;
         }
 
-        // Stores all of the edges that cross the constrained edge
         let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
+        // 'intersections' will store all the edges crossed by the constrained edge
         register_intersected_edges(
             triangles,
             vertices,

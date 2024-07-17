@@ -192,6 +192,7 @@ enum VertexPlacement {
 // TODO Details
 pub struct TriangulationError;
 
+// TODO Clean: this function should be shorter
 fn find_vertex_placement(
     vertex: Vertex,
     from: TriangleId,
@@ -202,14 +203,16 @@ fn find_vertex_placement(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "find_vertex_placement").entered();
 
-    let mut neighbor: Neighbor = from.into();
+    let mut current_triangle: Neighbor = from.into();
+    let mut previous_triangle = current_triangle;
 
     // We use `triangles.len()` as an upper bound on the number of triangles
     for _index in 0..triangles.count() {
-        if !neighbor.exists() {
+        if !current_triangle.exists() {
             break;
         }
-        let triangle_id = neighbor.id;
+
+        let triangle_id = current_triangle.id;
         let triangle = triangles.get(triangle_id);
 
         let mut infinite_verts = Vec::new();
@@ -234,14 +237,18 @@ fn find_vertex_placement(
                 return Ok(VertexPlacement::OnVertex(finite_vert_id));
             }
 
+            // Check if the point is more towards this triangle's neighbor
+            // Avoid looping between two triangles
             let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
                 triangle.v(next_clockwise_vertex_index(finite_v_index)),
             );
             let edge_a = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
             let edge_a_index = vertex_next_cw_edge_index(finite_v_index);
             let edge_a_test = test_point_edge_side(edge_a, vertex);
-            if edge_a_test.is_on_left_side() {
-                neighbor = triangle.neighbor(edge_a_index);
+            if edge_a_test.is_on_left_side() && previous_triangle != triangle.neighbor(edge_a_index)
+            {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor(edge_a_index);
                 continue;
             }
 
@@ -252,14 +259,17 @@ fn find_vertex_placement(
             let edge_b_index = vertex_next_ccw_edge_index(finite_v_index);
             let edge_b_test = test_point_edge_side(edge_b, vertex);
             // Test for right side because edge_b is oriented the wrong way. We could also reverse edge_b
-            if edge_b_test.is_on_right_side() {
-                neighbor = triangle.neighbor(edge_b_index);
+            if edge_b_test.is_on_right_side()
+                && previous_triangle != triangle.neighbor(edge_b_index)
+            {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor(edge_b_index);
                 continue;
             }
 
-            if edge_a_test.is_colinear() {
+            if edge_a_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
-            } else if edge_b_test.is_colinear() {
+            } else if edge_b_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
             } else {
                 return Ok(VertexPlacement::InsideTriangle(triangle_id));
@@ -281,10 +291,15 @@ fn find_vertex_placement(
                 return Ok(VertexPlacement::OnVertex(finite_vert_b_id));
             }
 
+            // Check if the point is more towards this triangle's neighbor
+            // Avoid looping between two triangles
             let edge_ab_test = test_point_edge_side((finite_vertex_a, finite_vertex_b), vertex);
             let edge_ab_index = vertex_next_cw_edge_index(finite_vert_a_index);
-            if edge_ab_test.is_on_left_side() {
-                neighbor = triangle.neighbor(edge_ab_index);
+            if edge_ab_test.is_on_left_side()
+                && previous_triangle != triangle.neighbor(edge_ab_index)
+            {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor(edge_ab_index);
                 continue;
             }
 
@@ -294,24 +309,29 @@ fn find_vertex_placement(
             let edge_a_index = vertex_next_ccw_edge_index(finite_vert_a_index);
             let edge_a_test = test_point_edge_side(edge_a, vertex);
             // Test for right side because edge_a is oriented the wrong way. We could also reverse edge_a
-            if edge_a_test.is_on_right_side() {
-                neighbor = triangle.neighbor(edge_a_index);
+            if edge_a_test.is_on_right_side()
+                && previous_triangle != triangle.neighbor(edge_a_index)
+            {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor(edge_a_index);
                 continue;
             }
 
             let edge_b = edge_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
             let edge_b_index = vertex_next_cw_edge_index(finite_vert_b_index);
             let edge_b_test = test_point_edge_side(edge_b, vertex);
-            if edge_b_test.is_on_left_side() {
-                neighbor = triangle.neighbor(edge_b_index);
+            if edge_b_test.is_on_left_side() && previous_triangle != triangle.neighbor(edge_b_index)
+            {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor(edge_b_index);
                 continue;
             }
 
-            if edge_ab_test.is_colinear() {
+            if edge_ab_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_ab_index));
-            } else if edge_a_test.is_colinear() {
+            } else if edge_a_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
-            } else if edge_b_test.is_colinear() {
+            } else if edge_b_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
             } else {
                 // Imposssible to be on super triangle edge, would be colinear
@@ -331,29 +351,32 @@ fn find_vertex_placement(
                 return Ok(VertexPlacement::OnVertex(triangle.v3()));
             }
 
-            // Check if the point is inside the triangle's neighbors
+            // Check if the point is more towards this triangle's neighbor
+            // Avoid looping between two triangles
             let edge_12_test = test_point_edge_side((v1, v2), vertex);
-            if edge_12_test.is_on_left_side() {
-                neighbor = triangle.neighbor12();
+            if edge_12_test.is_on_left_side() && previous_triangle != triangle.neighbor12() {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor12();
                 continue;
             }
             let edge_23_test = test_point_edge_side((v2, v3), vertex);
-            if edge_23_test.is_on_left_side() {
-                neighbor = triangle.neighbor23();
+            if edge_23_test.is_on_left_side() && previous_triangle != triangle.neighbor23() {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor23();
                 continue;
             }
             let edge_31_test = test_point_edge_side((v3, v1), vertex);
-            if edge_31_test.is_on_left_side() {
-                neighbor = triangle.neighbor31();
+            if edge_31_test.is_on_left_side() && previous_triangle != triangle.neighbor31() {
+                previous_triangle = current_triangle;
+                current_triangle = triangle.neighbor31();
                 continue;
             }
 
-            // Check the point's position relative to this triangle's vertices
-            if edge_12_test.is_colinear() {
+            if edge_12_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12));
-            } else if edge_23_test.is_colinear() {
+            } else if edge_23_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23));
-            } else if edge_31_test.is_colinear() {
+            } else if edge_31_test.is_near_edge() {
                 return Ok(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
             } else {
                 return Ok(VertexPlacement::InsideTriangle(triangle_id));
@@ -467,8 +490,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             // TODO Internal error
             error!(
                 "Internal error, found no triangle containing vertex {:?}, step {}",
-                vertex_id,
-                _index + 1
+                vertex_id, _index
             );
             break;
         };
