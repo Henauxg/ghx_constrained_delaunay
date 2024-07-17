@@ -8,8 +8,9 @@ use crate::triangulation::{
     Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
-    is_infinite, next_counter_clockwise_edge_index, QuadVertices, TriangleEdgeIndex, Triangles,
-    Vector3, Vector3A, Vertex, ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
+    infinite_vertex_local_quad_index, is_finite, is_infinite, next_counter_clockwise_edge_index,
+    TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex, ADJACENT_QUAD_VERTICES_INDEXES,
+    QUAD_1, QUAD_2, QUAD_3, QUAD_4,
 };
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 
@@ -27,7 +28,7 @@ use crate::{
     types::{
         next_clockwise_edge_index, opposite_edge_index, outermost_clockwise_edge_index_around,
         outermost_counter_clockwise_edge_index_around, Edge, EdgeVertices, Neighbor, Quad,
-        TriangleData, TriangleId, TriangleVertexIndex, TriangleVertices, VertexId,
+        TriangleData, TriangleId, TriangleVertexIndex, VertexId,
     },
 };
 
@@ -61,6 +62,10 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Triangulation {
+    if vertices.len() < 3 {
+        return Triangulation::default();
+    }
+
     let mut planar_vertices =
         triangulation::transform_to_2d_planar_coordinate_system(vertices, plane_normal);
     constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges, config)
@@ -93,6 +98,10 @@ pub fn constrained_triangulation_from_2d_vertices(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "constrained_triangulation_from_2d_vertices").entered();
 
+    if vertices.len() < 3 {
+        return Triangulation::default();
+    }
+
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
     let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
         normalize_vertices_coordinates(vertices);
@@ -102,7 +111,7 @@ pub fn constrained_triangulation_from_2d_vertices(
         DebugContext::new(config.debug_config.clone(), _scale_factor, _x_min, _y_min);
 
     let mut vertex_merge_mapping = Some((0..vertices.len() as VertexId).collect());
-    let (mut triangles, min_container_vertex_id) = wrap_and_triangulate_2d_normalized_vertices(
+    let mut triangles = wrap_and_triangulate_2d_normalized_vertices(
         &mut normalized_vertices,
         config.bin_vertex_density_power,
         &mut vertex_merge_mapping,
@@ -117,7 +126,6 @@ pub fn constrained_triangulation_from_2d_vertices(
     let constrained_edges_set = apply_constraints(
         &normalized_vertices,
         &mut triangles,
-        min_container_vertex_id,
         constrained_edges,
         vertex_merge_mapping.unwrap(),
         #[cfg(feature = "debug_context")]
@@ -129,7 +137,6 @@ pub fn constrained_triangulation_from_2d_vertices(
 
     let vert_indices = remove_wrapping_and_unconstrained_domains(
         &triangles,
-        min_container_vertex_id,
         constrained_edges_set,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
@@ -146,7 +153,6 @@ pub fn constrained_triangulation_from_2d_vertices(
 /// the container triangle.
 fn remove_wrapping_and_unconstrained_domains(
     triangles: &Triangles,
-    min_container_vertex_id: VertexId,
     constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
@@ -178,7 +184,7 @@ fn remove_wrapping_and_unconstrained_domains(
         if triangle_edge_is_constrained.contains(&true) {
             triangles_to_explore.clear();
 
-            if triangle.has_no_container_vertex(min_container_vertex_id) {
+            if triangle.is_finite() {
                 indices.push(triangle.verts);
                 #[cfg(feature = "debug_context")]
                 filtered_debug_triangles.push(triangle.clone());
@@ -201,7 +207,7 @@ fn remove_wrapping_and_unconstrained_domains(
                     continue;
                 } else {
                     let t = triangles.get(triangle_id);
-                    if t.has_no_container_vertex(min_container_vertex_id) {
+                    if t.is_finite() {
                         indices.push(t.verts);
                         #[cfg(feature = "debug_context")]
                         filtered_debug_triangles.push(t.clone());
@@ -229,7 +235,6 @@ fn remove_wrapping_and_unconstrained_domains(
 fn apply_constraints(
     vertices: &Vec<Vertex>,
     triangles: &mut Triangles,
-    min_container_vertex_id: VertexId,
     constrained_edges: &Vec<Edge>,
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
@@ -241,9 +246,15 @@ fn apply_constraints(
     // Map each vertex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
     for (index, t) in triangles.buffer().iter().enumerate() {
-        vertex_to_triangle[t.v1() as usize] = index as TriangleId;
-        vertex_to_triangle[t.v2() as usize] = index as TriangleId;
-        vertex_to_triangle[t.v3() as usize] = index as TriangleId;
+        if is_finite(t.v1()) {
+            vertex_to_triangle[t.v1() as usize] = index as TriangleId;
+        }
+        if is_finite(t.v2()) {
+            vertex_to_triangle[t.v2() as usize] = index as TriangleId;
+        }
+        if is_finite(t.v3()) {
+            vertex_to_triangle[t.v3() as usize] = index as TriangleId;
+        }
     }
 
     // Those buffers are used by all calls to `register_intersected_edges`, `remove_crossed_edges` and `restore_delaunay_triangulation_constrained`.
@@ -291,7 +302,6 @@ fn apply_constraints(
         register_intersected_edges(
             triangles,
             vertices,
-            min_container_vertex_id,
             constrained_edge,
             constrained_edge_vertices,
             &vertex_to_triangle,
@@ -308,7 +318,6 @@ fn apply_constraints(
         remove_crossed_edges(
             triangles,
             vertices,
-            min_container_vertex_id,
             &mut vertex_to_triangle,
             constrained_edge_vertices,
             &mut intersections,
@@ -321,7 +330,6 @@ fn apply_constraints(
         restore_delaunay_triangulation_constrained(
             triangles,
             vertices,
-            min_container_vertex_id,
             &mut vertex_to_triangle,
             constrained_edge,
             &mut new_diagonals_created,
@@ -343,35 +351,29 @@ enum EdgeFirstIntersection {
 }
 
 fn edge_and_constrained_edge_intersection(
+    vertices: &Vec<Vertex>,
     edge: &Edge,
-    edge_vertices: &EdgeVertices,
     constrained_edge_verts: &EdgeVertices,
-    min_container_vertex_id: VertexId,
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> EdgesIntersectionResult {
     // Handle infinite vertices
     // We know that constrained_edge_verts are finite here
     let mut infinite_verts = Vec::new();
-    if is_infinite(edge.from, min_container_vertex_id) {
-        infinite_verts.push((
-            (edge.from - min_container_vertex_id) as TriangleVertexIndex,
-            edge_vertices.1,
-        ));
+    if is_infinite(edge.from) {
+        infinite_verts.push((infinite_vertex_local_quad_index(edge.from), edge.to));
     }
-    if is_infinite(edge.to, min_container_vertex_id) {
-        infinite_verts.push((
-            (edge.to - min_container_vertex_id) as TriangleVertexIndex,
-            edge_vertices.0,
-        ));
+    if is_infinite(edge.to) {
+        infinite_verts.push((infinite_vertex_local_quad_index(edge.to), edge.from));
     }
 
     if infinite_verts.is_empty() {
-        egdes_intersect(&constrained_edge_verts, &edge_vertices)
+        egdes_intersect(&constrained_edge_verts, &edge.to_vertices(vertices))
     } else if infinite_verts.len() == 1 {
         // TODO Cold function  ?
         // Test intersection between edge and infinite edge segment
-        let (infinite_vert_id, finite_vert) = infinite_verts[0];
-        let extrapolated_segment = edge_from_semi_infinite_edge(finite_vert, infinite_vert_id);
+        let (infinite_vertex_index, finite_vert_id) = infinite_verts[0];
+        let extrapolated_segment =
+            edge_from_semi_infinite_edge(vertices[finite_vert_id as usize], infinite_vertex_index);
         egdes_intersect(&constrained_edge_verts, &extrapolated_segment)
     } else {
         EdgesIntersectionResult::None
@@ -381,7 +383,6 @@ fn edge_and_constrained_edge_intersection(
 fn loop_around_vertex_and_search_intersection(
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
-    min_container_vertex_id: VertexId,
     from_triangle_id: TriangleId,
     constrained_edge: Edge,
     constrained_edge_verts: &EdgeVertices,
@@ -407,13 +408,11 @@ fn loop_around_vertex_and_search_intersection(
         let vert_index = triangle.vertex_index(constrained_edge.from);
         let edge_index = opposite_edge_index(vert_index);
         let edge = triangle.edge(edge_index);
-        let edge_vertices = edge.to_vertices(vertices);
 
         let intersection = edge_and_constrained_edge_intersection(
+            vertices,
             &edge,
-            &edge_vertices,
             constrained_edge_verts,
-            min_container_vertex_id,
             #[cfg(feature = "debug_context")]
             _debug_context,
         );
@@ -444,7 +443,6 @@ fn loop_around_vertex_and_search_intersection(
 fn search_first_interstected_quad(
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
-    min_container_vertex_id: VertexId,
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
@@ -457,7 +455,6 @@ fn search_first_interstected_quad(
     let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
-        min_container_vertex_id,
         start_triangle,
         constrained_edge,
         constrained_edge_vertices,
@@ -482,7 +479,6 @@ fn search_first_interstected_quad(
     let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
-        min_container_vertex_id,
         neighbor_triangle,
         constrained_edge,
         constrained_edge_vertices,
@@ -503,7 +499,6 @@ fn search_first_interstected_quad(
 fn register_intersected_edges(
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
-    min_container_vertex_id: VertexId,
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     vertex_to_triangle: &Vec<TriangleId>,
@@ -516,7 +511,6 @@ fn register_intersected_edges(
     let search_result = search_first_interstected_quad(
         triangles,
         vertices,
-        min_container_vertex_id,
         constrained_edge,
         constrained_edge_vertices,
         vertex_to_triangle[constrained_edge.from as usize],
@@ -544,8 +538,7 @@ fn register_intersected_edges(
         }
 
         match get_next_triangle_edge_intersection(
-            min_container_vertex_id,
-            &triangle.to_vertices(vertices),
+            vertices,
             constrained_edge_vertices,
             triangle,
             triangle_id,
@@ -626,32 +619,22 @@ impl EdgeData {
 }
 
 fn get_next_triangle_edge_intersection(
-    min_container_vertex_id: VertexId,
-    triangle_verts: &TriangleVertices,
+    vertices: &Vec<Vertex>,
     constrained_edge: &EdgeVertices,
     triangle: &TriangleData,
     triangle_id: TriangleId,
     from_crossed_edge: &Edge,
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> Option<EdgeData> {
-    for (edge_index, (edge_vertices, edge)) in vec![
-        (triangle_verts.0, triangle_verts.1),
-        (triangle_verts.1, triangle_verts.2),
-        (triangle_verts.2, triangle_verts.0),
-    ]
-    .iter()
-    .zip(triangle.edges())
-    .enumerate()
-    {
+    for (edge_index, edge) in triangle.edges().iter().enumerate() {
         if edge.undirected_equals(&from_crossed_edge) {
             continue;
         }
         // TODO Doc: Add a note about why we only care about the `Crossing` result
         if edge_and_constrained_edge_intersection(
+            vertices,
             &edge,
-            &edge_vertices,
             constrained_edge,
-            min_container_vertex_id,
             #[cfg(feature = "debug_context")]
             _debug_context,
         ) == EdgesIntersectionResult::Crossing
@@ -662,7 +645,7 @@ fn get_next_triangle_edge_intersection(
                     // crossed_edge_index: edge_index,
                     from_triangle_id: triangle_id,
                     to_triangle_id: neighbor_triangle.id,
-                    edge,
+                    edge: *edge,
                 });
             }
         }
@@ -799,44 +782,40 @@ fn update_edges_data(
     }
 }
 
-fn quad_diagonals_intersection(
-    quad: &Quad,
-    quad_vertices: &QuadVertices,
-    min_container_vertex_id: VertexId,
-) -> EdgesIntersectionResult {
+fn quad_diagonals_intersection(vertices: &Vec<Vertex>, quad: &Quad) -> EdgesIntersectionResult {
     // TODO Share alloc ?
     let mut infinite_verts = Vec::new();
-    if is_infinite(quad.v1(), min_container_vertex_id) {
+    if is_infinite(quad.v1()) {
         infinite_verts.push((
-            (quad.v1() - min_container_vertex_id) as TriangleVertexIndex,
-            quad_vertices.q2(),
+            infinite_vertex_local_quad_index(quad.v1()),
+            vertices[quad.v2() as usize],
             QUAD_1,
         ));
     }
-    if is_infinite(quad.v2(), min_container_vertex_id) {
+    if is_infinite(quad.v2()) {
         infinite_verts.push((
-            (quad.v2() - min_container_vertex_id) as TriangleVertexIndex,
-            quad_vertices.q1(),
+            infinite_vertex_local_quad_index(quad.v2()),
+            vertices[quad.v1() as usize],
             QUAD_2,
         ));
     }
-    if is_infinite(quad.v3(), min_container_vertex_id) {
+    if is_infinite(quad.v3()) {
         infinite_verts.push((
-            (quad.v3() - min_container_vertex_id) as TriangleVertexIndex,
-            quad_vertices.q4(),
+            infinite_vertex_local_quad_index(quad.v3()),
+            vertices[quad.v4() as usize],
             QUAD_3,
         ));
     }
-    if is_infinite(quad.v4(), min_container_vertex_id) {
+    if is_infinite(quad.v4()) {
         infinite_verts.push((
-            (quad.v4() - min_container_vertex_id) as TriangleVertexIndex,
-            quad_vertices.q3(),
+            infinite_vertex_local_quad_index(quad.v4()),
+            vertices[quad.v3() as usize],
             QUAD_4,
         ));
     }
 
     if infinite_verts.is_empty() {
-        quad_vertices.diagonals_intersection_test()
+        quad.to_vertices(vertices).diagonals_intersection_test()
     }
     // For the cases with infite vertices, we know that a quad's diagonal has at least 1 finite vertex
     // TODO Those cases do not seem to be present in tested data sets. Try to have a dataset/test making use of it
@@ -845,8 +824,8 @@ fn quad_diagonals_intersection(
         let (infinite_vert_index, finite_vertex, finite_vert_index) = infinite_verts[0];
         let other_diagonal_verts = ADJACENT_QUAD_VERTICES_INDEXES[finite_vert_index as usize];
         let other_diagonal_edge = (
-            quad_vertices.verts[other_diagonal_verts[0] as usize],
-            quad_vertices.verts[other_diagonal_verts[1] as usize],
+            vertices[quad.v(other_diagonal_verts[0]) as usize],
+            vertices[quad.v(other_diagonal_verts[1]) as usize],
         );
 
         egdes_intersect(
@@ -870,7 +849,6 @@ fn quad_diagonals_intersection(
 fn remove_crossed_edges(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
-    min_container_vertex_id: VertexId,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge_vertices: &EdgeVertices,
     intersections: &mut VecDeque<EdgeData>,
@@ -882,12 +860,9 @@ fn remove_crossed_edges(
 
     while let Some(intersection) = intersections.pop_front() {
         let quad = intersection.to_quad(triangles);
-        let quad_vertices = quad.to_vertices(vertices);
         // If the quad is not convex (diagonals do not cross) or if an edge tip lie on the other edge,
         // we skip this edge and put it on the stack to re-process it later
-        if quad_diagonals_intersection(&quad, &quad_vertices, min_container_vertex_id)
-            != EdgesIntersectionResult::Crossing
-        {
+        if quad_diagonals_intersection(vertices, &quad) != EdgesIntersectionResult::Crossing {
             intersections.push_back(intersection);
         }
         // Swap the diagonal of this strictly convex quadrilateral if the two diagonals cross normaly
@@ -910,10 +885,9 @@ fn remove_crossed_edges(
             // If the new diagonal still intersects the constrained edge,
             // then place it on the list of intersecting edges
             if edge_and_constrained_edge_intersection(
+                vertices,
                 &edge_data.edge,
-                &(quad_vertices.q3(), quad_vertices.q4()),
                 constrained_edge_vertices,
-                min_container_vertex_id,
                 #[cfg(feature = "debug_context")]
                 debug_context,
             ) == EdgesIntersectionResult::Crossing
@@ -929,7 +903,6 @@ fn remove_crossed_edges(
 fn restore_delaunay_triangulation_constrained(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
-    min_container_vertex_id: VertexId,
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
@@ -945,7 +918,7 @@ fn restore_delaunay_triangulation_constrained(
         } else {
             let quad = new_edge.to_quad(triangles);
 
-            let should_swap = should_swap_diagonals(&quad, vertices, min_container_vertex_id);
+            let should_swap = should_swap_diagonals(&quad, vertices);
 
             // Use a small swap history to detect infinite swap loops & cycles.
             // Ideally we would like to prevent them instead of detecting them but this seems to be harder than it looks.

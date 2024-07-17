@@ -98,6 +98,7 @@ impl Edge {
     }
 
     #[inline]
+    /// **DO NOT** call if the edge has 1 or more infinite vertices
     pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> EdgeVertices {
         (vertices[self.from as usize], vertices[self.to as usize])
     }
@@ -135,7 +136,7 @@ impl Neighbor {
     };
 
     #[inline]
-    pub(crate) fn new(id: TriangleId) -> Self {
+    pub fn new(id: TriangleId) -> Self {
         Self { id }
     }
 
@@ -164,13 +165,6 @@ pub struct TriangleData {
 }
 
 impl TriangleData {
-    pub(crate) fn new_container_triangle(first_index: VertexId) -> Self {
-        TriangleData {
-            verts: [first_index, first_index + 1, first_index + 2],
-            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::NONE],
-        }
-    }
-
     #[inline]
     pub fn v(&self, vertex_index: TriangleVertexIndex) -> VertexId {
         self.verts[vertex_index as usize]
@@ -268,6 +262,7 @@ impl TriangleData {
     }
 
     #[inline]
+    /// **DO NOT** call if the triangle has 1 or more infinite vertices
     pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> TriangleVertices {
         (
             vertices[self.verts[VERT_1 as usize] as usize],
@@ -276,6 +271,7 @@ impl TriangleData {
         )
     }
     #[inline]
+    /// **DO NOT** call if the triangle has 1 or more infinite vertices
     pub fn to_vertices_array(&self, vertices: &Vec<Vertex>) -> [Vertex; 3] {
         [
             vertices[self.verts[VERT_1 as usize] as usize],
@@ -324,10 +320,8 @@ impl TriangleData {
     }
 
     #[inline]
-    pub(crate) fn has_no_container_vertex(&self, min_container_vertex_id: VertexId) -> bool {
-        self.v1() < min_container_vertex_id
-            && self.v2() < min_container_vertex_id
-            && self.v3() < min_container_vertex_id
+    pub(crate) fn is_finite(&self) -> bool {
+        is_finite(self.v1()) && is_finite(self.v2()) && is_finite(self.v3())
     }
 }
 
@@ -388,11 +382,6 @@ impl Triangles {
 }
 
 #[inline]
-pub fn is_infinite(vert_id: VertexId, min_container_vertex_id: VertexId) -> bool {
-    vert_id >= min_container_vertex_id
-}
-
-#[inline]
 pub fn next_clockwise_edge_index(edge_index: TriangleEdgeIndex) -> TriangleEdgeIndex {
     NEXT_CLOCKWISE_EDGE_INDEX[edge_index as usize]
 }
@@ -447,6 +436,51 @@ pub fn next_counter_clockwise_vertex_index(
     NEXT_CCW_VERTEX_INDEX[vertex_index as usize]
 }
 
+pub const INFINITE_V0_ID: VertexId = VertexId::MAX - 3;
+pub const INFINITE_V1_ID: VertexId = VertexId::MAX - 2;
+pub const INFINITE_V2_ID: VertexId = VertexId::MAX - 1;
+pub const INFINITE_V3_ID: VertexId = VertexId::MAX;
+
+#[inline]
+/// For an infinite vertex id, returns its local vertex index in the infinite quad
+///
+/// INVALID for a finite vertex
+pub fn infinite_vertex_local_quad_index(vertex_id: VertexId) -> QuadVertexIndex {
+    (vertex_id - INFINITE_V0_ID) as QuadVertexIndex
+}
+
+#[inline]
+/// From a vertex id, returns true if it represents an infinite vertex
+pub fn is_infinite(vert_id: VertexId) -> bool {
+    vert_id >= INFINITE_V0_ID
+}
+
+#[inline]
+/// From a vertex id, returns true if it represents an infinite vertex
+pub fn is_finite(vert_id: VertexId) -> bool {
+    vert_id < INFINITE_V0_ID
+}
+
+#[inline]
+/// From two TriangleVertexIndex in a triangle forming an edge, returns the TriangleVertexIndex of the other vertex opposite from the given edge
+pub fn opposite_vertex_index_from_edge(
+    v_a: TriangleVertexIndex,
+    v_b: TriangleVertexIndex,
+) -> TriangleVertexIndex {
+    3 - (v_a + v_b)
+}
+
+/// ```text
+///                q3
+///              /    \
+///            /        \
+///          /            \
+///         q1 ---------- q2
+///          \            /
+///            \        /
+///              \    /
+///                q4
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Quad {
     pub verts: [VertexId; 4],
@@ -479,6 +513,7 @@ impl Quad {
     }
 
     #[inline]
+    /// **DO NOT** call if the quad has 1 or more infinite vertices
     pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> QuadVertices {
         QuadVertices {
             verts: [

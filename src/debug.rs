@@ -71,7 +71,7 @@ impl DebugSnapshot {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DebugContext {
     pub config: DebugConfiguration,
 
@@ -174,12 +174,10 @@ impl DebugContext {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Phase {
-    /// After insertion of the container triangle vertices
-    ContainerVerticesInsertion,
+    /// After insertion of the first vertex
+    FirstVertexInsertion,
     /// After a triangle was split in 3 triangles
     SplitTriangle,
-    /// After a triangle was split in 2 triangles
-    SplitTriangleInHalf,
     /// After a quad was split in 4 triangles
     SplitQuad,
     /// After a quad diagonal was swapped in the delaunay restoration
