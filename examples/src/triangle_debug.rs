@@ -452,7 +452,7 @@ pub fn spawn_label(
     commands: &mut Commands,
     vertex_label_mode: VertexLabelMode,
     vertices: &Vec<Vector3>,
-    basis: &Option<Basis>,
+    _basis: &Option<Basis>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
 ) {
@@ -482,13 +482,13 @@ pub fn spawn_label(
         let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_a_id = triangle.v(finite_vert_a_index);
         let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let mut finite_tip_a =
+        let finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
 
         let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_b_id = triangle.v(finite_vert_b_index);
         let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let mut finite_tip_b =
+        let finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
 
         // if let Some(basis) = basis {
@@ -524,13 +524,13 @@ pub fn spawn_label(
         let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
             triangle.v(next_clockwise_vertex_index(finite_v_index)),
         );
-        let mut finite_tip_a =
+        let finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
 
         let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
             triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
         );
-        let mut finite_tip_b =
+        let finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
 
         // if let Some(basis) = basis {
@@ -587,7 +587,7 @@ pub fn spawn_label(
                 if (v_id as usize) < vertices.len() {
                     v_id.to_string()
                 } else {
-                    format!("inf_{}", v_id.to_string())
+                    format!("inf_{}", infinite_vertex_local_quad_index(v_id).to_string())
                 }
             }
         };
@@ -676,7 +676,7 @@ pub fn draw_triangles_debug_data_gizmos(
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
     vertices: &Vec<Vector3>,
-    basis: &Option<Basis>,
+    _basis: &Option<Basis>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
 ) {
@@ -707,13 +707,13 @@ pub fn draw_triangle_gizmo(
         let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_a_id = triangle.v(finite_vert_a_index);
         let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let mut finite_tip_a =
+        let finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
 
         let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_b_id = triangle.v(finite_vert_b_index);
         let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let mut finite_tip_b =
+        let finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
 
         // if let Some(basis) = basis {
@@ -737,13 +737,13 @@ pub fn draw_triangle_gizmo(
         let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
             triangle.v(next_clockwise_vertex_index(finite_v_index)),
         );
-        let mut finite_tip_a =
+        let finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
 
         let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
             triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
         );
-        let mut finite_tip_b =
+        let finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
 
         // // TODO Really quick & dirty. Does not work, finite_vertex is not transformed. Would need transformed finite_vertex -> point extrapolation -> detransform
@@ -760,7 +760,7 @@ pub fn draw_triangle_gizmo(
     // TODO Could draw something for 3 infinite vertices
 }
 
-pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 35.;
+pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 50.;
 
 pub fn finite_vertex_from_semi_infinite_edge(
     finite_vertex: Vector3,
