@@ -10,9 +10,8 @@ use bevy::{
     DefaultPlugins,
 };
 use examples::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
-    VertexLabelMode,
+    ExamplesPlugin, LabelMode, TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
+    TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
@@ -69,17 +68,10 @@ fn setup(mut commands: Commands) {
 
     let (triangulation, edges) = load_with_ghx_cdt_crate(&vertices, &edges);
 
-    let plane_normal = Vector3::Z;
-    let mut displayed_vertices = vertices
+    let displayed_vertices = vertices
         .iter()
         .map(|v| Vector3::new(v.x, v.y, 0.))
         .collect();
-    extend_displayed_vertices_with_container_vertice(
-        &mut displayed_vertices,
-        plane_normal,
-        &triangulation.debug_context,
-        false,
-    );
 
     commands.insert_resource(TrianglesDebugData::new_with_constraintss(
         displayed_vertices,
@@ -89,7 +81,7 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::Changed,
         VertexLabelMode::LocalIndex,
-        TrianglesDrawMode::AllAsMeshBatches { batch_size: 150 },
+        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
     ));
     // TODO Center camera on data
 }

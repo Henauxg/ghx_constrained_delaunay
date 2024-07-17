@@ -6,9 +6,8 @@ use bevy::{
 };
 
 use examples::{
-    extend_displayed_vertices_with_container_vertice, ExamplesPlugin, LabelMode,
-    TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode,
-    VertexLabelMode,
+    ExamplesPlugin, LabelMode, TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
+    TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::{
@@ -79,15 +78,9 @@ fn setup(mut commands: Commands) {
         &vertices.iter().map(|v| Vertex::new(v[0], v[1])).collect(),
         false,
     );
-    info!("Delaunay quality info:: {:?}", delaunay_quality);
+    info!("CDT quality info:: {:?}", delaunay_quality);
 
-    let mut displayed_vertices = vertices.clone();
-    extend_displayed_vertices_with_container_vertice(
-        &mut displayed_vertices,
-        plane_normal,
-        &triangulation.debug_context,
-        true,
-    );
+    let displayed_vertices = vertices.clone();
     commands.insert_resource(TrianglesDebugData::new_with_constraintss(
         displayed_vertices,
         &constrained_edges,
