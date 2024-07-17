@@ -24,14 +24,12 @@ use bevy::{
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot, EventInfo},
-    triangulation::{
-        edge_from_semi_infinite_edge, CONTAINER_TRIANGLE_TOP_VERTEX_INDEX,
-        CONTAINER_TRIANGLE_VERTICES, DELTA_VALUE, INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS,
-    },
+    triangulation::{INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS},
     types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index, Edge, Float,
-        TriangleData, TriangleId, TriangleVertexIndex, Triangles, Vector3, Vertex,
-        NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
+        infinite_vertex_local_quad_index, next_clockwise_vertex_index,
+        next_counter_clockwise_vertex_index, opposite_vertex_index_from_edge, Edge, Float,
+        TriangleData, TriangleId, TriangleVertexIndex, Vector3, NEXT_CCW_VERTEX_INDEX,
+        NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
     },
 };
 use glam::{Quat, Vec2, Vec3};
@@ -61,40 +59,6 @@ impl Plugin for TriangleDebugPlugin {
                 .chain(),
         );
     }
-}
-
-pub fn extend_displayed_vertices_with_container_vertice(
-    displayed_vertices: &mut Vec<Vector3>,
-    plane_normal: Vector3,
-    debug_context: &DebugContext,
-    detransform: bool,
-) {
-    // Add the container triangle positions to the debug view buffer
-    // Calculate container triangle vertices position in world position
-    let mut container_vertices: Vec<Vector3> = CONTAINER_TRIANGLE_VERTICES
-        .iter()
-        .map(|v| Vector3::new(v.x, v.y, 0.))
-        .collect();
-    for v in container_vertices.iter_mut() {
-        v.x = (debug_context.scale_factor * v.x) + debug_context.x_min;
-        v.y = (debug_context.scale_factor * v.y) + debug_context.y_min;
-    }
-    if detransform {
-        let e1 = (displayed_vertices[0] - displayed_vertices[1]).normalize();
-        let e2 = e1.cross(-plane_normal);
-        let _e3 = plane_normal;
-        let plane_origin = displayed_vertices[1];
-        let basis = Basis {
-            plane_origin: plane_origin.as_vec3(),
-            e1: e2.as_vec3(),
-            e2: e2.as_vec3(),
-        };
-        for v in container_vertices.iter_mut() {
-            *v = plane_origin + v.x * e1 + v.y * e2 // + 0. * e3
-        }
-    }
-
-    displayed_vertices.extend(container_vertices);
 }
 
 pub struct Basis {
@@ -206,7 +170,10 @@ impl TrianglesDebugViewConfig {
 
 impl TrianglesDebugData {
     pub fn advance_cursor(&mut self) -> usize {
-        self.current_buffer_index = (self.current_buffer_index + 1) % self.context.snapshots.len();
+        if self.context.snapshots.len() > 0 {
+            self.current_buffer_index =
+                (self.current_buffer_index + 1) % self.context.snapshots.len();
+        }
         self.current_buffer_index
     }
 
@@ -219,12 +186,12 @@ impl TrianglesDebugData {
         self.current_buffer_index
     }
 
-    pub fn current_triangles(&self) -> &Triangles {
-        &self.context.snapshots[self.current_buffer_index].triangles
-    }
-
-    pub fn current_snapshot(&self) -> &DebugSnapshot {
-        &self.context.snapshots[self.current_buffer_index]
+    pub fn current_snapshot(&self) -> Option<&DebugSnapshot> {
+        if self.context.snapshots.len() > self.current_buffer_index {
+            Some(&self.context.snapshots[self.current_buffer_index])
+        } else {
+            None
+        }
     }
 
     pub fn cursor(&self) -> usize {
@@ -296,12 +263,15 @@ pub fn update_triangles_debug_entities(
     mut debug_data_updates_events: EventReader<TriangleDebugCursorUpdate>,
     triangles_query: Query<Entity, With<TriangleDebugEntity>>,
 ) {
-    if !debug_data_updates_events.is_empty() {
-        debug_data_updates_events.clear();
-    } else {
+    if debug_data_updates_events.is_empty() {
         return;
+    } else {
+        debug_data_updates_events.clear();
     }
-    let snapshot = debug_data.current_snapshot();
+
+    let Some(snapshot) = debug_data.current_snapshot() else {
+        return;
+    };
     info!(
         "Cursor set to snapshot n°{}, step {}, phase {:?}, {} changes, {} triangles",
         debug_data.cursor(),
@@ -507,7 +477,7 @@ pub fn spawn_label(
         )
     } else if infinite_verts.len() == 1 {
         let infinite_vert_local_index =
-            (triangle.v(infinite_verts[0]) as usize - vertices.len()) as TriangleVertexIndex;
+            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
 
         let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_a_id = triangle.v(finite_vert_a_index);
@@ -546,19 +516,20 @@ pub fn spawn_label(
             )
         }
     } else if infinite_verts.len() == 2 {
-        let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
+        let finite_v_index = opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
+
         let finite_vert_id = triangle.v(finite_v_index);
         let finite_vertex = vertices[finite_vert_id as usize];
 
-        let infinite_vert_a_local_index = (triangle.v(next_clockwise_vertex_index(finite_v_index))
-            as usize
-            - vertices.len()) as TriangleVertexIndex;
+        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
+            triangle.v(next_clockwise_vertex_index(finite_v_index)),
+        );
         let mut finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
 
-        let infinite_vert_b_local_index =
-            (triangle.v(next_counter_clockwise_vertex_index(finite_v_index)) as usize
-                - vertices.len()) as TriangleVertexIndex;
+        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
+            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
+        );
         let mut finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
 
@@ -643,7 +614,9 @@ pub fn draw_triangles_debug_data_gizmos(
     debug_data: Res<TrianglesDebugData>,
     view_config: Res<TrianglesDebugViewConfig>,
 ) {
-    let snapshot = &debug_data.current_snapshot();
+    let Some(snapshot) = debug_data.current_snapshot() else {
+        return;
+    };
     let vertices = &debug_data.vertices;
 
     // Draw triangles
@@ -729,7 +702,7 @@ pub fn draw_triangle_gizmo(
         vec![v1, v2, v3, v1]
     } else if infinite_verts.len() == 1 {
         let infinite_vert_local_index =
-            (triangle.v(infinite_verts[0]) as usize - vertices.len()) as TriangleVertexIndex;
+            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
 
         let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
         let finite_vert_a_id = triangle.v(finite_vert_a_index);
@@ -761,15 +734,15 @@ pub fn draw_triangle_gizmo(
         let finite_vert_id = triangle.v(finite_v_index);
         let finite_vertex = vertices[finite_vert_id as usize];
 
-        let infinite_vert_a_local_index = (triangle.v(next_clockwise_vertex_index(finite_v_index))
-            as usize
-            - vertices.len()) as TriangleVertexIndex;
+        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
+            triangle.v(next_clockwise_vertex_index(finite_v_index)),
+        );
         let mut finite_tip_a =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
 
-        let infinite_vert_b_local_index =
-            (triangle.v(next_counter_clockwise_vertex_index(finite_v_index)) as usize
-                - vertices.len()) as TriangleVertexIndex;
+        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
+            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
+        );
         let mut finite_tip_b =
             finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
 
@@ -787,17 +760,21 @@ pub fn draw_triangle_gizmo(
     // TODO Could draw something for 3 infinite vertices
 }
 
+pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 35.;
+
 pub fn finite_vertex_from_semi_infinite_edge(
     finite_vertex: Vector3,
     infinite_vert_local_index: TriangleVertexIndex,
 ) -> Vec3 {
     // TODO Might need a detransformation
     Vec3::new(
-        // TODO 100.0 Chane to a factor dependent on the triangle/triangulation
-        (finite_vertex.x + 20. * INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize])
-            as f32,
-        (finite_vertex.y + 20. * INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize])
-            as f32,
+        // TODO Change to a factor dependent on the triangle/triangulation
+        (finite_vertex.x
+            + SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR
+                * INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize]) as f32,
+        (finite_vertex.y
+            + SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR
+                * INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize]) as f32,
         0.,
     )
 }
