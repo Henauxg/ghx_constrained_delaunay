@@ -68,9 +68,11 @@ fn setup(mut commands: Commands) {
 
     let (triangulation, edges) = load_with_ghx_cdt_crate(&vertices, &edges);
 
+    // Modify to change the display scale
+    const SCALE: f64 = 1.;
     let displayed_vertices = vertices
         .iter()
-        .map(|v| Vector3::new(v.x, v.y, 0.))
+        .map(|v| SCALE * Vector3::new(v.x, v.y, 0.))
         .collect();
 
     commands.insert_resource(TrianglesDebugData::new_with_constraintss(
@@ -80,7 +82,7 @@ fn setup(mut commands: Commands) {
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::Changed,
-        VertexLabelMode::LocalIndex,
+        VertexLabelMode::GlobalIndex,
         TrianglesDrawMode::AllAsContourAndInteriorMeshes,
     ));
     // TODO Center camera on data

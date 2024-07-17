@@ -4,11 +4,9 @@ use bevy::{
     app::{App, Startup, Update},
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     ecs::system::{Commands, Res},
-    gizmos::gizmos::Gizmos,
-    log::info,
-    math::{primitives::Direction3d, Vec3},
+    math::Vec3,
     prelude::{Camera3dBundle, EventWriter, ResMut, Resource},
-    render::{camera::Camera, color::Color},
+    render::camera::Camera,
     time::{Time, Timer, TimerMode},
     transform::components::Transform,
     utils::default,
@@ -28,7 +26,7 @@ use ghx_constrained_delaunay::{
 use serde::Deserialize;
 
 const FRAMES_FILE: &str = "./assets/bad_apple_frames.msgpack";
-const DEFAULT_FRAME_DISPLAY_PERIOD_MS: u64 = 20;
+const DEFAULT_FRAME_DISPLAY_PERIOD_MS: u64 = 30;
 const DEFAULT_FRAME_SWITCH_MODE: FrameSwitchMode = FrameSwitchMode::Auto;
 
 pub enum FrameSwitchMode {
@@ -95,19 +93,17 @@ fn setup(mut commands: Commands) {
     let config = ConstrainedTriangulationConfiguration {
         debug_config: DebugConfiguration {
             phase_record: PhaseRecord::In(Phase::FilterTriangles),
-            // phase_record: PhaseRecord::All,
-            // force_end_at_step: Some(119),
             ..Default::default()
         },
         ..Default::default()
     };
 
     let mut triangulated_frames = Vec::new();
-    for (i, frame) in frames.iter().enumerate() {
-        // if i != 460 {
+    for (_i, frame) in frames.iter().enumerate() {
+        // if i != 897 {
         //     continue;
         // }
-        info!("Loading frame n°{}", i);
+        // info!("Loading frame n°{}", i);
         let edges = frame
             .edges
             .iter()
@@ -122,14 +118,11 @@ fn setup(mut commands: Commands) {
             &edges,
             config.clone(),
         );
-        let mut displayed_vertices = frame
+        let displayed_vertices = frame
             .vertices
             .iter()
             .map(|v| Vector3::new(v.0 as Float, v.1 as Float, 0.))
             .collect();
-
-        let plane_normal = Vector3::Z;
-
         triangulated_frames.push(TriangulatedFrame {
             triangulation,
             edges,
@@ -144,9 +137,9 @@ fn setup(mut commands: Commands) {
     ));
 
     commands.insert_resource(TrianglesDebugViewConfig::new(
-        LabelMode::All,
+        LabelMode::None,
         VertexLabelMode::GlobalIndex,
-        TrianglesDrawMode::AllAsGizmos,
+        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
     ));
 
     commands.insert_resource(Frames {
@@ -158,15 +151,6 @@ fn setup(mut commands: Commands) {
         switch_mode: DEFAULT_FRAME_SWITCH_MODE,
         triangulated_frames,
     });
-}
-
-fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebugData>) {
-    gizmos.circle(
-        Vec3::new(0., 0., 0.),
-        Direction3d::Z,
-        0.01 * triangle_debug_data.context.scale_factor as f32,
-        Color::ALICE_BLUE,
-    );
 }
 
 fn next_frame(
@@ -181,7 +165,6 @@ fn next_frame(
             frames.next_frame_timer.tick(time.delta());
             if frames.next_frame_timer.finished() {
                 frames.frame_index = (frames.frame_index + 1) % frames.triangulated_frames.len();
-                // info!("Swapping to frame n°{}", frames.frame_index);
 
                 let frame_data = &frames.triangulated_frames[frames.frame_index];
                 commands.insert_resource(TrianglesDebugData::new_with_constraintss(
