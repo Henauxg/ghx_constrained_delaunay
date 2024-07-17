@@ -75,6 +75,7 @@ pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
     }
 }
 
+#[derive(Debug)]
 pub struct EdgeSideTestResult(Float);
 impl EdgeSideTestResult {
     #[inline]
@@ -82,8 +83,16 @@ impl EdgeSideTestResult {
         self.0 < 0.
     }
     #[inline]
+    pub fn is_strictly_on_right_side(&self) -> bool {
+        self.0 < -Float::EPSILON
+    }
+    #[inline]
     pub fn is_on_left_side(&self) -> bool {
         self.0 > 0.
+    }
+    #[inline]
+    pub fn is_strictly_on_left_side(&self) -> bool {
+        self.0 > Float::EPSILON
     }
     #[inline]
     pub fn is_colinear(&self) -> bool {
