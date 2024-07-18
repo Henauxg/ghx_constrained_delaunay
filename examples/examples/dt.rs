@@ -52,5 +52,6 @@ fn setup(mut commands: Commands) {
         LabelMode::All,
         VertexLabelMode::LocalIndex,
         TrianglesDrawMode::AllAsGizmos,
+        true,
     ));
 }

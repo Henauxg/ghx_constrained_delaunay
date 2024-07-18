@@ -120,7 +120,7 @@ impl TrianglesDebugData {
         }
     }
 
-    pub fn new_with_constraintss(
+    pub fn new_with_constraints(
         vertices: Vec<Vector3>,
         constraints: &Vec<Edge>,
         context: DebugContext,
@@ -153,17 +153,20 @@ pub struct TrianglesDebugViewConfig {
     pub label_mode: LabelMode,
     pub vertex_label_mode: VertexLabelMode,
     pub triangles_draw_mode: TrianglesDrawMode,
+    pub log_cursor_updates: bool,
 }
 impl TrianglesDebugViewConfig {
     pub fn new(
         label_mode: LabelMode,
         vertex_label_mode: VertexLabelMode,
         draw_mode: TrianglesDrawMode,
+        log_cursor_updates: bool,
     ) -> Self {
         Self {
             label_mode,
             vertex_label_mode,
             triangles_draw_mode: draw_mode,
+            log_cursor_updates,
         }
     }
 }
@@ -269,25 +272,26 @@ pub fn update_triangles_debug_entities(
         debug_data_updates_events.clear();
     }
 
-    let Some(snapshot) = debug_data.current_snapshot() else {
-        return;
-    };
-    info!(
-        "Cursor set to snapshot n°{}, step {}, phase {:?}, {} changes, {} triangles",
-        debug_data.cursor(),
-        snapshot.step,
-        snapshot.triangulation_phase,
-        snapshot.changed_ids.len(),
-        snapshot.triangles.count()
-    );
-    // info!("triangles {:?}", snapshot.triangles.buffer);
-
-    let vertices = &debug_data.vertices;
-
     // Despawn all previous entities
     for entity in triangles_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
+
+    let Some(snapshot) = debug_data.current_snapshot() else {
+        return;
+    };
+    if view_config.log_cursor_updates {
+        info!(
+            "Cursor set to snapshot n°{}, step {}, phase {:?}, {} changes, {} triangles",
+            debug_data.cursor(),
+            snapshot.step,
+            snapshot.triangulation_phase,
+            snapshot.changed_ids.len(),
+            snapshot.triangles.count()
+        );
+    }
+
+    let vertices = &debug_data.vertices;
 
     // Spawn triangle meshes if enabled
     // TODO With a better diff from the debug context, could only spawn the difference.

@@ -75,7 +75,7 @@ fn setup(mut commands: Commands) {
         .map(|v| SCALE * Vector3::new(v.x, v.y, 0.))
         .collect();
 
-    commands.insert_resource(TrianglesDebugData::new_with_constraintss(
+    commands.insert_resource(TrianglesDebugData::new_with_constraints(
         displayed_vertices,
         &edges,
         triangulation.debug_context,
@@ -84,6 +84,7 @@ fn setup(mut commands: Commands) {
         LabelMode::Changed,
         VertexLabelMode::GlobalIndex,
         TrianglesDrawMode::AllAsContourAndInteriorMeshes,
+        true,
     ));
     // TODO Center camera on data
 }

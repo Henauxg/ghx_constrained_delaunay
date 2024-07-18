@@ -81,7 +81,7 @@ fn setup(mut commands: Commands) {
     info!("CDT quality info:: {:?}", delaunay_quality);
 
     let displayed_vertices = vertices.clone();
-    commands.insert_resource(TrianglesDebugData::new_with_constraintss(
+    commands.insert_resource(TrianglesDebugData::new_with_constraints(
         displayed_vertices,
         &constrained_edges,
         triangulation.debug_context,
@@ -90,5 +90,6 @@ fn setup(mut commands: Commands) {
         LabelMode::All,
         VertexLabelMode::LocalIndex,
         TrianglesDrawMode::AllAsContourAndInteriorMeshes,
+        true,
     ));
 }
