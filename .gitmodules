@@ -1,0 +1,3 @@
+[submodule "assets/heavy"]
+	path = assets/heavy
+	url = https://github.com/Henauxg/cdt_assets.git
