@@ -13,17 +13,17 @@ A quite fast Rust library for 2D constrained Delaunay triangulation
 
 # Examples
 
-- Triangulation on a simple square
+- Delaunay triangulation on a simple square
     ```
     cd examples
     cargo run --example dt
     ```
-- Constrained triangulation on a small figure
+- Constrained Delaunay triangulation on a small figure
     ```
     cd examples
     cargo run --example cdt
     ```
-- Constrained triangulation on coastlines datasets
+- Constrained Delaunay triangulation on coastlines datasets
     ```
     cd examples
     cargo run --release --example cdt_real_data
@@ -32,10 +32,27 @@ A quite fast Rust library for 2D constrained Delaunay triangulation
     - **ne_50m_coastline**: 60416 vertices, 58987 constraint edges
     - **ne_10m_coastline**: 410957 vertices, 406824 constraint edges
     - **Europe_coastline**: 2912812 vertices, 2837094 constraint edges
+- Constrained Delaunay triangulation on the video "Bad Apple"
+    ```
+    cd examples
+    cargo run --release --example bad_apple
+    ```
+  The loaded frames are specified in the example sources. The frames data was generated using a custom [tool](https://github.com/Henauxg/bitmaps_to_triangulation_data).
+  
+  See the results with the full video here: https://www.youtube.com/watch?v=TrfDkD_PprQ
 
-Examples use `Bevy` to visualize & explore the resulting triangulation.
+All examples use `Bevy` to visualize & explore the resulting triangulation.
 
 https://github.com/Henauxg/ghx_constrained_delaunay/assets/19689618/fe30023b-da80-471f-bf6e-a978ab8e0ea2
+
+### Additional examples assets
+
+Some assets used by the examples are not included directly in the repository because of their weight but are stored in a git submodule [assets/heavy](https://github.com/Henauxg/cdt_assets/tree/main).
+
+To download them just pull the submodule with:
+ ```
+ git submodule update --init --recursive
+ ```
 
 # Benchmarks
 
