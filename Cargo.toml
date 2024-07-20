@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["gamedev", "triangulation", "delaunay", "2d"]
 categories = ["algorithms", "game-development"]
 readme = "README.md"
-exclude = ["assets/"]
+exclude = ["assets/", "docs/assets"]
 
 [dependencies]
 glam = { version = ">=0.21, <=0.27" }
