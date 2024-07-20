@@ -7,7 +7,7 @@ use bevy::{
     input::{common_conditions::input_just_pressed, ButtonInput},
     log::info,
     math::Vec3,
-    prelude::{Camera3dBundle, EventWriter, IntoSystemConfigs, KeyCode, ResMut, Resource},
+    prelude::{Camera3dBundle, EventWriter, IntoSystemConfigs, KeyCode, Query, ResMut, Resource},
     render::camera::Camera,
     time::{Time, Timer, TimerMode},
     transform::components::Transform,
@@ -27,8 +27,22 @@ use ghx_constrained_delaunay::{
 };
 use serde::Deserialize;
 
-const FRAMES_FILE: &str = "./assets/bad_apple_frames.msgpack";
+// Low quality settings
+// First 500 frames, as low quality
+const FRAMES_FILE: &str = "../assets/light/bad_apple_frames_part.msgpack";
+// Whole video, around 6500 frames, low quality
+// const FRAMES_FILE: &str = "../assets/heavy/bad_apple_frames_lq.msgpack";
+const CAMERA_FOCUS: Vec3 = Vec3::new(240.02797, -182.32127, 0.0);
+const CAMERA_RADIUS: f32 = 475.5253;
 const DEFAULT_FRAME_DISPLAY_PERIOD_MICROS: u64 = 29850;
+
+// High quality settings
+// Whole video, around 13000 frames, high quality
+// const FRAMES_FILE: &str = "../assets/heavy/bad_apple_frames_hq.msgpack";
+// const CAMERA_FOCUS: Vec3 = Vec3::new(1284.7368, -960.08685, 0.0);
+// const CAMERA_RADIUS: f32 = 2327.6062;
+// const DEFAULT_FRAME_DISPLAY_PERIOD_MICROS: u64 = 16500;
+
 const DEFAULT_FRAME_SWITCH_MODE: FrameSwitchMode = FrameSwitchMode::Auto;
 
 #[derive(Debug)]
@@ -45,6 +59,7 @@ fn main() {
             Update,
             (
                 update_pan_orbit_camera,
+                camera_keyboard_control,
                 switch_frame_mode.run_if(input_just_pressed(KeyCode::Space)),
                 next_frame.before(update_triangles_debug_entities),
             ),
@@ -68,8 +83,8 @@ pub fn setup_camera(mut commands: Commands) {
         },
         BloomSettings::NATURAL,
         PanOrbitCamera {
-            focus: Vec3::new(240.02797, -182.32127, 0.0),
-            radius: 475.5253,
+            focus: CAMERA_FOCUS,
+            radius: CAMERA_RADIUS,
             upside_down: false,
             auto_orbit: false,
             auto_orbit_factor: 0.3,
@@ -115,9 +130,6 @@ fn setup(mut commands: Commands) {
 
     let mut triangulated_frames = Vec::new();
     for (_i, frame) in frames.iter().enumerate() {
-        // if i != 897 {
-        //     continue;
-        // }
         // info!("Loading frame n°{}", _i);
         let edges = frame
             .edges
@@ -190,12 +202,29 @@ fn next_frame(
                     frames.frame_index -= 1;
                 }
                 updated = true;
-                info!("Frame n°{}", frames.frame_index);
             } else if keyboard_input.just_pressed(KeyCode::ArrowRight)
                 || keyboard_input.pressed(KeyCode::ArrowUp)
             {
                 frames.frame_index = (frames.frame_index + 1) % frames.triangulated_frames.len();
                 updated = true;
+            }
+            if keyboard_input.just_pressed(KeyCode::Numpad8) {
+                frames.frame_index = (frames.frame_index + 1000) % frames.triangulated_frames.len();
+                updated = true;
+            }
+            if keyboard_input.just_pressed(KeyCode::Numpad7) {
+                frames.frame_index = frames.frame_index.saturating_sub(1000);
+                updated = true;
+            }
+            if keyboard_input.just_pressed(KeyCode::Numpad5) {
+                frames.frame_index = (frames.frame_index + 100) % frames.triangulated_frames.len();
+                updated = true;
+            }
+            if keyboard_input.just_pressed(KeyCode::Numpad4) {
+                frames.frame_index = frames.frame_index.saturating_sub(100);
+                updated = true;
+            }
+            if updated {
                 info!("Frame n°{}", frames.frame_index);
             }
         }
@@ -225,4 +254,23 @@ pub fn switch_frame_mode(mut frames: ResMut<Frames>) {
         FrameSwitchMode::Auto => FrameSwitchMode::Manual,
     };
     info!("Frame switch mode set to {:?}", frames.switch_mode);
+}
+
+pub fn camera_keyboard_control(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut cam_query: Query<&mut PanOrbitCamera>,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyC) {
+        info!("Camera info: {:?}", cam_query.single());
+    }
+    if keyboard_input.pressed(KeyCode::NumpadAdd) {
+        let mut cam = cam_query.single_mut();
+        cam.radius -= 1.;
+        cam.needs_transform_refresh = true;
+    }
+    if keyboard_input.pressed(KeyCode::NumpadSubtract) {
+        let mut cam = cam_query.single_mut();
+        cam.radius += 1.;
+        cam.needs_transform_refresh = true;
+    }
 }

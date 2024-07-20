@@ -223,7 +223,7 @@ pub fn setup(
         contour_materal: materials.add(StandardMaterial {
             base_color: Color::ANTIQUE_WHITE,
             alpha_mode: AlphaMode::Opaque,
-            emissive: Color::rgb_linear(9800., 9200.0, 8400.0),
+            emissive: Color::rgb_linear(10290., 9660.0, 8820.0),
             ..default()
         }),
         interior_line_materal: materials.add(StandardMaterial {
