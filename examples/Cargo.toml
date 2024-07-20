@@ -26,6 +26,7 @@ path = "examples/cdt_real_data.rs"
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     "debug_context",
     "f64",
+    "parallel_filtering",
     # "progress_log",
 ] }
 

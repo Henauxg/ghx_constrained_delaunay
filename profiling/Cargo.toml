@@ -20,6 +20,7 @@ path = "examples/dt_random_data.rs"
 [dependencies]
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     "f64",
+    "parallel_filtering",
     "profile_traces",
 ] }
 

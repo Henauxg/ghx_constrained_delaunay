@@ -135,7 +135,7 @@ pub fn constrained_triangulation_from_2d_vertices(
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(Phase::AfterConstraints, &triangles, &[], &[]);
 
-    let vert_indices = remove_wrapping_and_unconstrained_domains(
+    let vert_indices = cdt_filter_triangles(
         &triangles,
         constrained_edges_set,
         #[cfg(feature = "debug_context")]
@@ -151,7 +151,7 @@ pub fn constrained_triangulation_from_2d_vertices(
 
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
 /// the container triangle.
-fn remove_wrapping_and_unconstrained_domains(
+fn cdt_filter_triangles(
     triangles: &Triangles,
     constrained_edges: HashSet<Edge>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,

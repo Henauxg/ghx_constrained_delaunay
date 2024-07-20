@@ -1,4 +1,3 @@
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use tracing::error;
 
 use crate::types::{
@@ -17,6 +16,9 @@ use crate::utils::{
     test_point_edge_side,
 };
 
+#[cfg(feature = "parallel_filtering")]
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+
 #[cfg(feature = "progress_log")]
 use tracing::info;
 
@@ -29,16 +31,23 @@ use tracing::{span, Level};
 /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
 pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
 
+/// Good default value for `filter_parallel_tri_count_threshold` in [`TriangulationConfiguration`]
 pub const DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD: usize = 100_000;
+/// Good default value for `filter_parallel_min_batch_len` in [`TriangulationConfiguration`]
 pub const DEFAULT_FILTER_PARALLEL_MIN_BATCH_LEN: usize = 1000;
 
 #[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
     /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
     pub bin_vertex_density_power: f64,
-    // TODO Doc
+
+    /// Minimum count of triangles that needs to be reached in order to enable parallel filtering.
+    #[cfg(feature = "parallel_filtering")]
     pub filter_parallel_tri_count_threshold: usize,
+    /// Minimum size of the work batches during parallel triangles filtering.
+    #[cfg(feature = "parallel_filtering")]
     pub filter_parallel_min_batch_len: usize,
+
     #[cfg(feature = "debug_context")]
     pub debug_config: DebugConfiguration,
 }
@@ -46,8 +55,12 @@ impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+
+            #[cfg(feature = "parallel_filtering")]
             filter_parallel_tri_count_threshold: DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD,
+            #[cfg(feature = "parallel_filtering")]
             filter_parallel_min_batch_len: DEFAULT_FILTER_PARALLEL_MIN_BATCH_LEN,
+
             #[cfg(feature = "debug_context")]
             debug_config: DebugConfiguration::default(),
         }
@@ -109,7 +122,7 @@ pub fn triangulation_from_2d_vertices(
         &mut debug_context,
     );
 
-    let vert_indices = remove_wrapping(
+    let vert_indices = filter_triangles(
         &triangles,
         &config,
         #[cfg(feature = "debug_context")]
@@ -556,9 +569,9 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     triangles
 }
 
-pub(crate) fn remove_wrapping(
+pub(crate) fn filter_triangles(
     triangles: &Triangles,
-    config: &TriangulationConfiguration,
+    _config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "profile_traces")]
@@ -567,7 +580,33 @@ pub(crate) fn remove_wrapping(
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
 
-    let indices = if triangles.count() > config.filter_parallel_tri_count_threshold {
+    #[cfg(feature = "parallel_filtering")]
+    let indices = multithreaded_filter_triangles(
+        triangles,
+        _config,
+        #[cfg(feature = "debug_context")]
+        &mut filtered_debug_triangles,
+    );
+    #[cfg(not(feature = "parallel_filtering"))]
+    let indices = _singlethreaded_filter_triangles(
+        triangles,
+        #[cfg(feature = "debug_context")]
+        &mut filtered_debug_triangles,
+    );
+
+    #[cfg(feature = "debug_context")]
+    debug_context.push_snapshot(Phase::FilterTriangles, &filtered_debug_triangles, &[], &[]);
+
+    indices
+}
+
+#[cfg(feature = "parallel_filtering")]
+pub(crate) fn multithreaded_filter_triangles(
+    triangles: &Triangles,
+    config: &TriangulationConfiguration,
+    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
+) -> Vec<[VertexId; 3]> {
+    if triangles.count() > config.filter_parallel_tri_count_threshold {
         // Debug loop out of the // loop because filtered_debug_triangles cannot be accessed as mut from multiple tasks.
         #[cfg(feature = "debug_context")]
         {
@@ -600,11 +639,21 @@ pub(crate) fn remove_wrapping(
             }
         }
         indices
-    };
+    }
+}
 
-    #[cfg(feature = "debug_context")]
-    debug_context.push_snapshot(Phase::FilterTriangles, &filtered_debug_triangles, &[], &[]);
-
+pub(crate) fn _singlethreaded_filter_triangles(
+    triangles: &Triangles,
+    #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
+) -> Vec<[VertexId; 3]> {
+    let mut indices = Vec::with_capacity(triangles.count());
+    for t in triangles.buffer().iter() {
+        if t.is_finite() {
+            indices.push(t.verts);
+            #[cfg(feature = "debug_context")]
+            filtered_debug_triangles.push(t.clone());
+        }
+    }
     indices
 }
 
