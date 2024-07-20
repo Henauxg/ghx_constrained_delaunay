@@ -126,17 +126,17 @@ To solve this, we do not use an infinite triangle, but rather an infinite quad: 
 
 This is the algorithm to find on which triangle/edge lies a point to insert in the triangulation. It is currently based on a sort of Jump-and-Walk algorithm.
 
-It currently does not use an heuristic such as a distance to the inserted point when looking at the edges/neighbors of the current triangle but simply checks on which side of the edge the insertion point lies. Due to some floating point inaccuracies (for example, when an insertion point is colinear to the currently evaluated edge), a check was added to ensure that we do not loop between two triangles.
+It currently does not use an heuristic (such as the distance to the inserted point) when looking at the edges/neighbors of the current triangle but simply checks on which side of the edge the insertion point lies. To protect against some floating point inaccuracies (for example, when an insertion point is colinear to the currently evaluated edge), a check was added to ensure that we do not loop between two triangles.
 
 Adding an heuristic could improve performances in some cases (?) and may eliminate the loop checks (at the price of calculating the heuristic). Needs testing and profiling.
 
-### Swap history during Delaunay restoration (`restore_delaunay_triangulation_constrained`)
+### Swap history in Constrained Delaunay restoration (`restore_delaunay_triangulation_constrained`)
 
 When restoring the Delaunay triangulation state in the CDT algorithm, a set of the executed swaps is built iteratively to avoid swapping the same diagonals over and over. Ideally we would like to prevent those cycles instead of detecting them but this seems to be harder than it looks. Simply being a bit more more strict on the circumcircle test causes issues on some datasets.
 
 ### Infinite vertices positions
 
-Investigate if it is possible to return to a [(-inf,-inf), (0,+inf), (+inf,-inf)] triangle configuration instead of a quad, without breaking CDT semi-infinite edges extrapolation. If possible, will not yield any performances improvements, but remove a potentialy unnecessary particularity.
+Investigate if it is possible to return to a `[(-inf,-inf), (0,+inf), (+inf,-inf)]` triangle configuration instead of a quad, without breaking CDT semi-infinite edges extrapolation. If possible, will not yield any performances improvements, but remove a potentialy unnecessary particularity.
 
 # Misc
 
