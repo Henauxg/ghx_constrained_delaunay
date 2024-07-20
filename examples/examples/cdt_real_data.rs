@@ -6,12 +6,13 @@ use bevy::{
     gizmos::gizmos::Gizmos,
     log::info,
     math::{primitives::Direction3d, Vec3},
+    prelude::{EventWriter, IntoSystemConfigs, ResMut},
     render::color::Color,
     DefaultPlugins,
 };
 use examples::{
-    ExamplesPlugin, LabelMode, TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
-    TrianglesDrawMode, VertexLabelMode,
+    ExamplesPlugin, LabelMode, TriangleDebugCursorUpdate, TriangleDebugPlugin, TrianglesDebugData,
+    TrianglesDebugViewConfig, TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
@@ -31,7 +32,7 @@ const SHP_FILES_PATH: &str = "../assets";
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, ExamplesPlugin, TriangleDebugPlugin))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, display_last_snapshot).chain())
         .add_systems(Update, draw_origin_circle)
         .run();
 }
@@ -75,7 +76,7 @@ fn setup(mut commands: Commands) {
         .map(|v| SCALE * Vector3::new(v.x, v.y, 0.))
         .collect();
 
-    commands.insert_resource(TrianglesDebugData::new_with_constraints(
+    commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
         displayed_vertices,
         &edges,
         triangulation.debug_context,
@@ -138,4 +139,12 @@ fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebu
         0.01 * triangle_debug_data.context.scale_factor as f32,
         Color::ALICE_BLUE,
     );
+}
+
+pub fn display_last_snapshot(
+    mut debug_data: ResMut<TrianglesDebugData>,
+    mut debug_data_updates_events: EventWriter<TriangleDebugCursorUpdate>,
+) {
+    debug_data.set_cursor_to_last_snapshot();
+    debug_data_updates_events.send(TriangleDebugCursorUpdate);
 }

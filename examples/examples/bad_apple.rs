@@ -16,7 +16,7 @@ use bevy::{
 };
 use examples::{
     camera::{update_pan_orbit_camera, PanOrbitCamera},
-    update_triangles_debug_entities, LabelMode, TriangleDebugCursorUpdate, TriangleDebugPlugin,
+    update_triangles_debug_view, LabelMode, TriangleDebugCursorUpdate, TriangleDebugPlugin,
     TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
@@ -61,7 +61,7 @@ fn main() {
                 update_pan_orbit_camera,
                 camera_keyboard_control,
                 switch_frame_mode.run_if(input_just_pressed(KeyCode::Space)),
-                next_frame.before(update_triangles_debug_entities),
+                next_frame.before(update_triangles_debug_view),
             ),
         )
         .run();
@@ -157,7 +157,7 @@ fn setup(mut commands: Commands) {
         });
     }
 
-    commands.insert_resource(TrianglesDebugData::new_with_constraints(
+    commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
         triangulated_frames[0].displayed_vertices.clone(),
         &triangulated_frames[0].edges,
         triangulated_frames[0].triangulation.debug_context.clone(),
@@ -239,7 +239,7 @@ fn next_frame(
 
     if updated {
         let frame_data = &frames.triangulated_frames[frames.frame_index];
-        commands.insert_resource(TrianglesDebugData::new_with_constraints(
+        commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
             frame_data.displayed_vertices.clone(),
             &frame_data.edges,
             frame_data.triangulation.debug_context.clone(),

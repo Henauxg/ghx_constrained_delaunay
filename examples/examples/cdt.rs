@@ -2,12 +2,13 @@ use bevy::{
     app::{App, Startup},
     ecs::system::Commands,
     log::info,
+    prelude::{EventWriter, IntoSystemConfigs, ResMut},
     DefaultPlugins,
 };
 
 use examples::{
-    ExamplesPlugin, LabelMode, TriangleDebugPlugin, TrianglesDebugData, TrianglesDebugViewConfig,
-    TrianglesDrawMode, VertexLabelMode,
+    ExamplesPlugin, LabelMode, TriangleDebugCursorUpdate, TriangleDebugPlugin, TrianglesDebugData,
+    TrianglesDebugViewConfig, TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::{
@@ -24,7 +25,7 @@ fn main() {
             ExamplesPlugin,
             TriangleDebugPlugin::default(),
         ))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, display_last_snapshot).chain())
         .run();
 }
 
@@ -78,11 +79,10 @@ fn setup(mut commands: Commands) {
         &vertices.iter().map(|v| Vertex::new(v[0], v[1])).collect(),
         false,
     );
-    info!("CDT quality info:: {:?}", delaunay_quality);
+    info!("CDT quality info: {:?}", delaunay_quality);
 
-    let displayed_vertices = vertices.clone();
-    commands.insert_resource(TrianglesDebugData::new_with_constraints(
-        displayed_vertices,
+    commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
+        vertices.clone(),
         &constrained_edges,
         triangulation.debug_context,
     ));
@@ -92,4 +92,12 @@ fn setup(mut commands: Commands) {
         TrianglesDrawMode::AllAsContourAndInteriorMeshes,
         true,
     ));
+}
+
+pub fn display_last_snapshot(
+    mut debug_data: ResMut<TrianglesDebugData>,
+    mut debug_data_updates_events: EventWriter<TriangleDebugCursorUpdate>,
+) {
+    debug_data.set_cursor_to_last_snapshot();
+    debug_data_updates_events.send(TriangleDebugCursorUpdate);
 }

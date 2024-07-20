@@ -53,7 +53,7 @@ impl Plugin for TriangleDebugPlugin {
                 switch_label_mode.run_if(input_just_pressed(KeyCode::F3)),
                 switch_triangles_draw_mode.run_if(input_just_pressed(KeyCode::F4)),
                 update_triangles_debug_index,
-                update_triangles_debug_entities,
+                update_triangles_debug_view,
                 draw_triangles_debug_data_gizmos,
             )
                 .chain(),
@@ -120,14 +120,14 @@ impl TrianglesDebugData {
         }
     }
 
-    pub fn new_with_constraints(
+    pub fn new_with_constrained_edges(
         vertices: Vec<Vector3>,
-        constraints: &Vec<Edge>,
+        constrained_edges: &Vec<Edge>,
         context: DebugContext,
     ) -> Self {
         Self {
             vertices,
-            constraints: HashSet::from_iter(constraints.iter().cloned()),
+            constraints: HashSet::from_iter(constrained_edges.iter().cloned()),
             context,
             basis: None,
             current_buffer_index: 0,
@@ -145,6 +145,39 @@ impl TrianglesDebugData {
             e1: e2.as_vec3(),
             e2: e2.as_vec3(),
         });
+    }
+
+    pub fn advance_cursor(&mut self) -> usize {
+        if self.context.snapshots.len() > 0 {
+            self.current_buffer_index =
+                (self.current_buffer_index + 1) % self.context.snapshots.len();
+        }
+        self.current_buffer_index
+    }
+
+    pub fn move_back_cursor(&mut self) -> usize {
+        if self.current_buffer_index == 0 {
+            self.current_buffer_index = self.context.snapshots.len() - 1;
+        } else {
+            self.current_buffer_index -= 1;
+        }
+        self.current_buffer_index
+    }
+
+    pub fn set_cursor_to_last_snapshot(&mut self) {
+        self.current_buffer_index = self.context.snapshots.len() - 1;
+    }
+
+    pub fn current_snapshot(&self) -> Option<&DebugSnapshot> {
+        if self.context.snapshots.len() > self.current_buffer_index {
+            Some(&self.context.snapshots[self.current_buffer_index])
+        } else {
+            None
+        }
+    }
+
+    pub fn cursor(&self) -> usize {
+        self.current_buffer_index
     }
 }
 
@@ -168,37 +201,6 @@ impl TrianglesDebugViewConfig {
             triangles_draw_mode: draw_mode,
             log_cursor_updates,
         }
-    }
-}
-
-impl TrianglesDebugData {
-    pub fn advance_cursor(&mut self) -> usize {
-        if self.context.snapshots.len() > 0 {
-            self.current_buffer_index =
-                (self.current_buffer_index + 1) % self.context.snapshots.len();
-        }
-        self.current_buffer_index
-    }
-
-    pub fn move_back_cursor(&mut self) -> usize {
-        if self.current_buffer_index == 0 {
-            self.current_buffer_index = self.context.snapshots.len() - 1;
-        } else {
-            self.current_buffer_index -= 1;
-        }
-        self.current_buffer_index
-    }
-
-    pub fn current_snapshot(&self) -> Option<&DebugSnapshot> {
-        if self.context.snapshots.len() > self.current_buffer_index {
-            Some(&self.context.snapshots[self.current_buffer_index])
-        } else {
-            None
-        }
-    }
-
-    pub fn cursor(&self) -> usize {
-        self.current_buffer_index
     }
 }
 
@@ -257,7 +259,7 @@ pub struct TriangleDebugEntity;
 
 pub const BILLBOARD_DEFAULT_SCALE: Vec3 = Vec3::splat(0.0005);
 
-pub fn update_triangles_debug_entities(
+pub fn update_triangles_debug_view(
     mut commands: Commands,
     debug_assets: Res<TriangleDebugAssets>,
     view_config: Res<TrianglesDebugViewConfig>,
