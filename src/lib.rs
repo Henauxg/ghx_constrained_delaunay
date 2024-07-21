@@ -1,4 +1,5 @@
 pub mod constrained_triangulation;
+pub mod infinite;
 pub mod triangulation;
 pub mod types;
 pub mod utils;

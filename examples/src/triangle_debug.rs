@@ -24,12 +24,13 @@ use bevy::{
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot, EventInfo},
+    infinite::infinite_vertex_local_quad_index,
     triangulation::{INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS},
     types::{
-        infinite_vertex_local_quad_index, next_clockwise_vertex_index,
-        next_counter_clockwise_vertex_index, opposite_vertex_index_from_edge, Edge, Float,
-        TriangleData, TriangleId, TriangleVertexIndex, Vector3, NEXT_CCW_VERTEX_INDEX,
-        NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
+        next_clockwise_vertex_index, next_counter_clockwise_vertex_index,
+        opposite_vertex_index_from_edge, Edge, Float, TriangleData, TriangleId,
+        TriangleVertexIndex, Vector3, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2,
+        VERT_3,
     },
 };
 use glam::{Quat, Vec2, Vec3};

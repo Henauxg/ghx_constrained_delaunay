@@ -1,4 +1,7 @@
-use crate::utils::{egdes_intersect, EdgesIntersectionResult};
+use crate::{
+    infinite::is_finite,
+    utils::{egdes_intersect, EdgesIntersectionResult},
+};
 
 #[cfg(not(feature = "f64"))]
 pub mod f32;
@@ -434,31 +437,6 @@ pub fn next_counter_clockwise_vertex_index(
     vertex_index: TriangleVertexIndex,
 ) -> TriangleVertexIndex {
     NEXT_CCW_VERTEX_INDEX[vertex_index as usize]
-}
-
-pub const INFINITE_V0_ID: VertexId = VertexId::MAX - 3;
-pub const INFINITE_V1_ID: VertexId = VertexId::MAX - 2;
-pub const INFINITE_V2_ID: VertexId = VertexId::MAX - 1;
-pub const INFINITE_V3_ID: VertexId = VertexId::MAX;
-
-#[inline]
-/// For an infinite vertex id, returns its local vertex index in the infinite quad
-///
-/// INVALID for a finite vertex
-pub fn infinite_vertex_local_quad_index(vertex_id: VertexId) -> QuadVertexIndex {
-    (vertex_id - INFINITE_V0_ID) as QuadVertexIndex
-}
-
-#[inline]
-/// From a vertex id, returns true if it represents an infinite vertex
-pub fn is_infinite(vert_id: VertexId) -> bool {
-    vert_id >= INFINITE_V0_ID
-}
-
-#[inline]
-/// From a vertex id, returns true if it represents an infinite vertex
-pub fn is_finite(vert_id: VertexId) -> bool {
-    vert_id < INFINITE_V0_ID
 }
 
 #[inline]

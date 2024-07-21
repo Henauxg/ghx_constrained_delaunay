@@ -3,14 +3,14 @@ use std::collections::VecDeque;
 use hashbrown::HashSet;
 use tracing::error;
 
+use crate::infinite::{infinite_vertex_local_quad_index, is_finite, is_infinite};
 use crate::triangulation::{
     edge_from_semi_infinite_edge, normalize_vertices_coordinates, should_swap_diagonals,
     Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
-    infinite_vertex_local_quad_index, is_finite, is_infinite, next_counter_clockwise_edge_index,
-    TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex, ADJACENT_QUAD_VERTICES_INDEXES,
-    QUAD_1, QUAD_2, QUAD_3, QUAD_4,
+    next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,
+    ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
 };
 use crate::utils::{egdes_intersect, EdgesIntersectionResult};
 
@@ -243,7 +243,7 @@ fn apply_constraints(
     let _span = span!(Level::TRACE, "apply_constraints").entered();
 
     let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
-    // Map each vertex to one of the triangles (the last) that contains it
+    // Map each finite vertex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
     for (index, t) in triangles.buffer().iter().enumerate() {
         if is_finite(t.v1()) {
