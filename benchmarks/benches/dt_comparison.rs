@@ -2,12 +2,12 @@ mod bench_utilities;
 
 use std::time::Duration;
 
+use benchmarks::{
+    cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate, Distribution,
+};
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
     SamplingMode, Throughput,
-};
-use delaunay_compare::{
-    cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate, Distribution,
 };
 
 pub fn triangulation_benchmark(c: &mut Criterion) {
@@ -48,7 +48,7 @@ pub fn triangulation_benchmark(c: &mut Criterion) {
 
     group.warm_up_time(Duration::from_secs(1));
     group.sample_size(50);
-    group.measurement_time(Duration::from_secs(3));
+    group.measurement_time(Duration::from_secs(5));
 
     run_all(group, &small);
 

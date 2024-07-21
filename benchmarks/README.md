@@ -22,7 +22,7 @@ Two point distributions are tested:
 
  ## How to run
 
- Clone this repository and inside the `delaunay_compare` folder, run `cargo bench`.
+ Clone the repository and inside the `benchmarks` folder, run `cargo bench`.
 
  Results are stored in `<repository_root>/target/criterion`.
 
