@@ -13,7 +13,10 @@ Small benchmark suite for comparing different (constrained) Delaunay triangulati
 
 ## Constrained Delaunay triangulation (CDT) measures
 
-This benchmark bulk loads a single real data set (_Europe_coastline.shp_) consisting of **2,912,812** input vertices and **2,837,094** constraint edges.
+This benchmark bulk loads mutliple real data set (shapefiles):
+- **ne_50m_coastline**: 60416 vertices, 58987 constraint edges
+- **ne_10m_coastline**: 410957 vertices, 406824 constraint edges
+- **Europe_coastline**: 2912812 vertices, 2837094 constraint edges
 
 Run it with `cargo run --release --example real_data_benchmark` in the `benchmarks` directory.
 
@@ -21,9 +24,21 @@ Run it with `cargo run --release --example real_data_benchmark` in the `benchmar
 
 The dataset is both loaded with constraint edges and without (as if it was a regular Delaunay triangulation).
 
-*(the benchmark also includes a stable bulk load variant for spade that keeps the relative vertex order consistent)*
 
-| Task                     | ghx_constrained_delaunay | Spade  | cdt crate |
+
+| ne_50m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
+| ------------------------ | ------------------------ | ----- | --------- |
+| Without constraint edges | **18ms**                 | 23ms  | 20ms      |
+| With constraint edges    | **22ms**                 | 30ms  | 33ms      |
+| With stable vertex order | -                        | 39ms  | -         |
+
+| ne_10m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
+| ------------------------ | ------------------------ | ----- | --------- |
+| Without constraint edges | **124ms**                | 176ms | 202ms     |
+| With constraint edges    | **173ms**                | 233ms | -         |
+| With stable vertex order | -                        | 356ms | -         |
+
+| Europe_coastline.shp     | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
 | Without constraint edges | **879ms**                | 1548ms | 4702ms(*) |
 | With constraint edges    | **1377ms**               | 1926ms | 2026ms    |
@@ -31,7 +46,11 @@ The dataset is both loaded with constraint edges and without (as if it was a reg
 
 _Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 21/07/2024_
 
+*The benchmark also includes a stable bulk load variant for spade that keeps the relative vertex order consistent*
+
 (*) It seems weird that the `cdt` crate takes **less** time with constraints than without on this specific dataset. I need to look at the implementation.
+
+
 
 ## Delaunay triangulation (DT) measures
 
