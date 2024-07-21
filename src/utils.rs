@@ -21,6 +21,21 @@ pub enum Orientation {
     CounterClockwise,
 }
 
+#[derive(thiserror::Error, Debug, Eq, PartialEq)]
+/// Returned when an input vertex is NaN or infinity
+#[error("an input vertex is NaN or infinity")]
+pub struct InvalidVertex;
+
+/// Used to validate a vertices collection
+pub fn validate_vertices(vertices: &Vec<Vertex>) -> Result<(), InvalidVertex> {
+    for v in vertices.iter() {
+        if v.is_nan() || !v.is_finite() {
+            return Err(InvalidVertex);
+        }
+    }
+    Ok(())
+}
+
 // source: https://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf
 pub fn egdes_intersect(edge_1: &EdgeVertices, edge_2: &EdgeVertices) -> EdgesIntersectionResult {
     if edge_1.0 == edge_2.0 || edge_1.0 == edge_2.1 || edge_1.1 == edge_2.0 || edge_1.1 == edge_2.1
