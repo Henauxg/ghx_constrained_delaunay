@@ -417,7 +417,6 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
-                // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
                 split_triangle_into_three_triangles(
                     &mut triangles,
                     enclosing_triangle_id,
@@ -891,27 +890,16 @@ fn restore_delaunay_triangulation(
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
 
     while let Some((from_triangle_id, opposite_triangle_id)) = quads_to_check.pop() {
-        match check_and_swap_quad_diagonal(
+        check_and_swap_quad_diagonal(
             triangles,
             vertices,
             from_vertex_id,
             from_triangle_id,
             opposite_triangle_id,
+            quads_to_check,
             #[cfg(feature = "debug_context")]
             debug_context,
-        ) {
-            QuadSwapResult::Swapped(quad_1, quad_2) => {
-                // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
-                // Unrolled loop for performances
-                if quad_1.1.exists() {
-                    quads_to_check.push((quad_1.0, quad_1.1.id));
-                }
-                if quad_2.1.exists() {
-                    quads_to_check.push((quad_2.0, quad_2.1.id));
-                }
-            }
-            QuadSwapResult::NotSwapped => (),
-        }
+        );
     }
 }
 
@@ -935,13 +923,6 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool
         is_vertex_in_half_plane_2(vertices, quad, infinite_verts[0], infinite_verts[1])
     }
     // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum QuadSwapResult {
-    /// Contains the new triangle pairs to check
-    Swapped((TriangleId, Neighbor), (TriangleId, Neighbor)),
-    NotSwapped,
 }
 
 /// ```text
@@ -979,8 +960,9 @@ pub(crate) fn check_and_swap_quad_diagonal(
     from_vertex_id: VertexId,
     from_triangle_id: TriangleId,
     opposite_triangle_id: TriangleId,
+    quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> QuadSwapResult {
+) {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "check_and_swap_quad_diagonal").entered();
 
@@ -1054,12 +1036,13 @@ pub(crate) fn check_and_swap_quad_diagonal(
             &[triangle_3, triangles.get(from_triangle_id).neighbor31()],
         );
 
-        QuadSwapResult::Swapped(
-            (from_triangle_id, triangle_3),
-            (opposite_triangle_id, triangle_4),
-        )
-    } else {
-        QuadSwapResult::NotSwapped
+        // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
+        if triangle_3.exists() {
+            quads_to_check.push((from_triangle_id, triangle_3.id));
+        }
+        if triangle_4.exists() {
+            quads_to_check.push((opposite_triangle_id, triangle_4.id));
+        }
     }
 }
 
@@ -1074,10 +1057,7 @@ mod tests {
     #[cfg(feature = "debug_context")]
     use crate::debug::{DebugConfiguration, DebugContext};
     use crate::{
-        triangulation::{
-            check_and_swap_quad_diagonal, normalize_vertices_coordinates,
-            transform_to_2d_planar_coordinate_system, QuadSwapResult,
-        },
+        triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
         types::{Float, Neighbor, TriangleData, Triangles, Vector3A, Vertex},
     };
 
@@ -1136,81 +1116,5 @@ mod tests {
             ]),
             planar_vertices
         );
-    }
-
-    #[test]
-    fn no_swap() {
-        let mut vertices = Vec::<Vertex>::new();
-        vertices.push(Vertex::new(0.5, 3.));
-        vertices.push(Vertex::new(-2., -2.));
-        vertices.push(Vertex::new(1., -4.));
-        vertices.push(Vertex::new(3., -2.));
-
-        let triangle_1 = TriangleData {
-            verts: [3, 1, 0],
-            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(1)],
-        };
-
-        let triangle_2 = TriangleData {
-            verts: [1, 2, 3],
-            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(0)],
-        };
-
-        let mut triangles = Triangles::with_capacity(2);
-        triangles.push(triangle_1);
-        triangles.push(triangle_2);
-
-        #[cfg(feature = "debug_context")]
-        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
-        let quad_swap = check_and_swap_quad_diagonal(
-            &mut triangles,
-            &vertices,
-            1,
-            0,
-            1,
-            #[cfg(feature = "debug_context")]
-            &mut debug_context,
-        );
-
-        assert_eq!(QuadSwapResult::NotSwapped, quad_swap);
-        assert_eq!(2, triangles.count());
-    }
-
-    #[test]
-    fn swap() {
-        let mut vertices = Vec::<Vertex>::new();
-        vertices.push(Vertex::new(0.5, 3.));
-        vertices.push(Vertex::new(-2., -2.));
-        vertices.push(Vertex::new(1., -4.));
-        vertices.push(Vertex::new(3., -2.));
-
-        let triangle_1 = TriangleData {
-            verts: [0, 1, 2],
-            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(1)],
-        };
-
-        let triangle_2 = TriangleData {
-            verts: [2, 3, 0],
-            neighbors: [Neighbor::NONE, Neighbor::NONE, Neighbor::new(0)],
-        };
-
-        let mut triangles = Triangles::with_capacity(2);
-        triangles.push(triangle_1);
-        triangles.push(triangle_2);
-
-        #[cfg(feature = "debug_context")]
-        let mut debug_context = DebugContext::new(DebugConfiguration::default(), 0., 0., 0.);
-        let quad_swap = check_and_swap_quad_diagonal(
-            &mut triangles,
-            &vertices,
-            1,
-            0,
-            1,
-            #[cfg(feature = "debug_context")]
-            &mut debug_context,
-        );
-
-        assert_ne!(QuadSwapResult::NotSwapped, quad_swap);
-        assert_eq!(2, triangles.count());
     }
 }
