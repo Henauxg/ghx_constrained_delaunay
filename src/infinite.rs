@@ -1,5 +1,5 @@
 use crate::{
-    triangulation::{is_vertex_pair_too_close, VertexPlacement, DELTA_VALUE},
+    triangulation::{is_vertex_pair_too_close, VertexPlacement},
     types::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index, opposite_edge_index,
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
@@ -18,6 +18,9 @@ pub const INFINITE_V0_ID: VertexId = VertexId::MAX - 3;
 pub const INFINITE_V1_ID: VertexId = VertexId::MAX - 2;
 pub const INFINITE_V2_ID: VertexId = VertexId::MAX - 1;
 pub const INFINITE_V3_ID: VertexId = VertexId::MAX;
+
+// Slightly higher values than 1.0 to be safe, which is enough since all our vertices coordinates are normalized inside the unit square.
+pub const EXTRAPOLATION_DELTA_VALUE: Float = 1.42;
 
 #[inline]
 /// For an infinite vertex id, returns its local vertex index in the infinite quad
@@ -39,8 +42,18 @@ pub fn is_finite(vert_id: VertexId) -> bool {
     vert_id < INFINITE_V0_ID
 }
 
-pub const INFINITE_VERTS_Y_DELTAS: [Float; 4] = [0., DELTA_VALUE, 0., -DELTA_VALUE];
-pub const INFINITE_VERTS_X_DELTAS: [Float; 4] = [-DELTA_VALUE, 0., DELTA_VALUE, 0.];
+pub const INFINITE_VERTS_Y_DELTAS: [Float; 4] = [
+    0.,
+    EXTRAPOLATION_DELTA_VALUE,
+    0.,
+    -EXTRAPOLATION_DELTA_VALUE,
+];
+pub const INFINITE_VERTS_X_DELTAS: [Float; 4] = [
+    -EXTRAPOLATION_DELTA_VALUE,
+    0.,
+    EXTRAPOLATION_DELTA_VALUE,
+    0.,
+];
 
 /// Returns a finite segment from an edge between a finite vertex and an infinite vertex
 ///  - infinite_vert_local_index is the local index of the infinite vertex
@@ -131,9 +144,9 @@ pub(crate) fn is_vertex_in_half_plane_2(
     // Another point on the line, its position depends of which infinite vertices are considered. We need delta < 0 for edges Q1-Q2 and Q2-Q3, positive otherwise.
     let delta_x = if infinite_vert_1_local_index == QUAD_4 || infinite_vert_2_local_index == QUAD_4
     {
-        DELTA_VALUE
+        EXTRAPOLATION_DELTA_VALUE
     } else {
-        -DELTA_VALUE
+        -EXTRAPOLATION_DELTA_VALUE
     };
     let line_point_2_x = line_point_1.x + delta_x;
     let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);

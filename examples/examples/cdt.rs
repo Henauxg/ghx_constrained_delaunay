@@ -72,7 +72,8 @@ fn setup(mut commands: Commands) {
         plane_normal.into(),
         &constrained_edges,
         ConstrainedTriangulationConfiguration::default(),
-    );
+    )
+    .unwrap();
 
     let delaunay_quality = check_delaunay_optimal(
         triangulation.triangles,

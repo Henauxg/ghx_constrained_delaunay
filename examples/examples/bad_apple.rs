@@ -144,7 +144,8 @@ fn setup(mut commands: Commands) {
                 .collect(),
             &edges,
             config.clone(),
-        );
+        )
+        .unwrap();
         let displayed_vertices = frame
             .vertices
             .iter()

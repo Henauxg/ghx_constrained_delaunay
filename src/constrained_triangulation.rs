@@ -7,7 +7,7 @@ use crate::infinite::{
     edge_from_semi_infinite_edge, infinite_vertex_local_quad_index, is_finite, is_infinite,
 };
 use crate::triangulation::{
-    normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
+    normalize_vertices_coordinates, should_swap_diagonals, Triangulation, TriangulationError,
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
@@ -53,19 +53,19 @@ impl Default for ConstrainedTriangulationConfiguration {
     }
 }
 
-/// - `plane_normal` **MUST** be normalized
-/// - `vertices` **MUST** all belong to a 3d plane
-/// - `constrained_edges` **MUST**:
-///     - be oriented: vi -> vj
-///     - not contain edges with v0==v1
+/// Same as [constrained_triangulation_from_2d_vertices] but input vertices are in 3d and will be transformed to 2d before the triangulation.
+///
+/// Additional requirements:
+/// - All the vertices are expected to belong to the same 2d plane, with the provided `plane_normal`.
+/// - `plane_normal` must be normalized
 pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<Vector3>,
     plane_normal: Vector3A,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
-) -> Triangulation {
+) -> Result<Triangulation, TriangulationError> {
     if vertices.len() < 3 {
-        return Triangulation::default();
+        return Ok(Triangulation::default());
     }
 
     let mut planar_vertices =
@@ -73,12 +73,23 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
     constrained_triangulation_from_2d_vertices(&mut planar_vertices, constrained_edges, config)
 }
 
-/// - Constrained edges **MUST** not contain edges with from == to
+/// Creates a constrained Delaunay triangulation with the input vertices and edges.
 ///
-/// As visible in the figure below,
+/// Vertices that are identical (or extremely close to one another) will me "merged" together. This means that only one of those will appear in the final triangulation.
+///
+/// Vertices requirements:
+/// - Vertices are expected to be valid floating points values. You can use [crate::utils::validate_vertices] to check your vertices beforehand for NaN or infinity.
+///
+/// Edges requirements:
+/// - Two constrained egdes should NOT cross
+/// - A constrained edge (two vertices) should NOT cross another vertex of the input data
+/// - Vertices should contain valid floating point values
+///
+/// Constrained edges orientation:
 /// - Contours (set of constrained edges) forming a CW cycle indicate a domain to triangulate.
 /// - Contours forming a CCW cycle indicate a domain that should be discarded from the triangulation.
 ///
+/// Example figure below:
 /// ```text
 /// ------------->-----------------------------------
 /// |                   keep (CW)                   |
@@ -96,12 +107,12 @@ pub fn constrained_triangulation_from_2d_vertices(
     vertices: &Vec<Vertex>,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
-) -> Triangulation {
+) -> Result<Triangulation, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "constrained_triangulation_from_2d_vertices").entered();
 
     if vertices.len() < 3 {
-        return Triangulation::default();
+        return Ok(Triangulation::default());
     }
 
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -119,7 +130,7 @@ pub fn constrained_triangulation_from_2d_vertices(
         &mut vertex_merge_mapping,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
-    );
+    )?;
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(Phase::BeforeConstraints, &triangles, &[], &[]);
@@ -132,7 +143,7 @@ pub fn constrained_triangulation_from_2d_vertices(
         vertex_merge_mapping.unwrap(),
         #[cfg(feature = "debug_context")]
         &mut debug_context,
-    );
+    )?;
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(Phase::AfterConstraints, &triangles, &[], &[]);
@@ -144,11 +155,11 @@ pub fn constrained_triangulation_from_2d_vertices(
         &mut debug_context,
     );
 
-    Triangulation {
+    Ok(Triangulation {
         triangles: vert_indices,
         #[cfg(feature = "debug_context")]
         debug_context,
-    }
+    })
 }
 
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
@@ -240,7 +251,7 @@ fn apply_constraints(
     constrained_edges: &Vec<Edge>,
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> HashSet<Edge> {
+) -> Result<HashSet<Edge>, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "apply_constraints").entered();
 
@@ -293,10 +304,12 @@ fn apply_constraints(
             vertex_merge_mapping[constrained_edge.to as usize],
         );
 
-        // Check for duplicate edges
-        // We will use this Set built iteratively for domains removal at the end anyway
-        if constrained_edges_set.insert(constrained_edge) == false {
-            // Skipping duplicate constrained edge
+        // Check for invalid or duplicate edges
+        // We will use this Set built iteratively for domains removal at the end
+        if constrained_edge.from == constrained_edge.to
+            || constrained_edges_set.insert(constrained_edge) == false
+        {
+            // Skipping
             continue;
         }
 
@@ -311,9 +324,9 @@ fn apply_constraints(
             &mut intersections,
             #[cfg(feature = "debug_context")]
             debug_context,
-        );
+        )?;
         if intersections.is_empty() {
-            // Skipping constrained edge already in triangulation
+            // Skipping, constrained edge is already an edge of the current triangulation
             continue;
         }
 
@@ -340,7 +353,7 @@ fn apply_constraints(
             debug_context,
         );
     }
-    constrained_edges_set
+    Ok(constrained_edges_set)
 }
 
 #[derive(Debug)]
@@ -450,11 +463,11 @@ fn search_first_interstected_quad(
     constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> EdgeFirstIntersection {
+) -> Result<EdgeFirstIntersection, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "search_first_interstected_quad").entered();
 
-    // Search clockwise
+    // Search clockwise. We may not find it.
     let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
@@ -467,7 +480,7 @@ fn search_first_interstected_quad(
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => (),
-        _ => return intersection,
+        _ => return Ok(intersection),
     }
 
     // Get the counter-clockwise neighbor of the starting triangle
@@ -478,7 +491,7 @@ fn search_first_interstected_quad(
     // It is impossible to have no neighbor here. It would mean that there is no triangle with the constrained edge intersection
     let neighbor_triangle = triangle.neighbor(edge_index).id;
 
-    // Search counterclockwise
+    // Search counterclockwise. We must find it.
     let intersection = loop_around_vertex_and_search_intersection(
         triangles,
         vertices,
@@ -491,12 +504,11 @@ fn search_first_interstected_quad(
     );
     match &intersection {
         EdgeFirstIntersection::NotFound => {
-            // TODO Return an internal error ?
             error!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from);
+            return Err(TriangulationError);
         }
-        _ => (),
+        _ => return Ok(intersection),
     }
-    return intersection;
 }
 
 fn register_intersected_edges(
@@ -507,7 +519,7 @@ fn register_intersected_edges(
     vertex_to_triangle: &Vec<TriangleId>,
     intersections: &mut VecDeque<EdgeData>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) {
+) -> Result<(), TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
 
@@ -519,14 +531,16 @@ fn register_intersected_edges(
         vertex_to_triangle[constrained_edge.from as usize],
         #[cfg(feature = "debug_context")]
         debug_context,
-    );
+    )?;
 
     let mut intersection = match search_result {
         EdgeFirstIntersection::Intersection(edge_data) => {
             intersections.push_back(edge_data.clone());
             edge_data
         }
-        _ => return,
+        EdgeFirstIntersection::EdgeAlreadyInTriangulation => return Ok(()),
+        // (Not possible here, `search_first_interstected_quad` would already return an error)
+        EdgeFirstIntersection::NotFound => return Err(TriangulationError),
     };
 
     // Search all the edges intersected by this constrained edge
@@ -554,12 +568,12 @@ fn register_intersected_edges(
                 intersections.push_back(intersection.clone());
             }
             None => {
-                // Not possible, the edge must intersects at least one other side of the triangle here
-                error!("Internal error, triangle {} {:?} should be intersecting the constrained edge {:?}", triangle_id, triangle, constrained_edge);
-                break;
+                error!("Internal error, triangle {} {:?} should have at least 1 intersection with the constrained edge {:?}", triangle_id, triangle, constrained_edge);
+                return Err(TriangulationError);
             }
         }
     }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

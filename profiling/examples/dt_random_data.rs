@@ -12,10 +12,9 @@ pub fn walk_f64() -> impl Iterator<Item = [f64; 2]> {
     random_walk_distribution(1.0, *SEED)
 }
 
-pub fn random_walk_distribution(step_size: f64, seed: [u8; 32]) -> impl Iterator<Item = [f64; 2]>
-{
+pub fn random_walk_distribution(step_size: f64, seed: [u8; 32]) -> impl Iterator<Item = [f64; 2]> {
     let range = rand::distributions::Uniform::new_inclusive(-step_size, step_size);
-    let mut last_x =0.;
+    let mut last_x = 0.;
     let mut last_y = 1.;
 
     let mut rng = StdRng::from_seed(seed);
@@ -28,7 +27,7 @@ pub fn random_walk_distribution(step_size: f64, seed: [u8; 32]) -> impl Iterator
     core::iter::from_fn(step_fn)
 }
 
-const VERTICES_COUNT: usize = 250000;
+const VERTICES_COUNT: usize = 550_000;
 
 fn main() {
     let subscriber = Registry::default().with(TracyLayer::default());

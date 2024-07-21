@@ -56,7 +56,8 @@ mod tests {
             &vertices,
             plane_normal.into(),
             TriangulationConfiguration::default(),
-        );
+        )
+        .expect("Triangulation should succeed");
 
         assert_eq!(vec![[1, 3, 2], [0, 3, 1]], triangulation.triangles);
     }
@@ -88,7 +89,8 @@ mod tests {
             &vertices,
             plane_normal.into(),
             TriangulationConfiguration::default(),
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             vec![[3, 4, 2], [2, 4, 5], [1, 2, 5], [0, 3, 2]],
@@ -164,7 +166,8 @@ mod tests {
             plane_normal.into(),
             &constrained_edges,
             ConstrainedTriangulationConfiguration::default(),
-        );
+        )
+        .unwrap();
 
         let mut constrained_vertices = Vec::new();
         for triangle in triangulation.triangles {
@@ -275,7 +278,8 @@ mod tests {
             plane_normal.into(),
             &constrained_edges,
             ConstrainedTriangulationConfiguration::default(),
-        );
+        )
+        .unwrap();
 
         let mut constrained_vertices = Vec::new();
         for triangle in triangulation.triangles {

@@ -99,9 +99,9 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
         now.elapsed().as_millis()
     );
 
-    println!("Creating and saving output image...");
-    _draw_to_pixmap(cdt)?.save_png(format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.png"))?;
-    println!("Done!");
+    // println!("Creating and saving output image...");
+    // _draw_to_pixmap(cdt)?.save_png(format!("{SHP_FILES_PATH}/{SHP_FILE_NAME}.png"))?;
+    // println!("Done!");
 
     Ok(())
 }
@@ -148,7 +148,8 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
         &vertices_clone,
         &edges,
         ConstrainedTriangulationConfiguration::default(),
-    );
+    )
+    .unwrap();
     println!(
         "loading time (ghx_cdt crate with constraints): {}ms",
         now.elapsed().as_millis()
@@ -158,7 +159,8 @@ fn load_with_ghx_cdt_crate(vertices: &[Point2<f64>], edges: &[[usize; 2]]) -> an
     ghx_constrained_delaunay::triangulation_from_2d_vertices(
         &vertices_clone,
         TriangulationConfiguration::default(),
-    );
+    )
+    .unwrap();
     println!(
         "loading time (ghx_cdt crate without constraints): {}ms",
         now.elapsed().as_millis()

@@ -34,7 +34,7 @@ fn setup(mut commands: Commands) {
         Vertex::new(5., 0.),
     ];
     let triangulation =
-        triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default());
+        triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default()).unwrap();
 
     let q = check_delaunay_optimal(
         triangulation.triangles.iter().copied(),

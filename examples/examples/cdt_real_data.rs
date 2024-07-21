@@ -119,7 +119,8 @@ fn load_with_ghx_cdt_crate(
         &vertices_clone,
         &edges,
         config,
-    );
+    )
+    .unwrap();
     info!(
         "loading time (ghx_cdt crate with constraints): {}ms",
         now.elapsed().as_millis()

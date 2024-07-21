@@ -64,23 +64,6 @@ impl Default for TriangulationConfiguration {
     }
 }
 
-// Slightly higher values than 1.0 to be safe, which is enough since all our vertices coordinates are normalized inside the unit square.
-pub const DELTA_VALUE: Float = 1.42;
-
-/// plane_normal must be normalized
-/// vertices must all belong to a 3d plane
-pub fn triangulation_from_3d_planar_vertices(
-    vertices: &Vec<Vector3>,
-    plane_normal: Vector3A,
-    config: TriangulationConfiguration,
-) -> Triangulation {
-    if vertices.len() < 3 {
-        return Triangulation::default();
-    }
-    let mut planar_vertices = transform_to_2d_planar_coordinate_system(vertices, plane_normal);
-    triangulation_from_2d_vertices(&mut planar_vertices, config)
-}
-
 #[derive(Default)]
 pub struct Triangulation {
     /// Indices of the original vertices by groups of 3 to from triangles.
@@ -90,15 +73,43 @@ pub struct Triangulation {
     pub debug_context: DebugContext,
 }
 
+/// An internal error occured, which could be due to an invalid input, or possibly an error in the algorithm.
+#[derive(thiserror::Error, Debug, Eq, PartialEq)]
+#[error("triangulation error")]
+pub struct TriangulationError;
+
+/// Same as [triangulation_from_2d_vertices] but input vertices are in 3d and will be transformed to 2d before the triangulation.
+///
+/// Additional requirements:
+/// - All the vertices are expected to belong to the same 2d plane, with the provided `plane_normal`.
+/// - `plane_normal` must be normalized
+pub fn triangulation_from_3d_planar_vertices(
+    vertices: &Vec<Vector3>,
+    plane_normal: Vector3A,
+    config: TriangulationConfiguration,
+) -> Result<Triangulation, TriangulationError> {
+    if vertices.len() < 3 {
+        return Ok(Triangulation::default());
+    }
+    let mut planar_vertices = transform_to_2d_planar_coordinate_system(vertices, plane_normal);
+    triangulation_from_2d_vertices(&mut planar_vertices, config)
+}
+
+/// Creates a Delaunay triangulation with the input vertices.
+///
+/// Vertices that are identical (or extremely close to one another) will me "merged" together. This means that only one of those will appear in the final triangulation.
+///
+/// Vertices requirements:
+/// - Vertices are expected to be valid floating points values. You can use [crate::utils::validate_vertices] to check your vertices beforehand for NaN or infinity.
 pub fn triangulation_from_2d_vertices(
     vertices: &Vec<Vertex>,
     config: TriangulationConfiguration,
-) -> Triangulation {
+) -> Result<Triangulation, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "triangulation_from_2d_vertices").entered();
 
     if vertices.len() < 3 {
-        return Triangulation::default();
+        return Ok(Triangulation::default());
     }
 
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
@@ -115,7 +126,7 @@ pub fn triangulation_from_2d_vertices(
         &mut None,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
-    );
+    )?;
 
     let vert_indices = filter_triangles(
         &triangles,
@@ -124,11 +135,11 @@ pub fn triangulation_from_2d_vertices(
         &mut debug_context,
     );
 
-    Triangulation {
+    Ok(Triangulation {
         triangles: vert_indices,
         #[cfg(feature = "debug_context")]
         debug_context,
-    }
+    })
 }
 
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
@@ -196,9 +207,6 @@ pub(crate) enum VertexPlacement {
     OnTriangleEdge(TriangleId, TriangleEdgeIndex),
     OnVertex(VertexId),
 }
-
-// TODO Details
-pub struct TriangulationError;
 
 fn find_vertex_placement(
     vertex: Vertex,
@@ -362,7 +370,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     bin_vertex_density_power: f64,
     vertex_merge_mapping: &mut Option<Vec<VertexId>>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Triangles {
+) -> Result<Triangles, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "wrap_and_triangulate_2d_normalized_vertices").entered();
 
@@ -407,12 +415,11 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             #[cfg(feature = "debug_context")]
             debug_context,
         ) else {
-            // TODO Internal error
             error!(
                 "Internal error, found no triangle containing vertex {:?}, step {}",
                 vertex_id, _index
             );
-            break;
+            return Err(TriangulationError);
         };
 
         match vertex_place {
@@ -473,7 +480,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         }
     }
 
-    triangles
+    Ok(triangles)
 }
 
 pub(crate) fn filter_triangles(
@@ -1054,11 +1061,9 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "debug_context")]
-    use crate::debug::{DebugConfiguration, DebugContext};
     use crate::{
         triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
-        types::{Float, Neighbor, TriangleData, Triangles, Vector3A, Vertex},
+        types::{Float, Vector3A, Vertex},
     };
 
     #[test]

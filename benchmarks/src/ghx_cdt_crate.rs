@@ -31,5 +31,6 @@ impl crate::DelaunayCrate for GhxCDTCrate {
                 ..Default::default()
             },
         )
+        .unwrap()
     }
 }
