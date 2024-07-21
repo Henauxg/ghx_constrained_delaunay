@@ -15,16 +15,13 @@ exclude = ["assets/", "docs/assets"]
 glam = { version = ">=0.21, <=0.27" }
 hashbrown = "0.14.5"
 tracing = "0.1.40"
+arrayvec = "0.7.4"
 
 rayon = { version = "1.10.0", optional = true }
 
+
 [features]
 default = []
-
-# Only useful for DT not CDT.
-# Allows filtering the triangles in parallel during the final step of the algorithm. Threshold can be tweaked in the algorithm input configuration.
-# Only useful for sizeable datasets.
-parallel_filtering = ["dep:rayon"]
 
 # Uses f64 for the triangulation.
 # Can be better for input data that require more precision.
@@ -35,12 +32,20 @@ f64 = []
 # (disabled by default for more performances)
 u64_indexes = []
 
-# Register debug data (triangle) in buffers during the execution of the triangulation
+# Only used in DT not in CDT.
+# Allows filtering the triangles in parallel during the final step of the algorithm.  Since it is only useful for sizeable datasets, the activation threshold can be tweaked in the algorithm input configuration.
+parallel_filtering = ["dep:rayon"]
+
+# Register debug data (triangles) in buffers during the execution of the triangulation
 debug_context = []
 # Add logs during the triangulation process to indicate the current progress
 progress_log = ["debug_context"]
+
 # Adds profile spans to use with the Tracy profiler
 profile_traces = []
+# Adds more profile spans to use with the Tracy profiler
+more_profile_traces = ["profile_traces"]
+
 
 [workspace]
 members = ["benchmarks", "examples", "profiling"]

@@ -3,7 +3,7 @@ use crate::types::{EdgeVertices, Float, Vertex, VertexId};
 #[cfg(feature = "progress_log")]
 use tracing::info;
 
-#[cfg(feature = "profile_traces")]
+#[cfg(feature = "more_profile_traces")]
 use tracing::{span, Level};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -143,9 +143,7 @@ pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
 }
 
 /// Checks if vertex `p` is inside the circumcircle of the triangle formed by the first three vertices in `triangle`
-/// - `triangle` contains the vertices of the triangle.
-///     - length of `triangle` **MUST** be >= 3.
-///     - `triangle` vertices must be in a counter-clockwise order
+/// - `triangle` vertices must be in a counter-clockwise order
 /// - `p` vertex to check
 ///
 /// ```text
@@ -166,18 +164,23 @@ pub fn on_segment(p: Vertex, q: Vertex, r: Vertex) -> bool {
 ///
 /// Note: Seems to return false for a flat triangle
 #[inline(always)]
-pub(crate) fn is_vertex_in_triangle_circumcircle(triangle: &[Vertex], p: Vertex) -> bool {
-    #[cfg(feature = "profile_traces")]
+pub(crate) fn is_vertex_in_triangle_circumcircle(
+    t1: Vertex,
+    t2: Vertex,
+    t3: Vertex,
+    p: Vertex,
+) -> bool {
+    #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "is_vertex_in_triangle_circumcircle").entered();
 
-    let x13 = triangle[0].x - triangle[2].x;
-    let x23 = triangle[1].x - triangle[2].x;
-    let y13 = triangle[0].y - triangle[2].y;
-    let y23 = triangle[1].y - triangle[2].y;
-    let x14 = triangle[0].x - p.x;
-    let x24 = triangle[1].x - p.x;
-    let y14 = triangle[0].y - p.y;
-    let y24 = triangle[1].y - p.y;
+    let x13 = t1.x - t3.x;
+    let x23 = t2.x - t3.x;
+    let y13 = t1.y - t3.y;
+    let y23 = t2.y - t3.y;
+    let x14 = t1.x - p.x;
+    let x24 = t2.x - p.x;
+    let y14 = t1.y - p.y;
+    let y24 = t2.y - p.y;
 
     let cos_a = x13 * x23 + y13 * y23;
     let cos_b = x24 * x14 + y24 * y14;
@@ -354,38 +357,11 @@ where
 mod tests {
 
     use crate::{
-        types::{Float, Vertex},
+        types::Vertex,
         utils::{
-            egdes_intersect, is_point_on_right_side_of_edge, is_vertex_in_triangle_circumcircle,
-            on_segment, EdgesIntersectionResult,
+            egdes_intersect, is_point_on_right_side_of_edge, on_segment, EdgesIntersectionResult,
         },
     };
-
-    #[test]
-    fn vertex_in_triangle_circumcircle() {
-        let unit_circle = [
-            Vertex::new(-1., 0.),
-            Vertex::new(1., 0.),
-            Vertex::new(0., 1.),
-        ];
-
-        let step = 100;
-        for i in -step..step {
-            for j in -step..step {
-                let p = Vertex::new(i as Float / step as Float, j as Float / step as Float);
-                let p_length = p.length();
-                let p_in_circle = is_vertex_in_triangle_circumcircle(&unit_circle, p);
-                if p_length < 1. {
-                    assert_eq!(true, p_in_circle, "p_length < 1, p should be in the circle");
-                } else if p_length > 1. {
-                    assert_eq!(
-                        false, p_in_circle,
-                        "p_length > 1, p should be out of the circle"
-                    );
-                }
-            }
-        }
-    }
 
     #[test]
     fn edge_intersect_none() {

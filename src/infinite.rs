@@ -1,16 +1,18 @@
 use crate::{
-    triangulation::{
-        edge_from_semi_infinite_edge, is_vertex_pair_too_close, VertexPlacement, DELTA_VALUE,
-    },
+    triangulation::{is_vertex_pair_too_close, VertexPlacement, DELTA_VALUE},
     types::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index, opposite_edge_index,
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
-        Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId, TriangleVertexIndex,
-        Vertex, VertexId, EDGE_TO_VERTS, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, QUAD_4,
-        VERT_1, VERT_2, VERT_3,
+        EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
+        TriangleVertexIndex, Vertex, VertexId, EDGE_TO_VERTS, NEXT_CCW_VERTEX_INDEX,
+        NEXT_CW_VERTEX_INDEX, QUAD_4, VERT_1, VERT_2, VERT_3,
     },
     utils::{is_point_strictly_on_right_side_of_edge, test_point_edge_side},
 };
+
+use arrayvec::ArrayVec;
+#[cfg(feature = "profile_traces")]
+use tracing::{span, Level};
 
 pub const INFINITE_V0_ID: VertexId = VertexId::MAX - 3;
 pub const INFINITE_V1_ID: VertexId = VertexId::MAX - 2;
@@ -37,10 +39,36 @@ pub fn is_finite(vert_id: VertexId) -> bool {
     vert_id < INFINITE_V0_ID
 }
 
+pub const INFINITE_VERTS_Y_DELTAS: [Float; 4] = [0., DELTA_VALUE, 0., -DELTA_VALUE];
+pub const INFINITE_VERTS_X_DELTAS: [Float; 4] = [-DELTA_VALUE, 0., DELTA_VALUE, 0.];
+
+/// Returns a finite segment from an edge between a finite vertex and an infinite vertex
+///  - infinite_vert_local_index is the local index of the infinite vertex
 #[inline]
+pub fn edge_from_semi_infinite_edge(
+    finite_vertex: Vertex,
+    infinite_vert_local_index: QuadVertexIndex,
+) -> EdgeVertices {
+    (
+        finite_vertex,
+        Vertex::new(
+            // We care about the delta sign here since we create a segment from an infinite line,
+            // starting from the finite point and aimed towards the infinite point.
+            finite_vertex.x + INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize],
+            finite_vertex.y + INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize],
+        ),
+    )
+}
+
+#[inline(always)]
 /// The slice MUST have at least 3 vertices
-pub(crate) fn collect_infinite_triangle_vertices(tri: &[VertexId]) -> Vec<TriangleVertexIndex> {
-    let mut infinite_verts = Vec::new();
+pub(crate) fn collect_infinite_triangle_vertices(
+    tri: &[VertexId],
+) -> ArrayVec<TriangleVertexIndex, 2> {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "collect_infinite_triangle_vertices").entered();
+
+    let mut infinite_verts = ArrayVec::new();
     if is_infinite(tri[VERT_1 as usize]) {
         infinite_verts.push(VERT_1);
     }
@@ -59,6 +87,9 @@ pub(crate) fn is_vertex_in_half_plane_1(
     quad: &Quad,
     infinite_vert: TriangleVertexIndex,
 ) -> bool {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "is_vertex_in_half_plane_1").entered();
+
     // Test if q4 is inside the circle with 1 infinite point (half-plane defined by the 2 finite points)
     // TODO Clean: utils functions in Quad/Triangle
     let edge_index = opposite_edge_index(infinite_vert);
@@ -81,6 +112,9 @@ pub(crate) fn is_vertex_in_half_plane_2(
     infinite_v1: TriangleVertexIndex,
     infinite_v2: TriangleVertexIndex,
 ) -> bool {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "is_vertex_in_half_plane_2").entered();
+
     const INFINITE_VERTS_SLOPES: [Float; 3] = [1., -1., 1.];
 
     let infinite_vert_1_local_index = infinite_vertex_local_quad_index(quad.v(infinite_v1));
@@ -110,16 +144,19 @@ pub(crate) fn is_vertex_in_half_plane_2(
     )
 }
 
-// TODO Perf: try a cold attribute
+#[cold]
 pub(crate) fn vertex_placement_1_infinite_vertex(
     vertices: &Vec<Vertex>,
     vertex: Vertex,
     triangle: &TriangleData,
     triangle_id: TriangleId,
-    infinite_verts: Vec<TriangleVertexIndex>,
+    infinite_verts: ArrayVec<TriangleVertexIndex, 2>,
     previous_triangle: &mut Neighbor,
     current_triangle: &mut Neighbor,
 ) -> Option<VertexPlacement> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "vertex_placement_1_infinite_vertex").entered();
+
     let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
     let finite_vert_a_id = triangle.v(finite_vert_a_index);
     let finite_vertex_a = vertices[finite_vert_a_id as usize];
@@ -180,16 +217,19 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     }
 }
 
-// TODO Perf: try a cold attribute
+#[cold]
 pub(crate) fn vertex_placement_2_infinite_vertex(
     vertices: &Vec<Vertex>,
     vertex: Vertex,
     triangle: &TriangleData,
     triangle_id: TriangleId,
-    infinite_verts: Vec<TriangleVertexIndex>,
+    infinite_verts: ArrayVec<TriangleVertexIndex, 2>,
     previous_triangle: &mut Neighbor,
     current_triangle: &mut Neighbor,
 ) -> Option<VertexPlacement> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "vertex_placement_2_infinite_vertex").entered();
+
     let finite_v_index = opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
     let finite_vert_id = triangle.v(finite_v_index);
     let finite_vertex = vertices[finite_vert_id as usize];

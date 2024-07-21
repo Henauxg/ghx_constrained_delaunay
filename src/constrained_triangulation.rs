@@ -3,10 +3,12 @@ use std::collections::VecDeque;
 use hashbrown::HashSet;
 use tracing::error;
 
-use crate::infinite::{infinite_vertex_local_quad_index, is_finite, is_infinite};
+use crate::infinite::{
+    edge_from_semi_infinite_edge, infinite_vertex_local_quad_index, is_finite, is_infinite,
+};
 use crate::triangulation::{
-    edge_from_semi_infinite_edge, normalize_vertices_coordinates, should_swap_diagonals,
-    Triangulation, DEFAULT_BIN_VERTEX_DENSITY_POWER,
+    normalize_vertices_coordinates, should_swap_diagonals, Triangulation,
+    DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,

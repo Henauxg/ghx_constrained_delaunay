@@ -24,8 +24,9 @@ use bevy::{
 use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot, EventInfo},
-    infinite::infinite_vertex_local_quad_index,
-    triangulation::{INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS},
+    infinite::{
+        infinite_vertex_local_quad_index, INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS,
+    },
     types::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index,
         opposite_vertex_index_from_edge, Edge, Float, TriangleData, TriangleId,

@@ -7,9 +7,9 @@ use crate::infinite::{
 };
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
-    vertex_next_ccw_edge_index, vertex_next_cw_edge_index, EdgeVertices, Float, Neighbor, Quad,
-    QuadVertexIndex, TriangleData, TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vector3A,
-    Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31,
+    vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
+    TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vector3A, Vertex, VertexId, EDGE_12,
+    EDGE_23, EDGE_31,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -63,8 +63,6 @@ impl Default for TriangulationConfiguration {
         }
     }
 }
-
-/// TODO A doc comment about infinite vertices positions
 
 // Slightly higher values than 1.0 to be safe, which is enough since all our vertices coordinates are normalized inside the unit square.
 pub const DELTA_VALUE: Float = 1.42;
@@ -304,27 +302,6 @@ fn find_vertex_placement(
     None
 }
 
-pub const INFINITE_VERTS_Y_DELTAS: [Float; 4] = [0., DELTA_VALUE, 0., -DELTA_VALUE];
-pub const INFINITE_VERTS_X_DELTAS: [Float; 4] = [-DELTA_VALUE, 0., DELTA_VALUE, 0.];
-
-/// Returns a finite segment from an edge between a finite vertex and an infinite vertex
-///  - infinite_vert_local_index is the local index of the infinite vertex
-#[inline]
-pub fn edge_from_semi_infinite_edge(
-    finite_vertex: Vertex,
-    infinite_vert_local_index: QuadVertexIndex,
-) -> EdgeVertices {
-    (
-        finite_vertex,
-        Vertex::new(
-            // We care about the delta sign here since we create a segment from an infinite line,
-            // starting from the finite point and aimed towards the infinite point.
-            finite_vertex.x + INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize],
-            finite_vertex.y + INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize],
-        ),
-    )
-}
-
 /// Splits the infinite quad into 4 triangles at p, the first inserted vertex.
 ///
 /// ```text
@@ -367,6 +344,18 @@ pub(crate) fn is_vertex_pair_too_close(a: Vertex, b: Vertex) -> bool {
     dist.x.abs() < Float::EPSILON && dist.y.abs() < Float::EPSILON
 }
 
+fn verts_count_to_restoration_stack_initial_capacity(verts_count: usize) -> usize {
+    if verts_count < 9_000 {
+        16
+    } else if verts_count < 150_000 {
+        32
+    } else if verts_count < 500_000 {
+        64
+    } else {
+        128
+    }
+}
+
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     vertices: &mut Vec<Vertex>,
@@ -392,9 +381,11 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(Phase::FirstVertexInsertion, &triangles, &[0], &[]);
 
-    // This buffer is used by all calls to `restore_delaunay_triangulation`.
+    // This buffer is used in the loop. Filled and cleared each time.
     // We create if here to share the allocation between all those calls as an optimization.
-    let mut quads_to_check = Vec::new();
+    let mut quads_to_check = Vec::with_capacity(verts_count_to_restoration_stack_initial_capacity(
+        vertices.len(),
+    ));
 
     // Loop over all the input vertices
     for (_index, &vertex_id) in vertices_iterator {
@@ -424,13 +415,14 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             break;
         };
 
-        let new_triangles = match vertex_place {
+        match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
                 // Form three new triangles by connecting P to each of the enclosing triangle's vertices.
                 split_triangle_into_three_triangles(
                     &mut triangles,
                     enclosing_triangle_id,
                     vertex_id,
+                    &mut quads_to_check,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 )
@@ -441,6 +433,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     enclosing_triangle_id,
                     edge_index,
                     vertex_id,
+                    &mut quads_to_check,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 )
@@ -457,7 +450,6 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             &mut triangles,
             vertices,
             vertex_id,
-            new_triangles,
             &mut quads_to_check,
             #[cfg(feature = "debug_context")]
             debug_context,
@@ -491,13 +483,13 @@ pub(crate) fn filter_triangles(
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "profile_traces")]
-    let _span = span!(Level::TRACE, "remove_wrapping").entered();
+    let _span = span!(Level::TRACE, "filter_triangles").entered();
 
     #[cfg(feature = "debug_context")]
     let mut filtered_debug_triangles = Triangles::new();
 
     #[cfg(feature = "parallel_filtering")]
-    let indices = multithreaded_filter_triangles(
+    let indices = _multithreaded_filter_triangles(
         triangles,
         _config,
         #[cfg(feature = "debug_context")]
@@ -517,7 +509,7 @@ pub(crate) fn filter_triangles(
 }
 
 #[cfg(feature = "parallel_filtering")]
-pub(crate) fn multithreaded_filter_triangles(
+pub(crate) fn _multithreaded_filter_triangles(
     triangles: &Triangles,
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
@@ -673,8 +665,9 @@ pub(crate) fn split_quad_into_four_triangles(
     triangle_id: TriangleId,
     edge_index: TriangleEdgeIndex,
     vertex_id: VertexId,
+    quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Vec<TriangleId> {
+) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "split_quad_into_four_triangles").entered();
 
@@ -752,7 +745,23 @@ pub(crate) fn split_quad_into_four_triangles(
         &[],
     );
 
-    vec![t1, t2.id, t3, t4]
+    // Fill in quads_to_check directly instead of returning the new triangles. Way better for performances.
+    let t1_neighbor_23 = triangles.get(t1).neighbor23();
+    if t1_neighbor_23.exists() {
+        quads_to_check.push((t1, t1_neighbor_23.id));
+    }
+    let t2_neighbor_23 = triangles.get(t2.id).neighbor23();
+    if t2_neighbor_23.exists() {
+        quads_to_check.push((t2.id, t2_neighbor_23.id));
+    }
+    let t3_neighbor_23 = triangles.get(t3).neighbor23();
+    if t3_neighbor_23.exists() {
+        quads_to_check.push((t3, t3_neighbor_23.id));
+    }
+    let t4_neighbor_23 = triangles.get(t4).neighbor23();
+    if t4_neighbor_23.exists() {
+        quads_to_check.push((t4, t4_neighbor_23.id));
+    }
 }
 
 /// Splits `triangle_id` into 3 triangles (re-using the existing triangle id)
@@ -779,10 +788,11 @@ pub(crate) fn split_triangle_into_three_triangles(
     triangles: &mut Triangles,
     triangle_id: TriangleId,
     vertex_id: VertexId,
+    quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Vec<TriangleId> {
+) {
     #[cfg(feature = "profile_traces")]
-    let _span = span!(Level::TRACE, "split_triangle_in_three_at_vertex").entered();
+    let _span = span!(Level::TRACE, "split_triangle_into_three_triangles").entered();
 
     // Re-use the existing triangle id for the first triangle
     let t1 = triangle_id;
@@ -832,7 +842,19 @@ pub(crate) fn split_triangle_into_three_triangles(
         &[],
     );
 
-    vec![t1, t2, t3]
+    // Fill in quads_to_check directly instead of returning the new triangles. Way better for performances.
+    let t1_neighbor_23 = triangles.get(t1).neighbor23();
+    if t1_neighbor_23.exists() {
+        quads_to_check.push((t1, t1_neighbor_23.id));
+    }
+    let t2_neighbor_23 = triangles.get(t2).neighbor23();
+    if t2_neighbor_23.exists() {
+        quads_to_check.push((t2, t2_neighbor_23.id));
+    }
+    let t3_neighbor_23 = triangles.get(t3).neighbor23();
+    if t3_neighbor_23.exists() {
+        quads_to_check.push((t3, t3_neighbor_23.id));
+    }
 }
 
 pub(crate) fn update_triangle_neighbor(
@@ -841,12 +863,17 @@ pub(crate) fn update_triangle_neighbor(
     new_neighbour_id: Neighbor,
     triangles: &mut Triangles,
 ) {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "update_triangle_neighbor").entered();
+
     if triangle.exists() {
-        for neighbor in triangles.get_mut(triangle.id).neighbors.iter_mut() {
-            if *neighbor == old_neighbour_id {
-                *neighbor = new_neighbour_id;
-                break;
-            }
+        let t = triangles.get_mut(triangle.id);
+        if t.neighbor12() == old_neighbour_id {
+            *t.neighbor12_mut() = new_neighbour_id;
+        } else if t.neighbor23() == old_neighbour_id {
+            *t.neighbor23_mut() = new_neighbour_id;
+        } else if t.neighbor31() == old_neighbour_id {
+            *t.neighbor31_mut() = new_neighbour_id;
         }
     }
 }
@@ -857,20 +884,11 @@ fn restore_delaunay_triangulation(
     triangles: &mut Triangles,
     vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
-    new_triangles: Vec<TriangleId>,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation").entered();
-
-    for &from_triangle_id in new_triangles.iter() {
-        // EDGE_23 is the opposite edge of `from_vertex_id` in the 3 new triangles
-        let neighbor = triangles.get(from_triangle_id).neighbor23();
-        if neighbor.exists() {
-            quads_to_check.push((from_triangle_id, neighbor.id));
-        }
-    }
 
     while let Some((from_triangle_id, opposite_triangle_id)) = quads_to_check.pop() {
         match check_and_swap_quad_diagonal(
@@ -899,19 +917,18 @@ fn restore_delaunay_triangulation(
 
 #[inline(always)]
 pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool {
-    // TODO Performance: try stack/pre-alloc
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
+
     let infinite_verts = collect_infinite_triangle_vertices(&quad.verts);
 
-    // TODO Fix: Remove this debug code
-    // if is_infinite(quad.v4(), min_container_vertex_id) {
-    //     error!("Temporary debug log, infinite q4, should not be possible");
-    // }
-
     if infinite_verts.is_empty() {
-        // General case: no infinite vertices
-        // Test if `from_vertex_id` is inside the circumcircle of `opposite_triangle`
-        let quad_vertices = quad.to_vertices(vertices);
-        is_vertex_in_triangle_circumcircle(&quad_vertices.verts[0..=2], quad_vertices.q4())
+        is_vertex_in_triangle_circumcircle(
+            vertices[quad.v1() as usize],
+            vertices[quad.v2() as usize],
+            vertices[quad.v3() as usize],
+            vertices[quad.v4() as usize],
+        )
     } else if infinite_verts.len() == 1 {
         is_vertex_in_half_plane_1(vertices, quad, infinite_verts[0])
     } else {
@@ -964,7 +981,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
     opposite_triangle_id: TriangleId,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> QuadSwapResult {
-    #[cfg(feature = "profile_traces")]
+    #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "check_and_swap_quad_diagonal").entered();
 
     let opposite_triangle = triangles.get(opposite_triangle_id);
