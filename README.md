@@ -41,7 +41,7 @@ A fast Rust library for 2D constrained Delaunay triangulation
 
 All examples use `Bevy` to visualize & explore the resulting triangulation.
 
-https://github.com/Henauxg/ghx_constrained_delaunay/assets/19689618/fe30023b-da80-471f-bf6e-a978ab8e0ea2
+<p align="center"><img alt="europe_coastline" src="docs/assets/europe_coastline.png"></p>
 
 ### Additional examples assets
 
@@ -117,8 +117,6 @@ When extrapolating semi-infinite edges (with an extrapolation slope *a* != 0. du
 When using an infinite triangle with two infinite vertices on the X axis (y=0) and one on the Y axis, inserting vertices into the triangulation will often cause overlapping flat triangles to appear on the bottom/top (depending on the position of the Y axis infinite vertex) of the triangulation, which tend to make the whole triangulation incorrect/unstable.
 
 To solve this, we do not use an infinite triangle, but rather an infinite quad: `[(-inf,0), (0,+inf), (+inf,0), (0,-inf)]`. By adding another infinite vertex on the Y axis, and changing the first insertion step to be a "quad split" (creates 4 triangles) instead of a "triangle split", we completely eliminate this issue.
-
-<p align="center"><img alt="infinite_quad" src="docs/assets/infinite_quad.png"></p>
 
 ## Potential improvements
 
