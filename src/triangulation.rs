@@ -323,7 +323,7 @@ fn find_vertex_placement(
 ///          |
 ///          3
 /// ```
-fn create_initial_triangles(vertices_count: usize, first_vertex_id: u32) -> Triangles {
+fn create_initial_triangles(vertices_count: usize, first_vertex_id: VertexId) -> Triangles {
     let mut triangles = Triangles::with_capacity(vertices_count * 2 + 2);
 
     let (t1, t2, t3, t4) = (0.into(), 1.into(), 2.into(), 3.into());
