@@ -156,6 +156,10 @@ It may be possible to make a faster implementation fo CDT by using a different a
 
 - It serves as a namespace to avoid picking cargo names such as `delaunay_triangulation`
 
+#### Glam version
+
+This crate allows a range of `glam` versions. If you find yourself in a situation where cargo pulls a newer version of glam for `ghx_constrained_delaunay` but you would rather prefer to use an older one, you can either edit your `cargo.lock` file to use the older one, or use `cargo update --package glam@NEWER_VERSION --precise VERSION_TO_USE`
+
 # License
 
 ### Code
