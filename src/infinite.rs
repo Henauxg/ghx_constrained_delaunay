@@ -75,9 +75,7 @@ pub fn edge_from_semi_infinite_edge(
 
 #[inline(always)]
 /// The slice MUST have at least 3 vertices
-pub(crate) fn collect_infinite_triangle_vertices(
-    tri: &[VertexId],
-) -> ArrayVec<TriangleVertexIndex, 2> {
+pub fn collect_infinite_triangle_vertices(tri: &[VertexId]) -> ArrayVec<TriangleVertexIndex, 2> {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "collect_infinite_triangle_vertices").entered();
 
