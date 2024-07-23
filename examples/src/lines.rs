@@ -1,19 +1,23 @@
 use bevy::{
-    asset::Asset, math::Vec3, pbr::{Material, MaterialPipeline, MaterialPipelineKey}, reflect::TypePath, render::{
-        color::Color,
-        mesh::{Mesh, MeshVertexBufferLayout, PrimitiveTopology},
+    asset::Asset,
+    color::LinearRgba,
+    math::Vec3,
+    pbr::{Material, MaterialPipeline, MaterialPipelineKey},
+    reflect::TypePath,
+    render::{
+        mesh::{Mesh, MeshVertexBufferLayoutRef, PrimitiveTopology},
         render_asset::RenderAssetUsages,
         render_resource::{
             AsBindGroup, PolygonMode, RenderPipelineDescriptor, ShaderRef,
             SpecializedMeshPipelineError,
         },
-    }
+    },
 };
 
 #[derive(Asset, TypePath, Default, AsBindGroup, Debug, Clone)]
 pub struct LineMaterial {
     #[uniform(0)]
-    pub color: Color,
+    pub color: LinearRgba,
 }
 
 impl Material for LineMaterial {
@@ -24,7 +28,7 @@ impl Material for LineMaterial {
     fn specialize(
         _pipeline: &MaterialPipeline<Self>,
         descriptor: &mut RenderPipelineDescriptor,
-        _layout: &MeshVertexBufferLayout,
+        _layout: &MeshVertexBufferLayoutRef,
         _key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
         // This is the important part to tell bevy to render this material as a line between vertices

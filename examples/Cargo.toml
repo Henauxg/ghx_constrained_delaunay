@@ -30,9 +30,9 @@ ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
     # "progress_log",
 ] }
 
-glam = { version = "0.25" }
-bevy_ghx_utils = { version = "0.3.0", default-features = true }
-bevy = { version = "0.13", default-features = false, features = [
+# glam = { version = "0.25" }
+bevy_ghx_utils = { version = "0.4.0", default-features = true }
+bevy = { version = "0.14", default-features = false, features = [
     # Default features:
 
     "bevy_core_pipeline", # Common rendering abstractions
@@ -45,7 +45,7 @@ bevy = { version = "0.13", default-features = false, features = [
     "bevy_ui",            # UI toolkit
     "bevy_winit",         # winit window and input backend
     "default_font",       # Embed a minimal default font for text/UI
-    "multi-threaded",     # Run with multithreading
+    "multi_threaded",     # Run with multithreading
     "tonemapping_luts",   # Support different camera Tonemapping modes (enables KTX2+zstd)
 
     # Platform-specific:
@@ -56,7 +56,7 @@ bevy = { version = "0.13", default-features = false, features = [
     # Platform-specific:
     "wayland", # (Linux) Support Wayland windowing system
 ] }
-bevy_mod_billboard = { version = "0.6.0" }
+bevy_mod_billboard = { version = "0.7.0" }
 shapefile = "0.6.0"
 rmp-serde = "1.3.0"
 serde = { version = "1.0.203", features = ["derive"] }

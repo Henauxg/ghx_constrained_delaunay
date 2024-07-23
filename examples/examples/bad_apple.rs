@@ -51,6 +51,26 @@ pub enum FrameSwitchMode {
     Auto,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Frame {
+    pub vertices: Vec<(i32, i32)>,
+    pub edges: Vec<(usize, usize)>,
+}
+
+pub struct TriangulatedFrame {
+    pub triangulation: Triangulation,
+    pub edges: Vec<Edge>,
+    pub displayed_vertices: Vec<Vector3>,
+}
+
+#[derive(Resource)]
+pub struct Frames {
+    pub frame_index: usize,
+    pub next_frame_timer: Timer,
+    pub triangulated_frames: Vec<TriangulatedFrame>,
+    pub switch_mode: FrameSwitchMode,
+}
+
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, TriangleDebugPlugin))
@@ -91,26 +111,6 @@ pub fn setup_camera(mut commands: Commands) {
             needs_transform_refresh: true,
         },
     ));
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Frame {
-    pub vertices: Vec<(i32, i32)>,
-    pub edges: Vec<(usize, usize)>,
-}
-
-pub struct TriangulatedFrame {
-    pub triangulation: Triangulation,
-    pub edges: Vec<Edge>,
-    pub displayed_vertices: Vec<Vector3>,
-}
-
-#[derive(Resource)]
-pub struct Frames {
-    pub frame_index: usize,
-    pub next_frame_timer: Timer,
-    pub triangulated_frames: Vec<TriangulatedFrame>,
-    pub switch_mode: FrameSwitchMode,
 }
 
 fn setup(mut commands: Commands) {

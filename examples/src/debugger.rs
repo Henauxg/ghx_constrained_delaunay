@@ -1,44 +1,41 @@
 use bevy::{
     app::{Plugin, Startup, Update},
     asset::{Assets, Handle},
+    color::{
+        palettes::css::{ALICE_BLUE, ANTIQUE_WHITE},
+        Alpha, Color, LinearRgba,
+    },
     ecs::{
-        component::Component,
         entity::Entity,
-        event::{Event, EventReader, EventWriter},
+        event::{EventReader, EventWriter},
         query::With,
         schedule::IntoSystemConfigs,
-        system::{Commands, Query, Res, ResMut, Resource},
+        system::{Commands, Query, Res, ResMut},
     },
-    gizmos::gizmos::Gizmos,
     hierarchy::DespawnRecursiveExt,
     input::{common_conditions::input_just_pressed, keyboard::KeyCode, ButtonInput},
-    log::{error, info},
-    math::primitives::Direction3d,
-    pbr::{AlphaMode, MaterialMeshBundle, MaterialPlugin, StandardMaterial},
-    prelude::default,
-    render::{color::Color, mesh::Mesh},
-    text::{Text, TextSection, TextStyle},
-    transform::components::Transform,
+    log::info,
+    pbr::{MaterialMeshBundle, MaterialPlugin, StandardMaterial},
+    prelude::{default, AlphaMode, Component, Event, Resource},
+    render::mesh::Mesh,
     utils::HashSet,
 };
-use bevy_mod_billboard::{plugin::BillboardPlugin, BillboardTextBundle};
+use bevy_mod_billboard::plugin::BillboardPlugin;
+use ghx_constrained_delaunay::glam::{Vec2, Vec3};
 use ghx_constrained_delaunay::{
-    debug::{DebugContext, DebugSnapshot, EventInfo},
-    infinite::{
-        infinite_vertex_local_quad_index, INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS,
-    },
-    types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index,
-        opposite_vertex_index_from_edge, Edge, Float, TriangleData, TriangleId,
-        TriangleVertexIndex, Vector3, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2,
-        VERT_3,
-    },
+    debug::{DebugContext, DebugSnapshot},
+    infinite::{INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS},
+    types::{Edge, Float, TriangleId, TriangleVertexIndex, Vector3},
 };
-use glam::{Quat, Vec2, Vec3};
+use gizmos::draw_triangles_debug_data_gizmos;
+use label::spawn_label;
 
 use crate::lines::{LineList, LineMaterial};
 
-use super::{COLORS, DEBUG_LABEL_FONT_SIZE};
+use super::COLORS;
+
+pub mod gizmos;
+pub mod label;
 
 #[derive(Default)]
 pub struct TriangleDebugPlugin;
@@ -104,7 +101,7 @@ pub struct TrianglesDebugData {
     pub vertices: Vec<Vector3>,
     pub constraints: HashSet<Edge>,
     pub context: DebugContext,
-    // TODO Rework
+    // TODO Rework. The debugger needs a collection of vertices transformed in the new basis, so that it can extrapolate from the transformed vertex, and then detransform the result.
     pub basis: Option<Basis>,
     // State
     pub current_buffer_index: usize,
@@ -207,7 +204,7 @@ impl TrianglesDebugViewConfig {
 }
 
 #[derive(Resource)]
-pub struct TriangleDebugAssets {
+pub struct TriangleDebugViewAssets {
     pub color_materials: Vec<Handle<LineMaterial>>,
     pub interior_line_materal: Handle<StandardMaterial>,
     pub contour_materal: Handle<StandardMaterial>,
@@ -220,20 +217,22 @@ pub fn setup(
 ) {
     let mut color_materials = Vec::new();
     for color in COLORS.iter() {
-        color_materials.push(line_materials.add(LineMaterial { color: *color }));
+        color_materials.push(line_materials.add(LineMaterial {
+            color: (*color).into(),
+        }));
     }
-    commands.insert_resource(TriangleDebugAssets {
+    commands.insert_resource(TriangleDebugViewAssets {
         color_materials,
         contour_materal: materials.add(StandardMaterial {
-            base_color: Color::ANTIQUE_WHITE,
+            base_color: Color::Srgba(ANTIQUE_WHITE),
             alpha_mode: AlphaMode::Opaque,
-            emissive: Color::rgb_linear(10290., 9660.0, 8820.0),
+            emissive: LinearRgba::rgb(18.54, 17.46, 15.84),
             ..default()
         }),
         interior_line_materal: materials.add(StandardMaterial {
-            base_color: Color::ALICE_BLUE.with_a(0.1),
+            base_color: Color::Srgba(ALICE_BLUE).with_alpha(0.1),
             alpha_mode: AlphaMode::Blend,
-            emissive: Color::rgb_linear(0.0, 8000.0, 10000.0),
+            emissive: LinearRgba::rgb(0.0, 2.25, 3.),
             ..default()
         }),
     });
@@ -259,11 +258,9 @@ pub fn update_triangles_debug_index(
 #[derive(Component)]
 pub struct TriangleDebugEntity;
 
-pub const BILLBOARD_DEFAULT_SCALE: Vec3 = Vec3::splat(0.0005);
-
 pub fn update_triangles_debug_view(
     mut commands: Commands,
-    debug_assets: Res<TriangleDebugAssets>,
+    debug_assets: Res<TriangleDebugViewAssets>,
     view_config: Res<TrianglesDebugViewConfig>,
     mut debug_data: ResMut<TrianglesDebugData>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -442,7 +439,7 @@ pub fn update_triangles_debug_view(
 pub fn spawn_triangle_mesh_batch(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
-    debug_assets: &Res<TriangleDebugAssets>,
+    debug_assets: &Res<TriangleDebugViewAssets>,
     batch_index: usize,
     lines: Vec<(Vec3, Vec3)>,
 ) {
@@ -454,318 +451,6 @@ pub fn spawn_triangle_mesh_batch(
         },
         TriangleDebugEntity,
     ));
-}
-
-pub fn spawn_label(
-    commands: &mut Commands,
-    vertex_label_mode: VertexLabelMode,
-    vertices: &Vec<Vector3>,
-    _basis: &Option<Basis>,
-    triangle_id: TriangleId,
-    triangle: &TriangleData,
-) {
-    let color = COLORS[(triangle_id as usize) % COLORS.len()];
-
-    let mut infinite_verts = Vec::new();
-    if triangle.v1() as usize >= vertices.len() {
-        infinite_verts.push(VERT_1);
-    }
-    if triangle.v2() as usize >= vertices.len() {
-        infinite_verts.push(VERT_2);
-    }
-    if triangle.v3() as usize >= vertices.len() {
-        infinite_verts.push(VERT_3);
-    }
-
-    let (v1, v2, v3) = if infinite_verts.is_empty() {
-        (
-            vertices[triangle.v1() as usize].as_vec3(),
-            vertices[triangle.v2() as usize].as_vec3(),
-            vertices[triangle.v3() as usize].as_vec3(),
-        )
-    } else if infinite_verts.len() == 1 {
-        let infinite_vert_local_index =
-            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
-
-        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_a_id = triangle.v(finite_vert_a_index);
-        let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
-
-        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_b_id = triangle.v(finite_vert_b_index);
-        let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-
-        if infinite_verts[0] == VERT_1 {
-            (
-                (finite_tip_a + finite_tip_b) / 2.,
-                vertices[triangle.v2() as usize].as_vec3(),
-                vertices[triangle.v3() as usize].as_vec3(),
-            )
-        } else if infinite_verts[0] == VERT_2 {
-            (
-                vertices[triangle.v1() as usize].as_vec3(),
-                (finite_tip_a + finite_tip_b) / 2.,
-                vertices[triangle.v3() as usize].as_vec3(),
-            )
-        } else {
-            (
-                vertices[triangle.v1() as usize].as_vec3(),
-                vertices[triangle.v2() as usize].as_vec3(),
-                (finite_tip_a + finite_tip_b) / 2.,
-            )
-        }
-    } else if infinite_verts.len() == 2 {
-        let finite_v_index = opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
-
-        let finite_vert_id = triangle.v(finite_v_index);
-        let finite_vertex = vertices[finite_vert_id as usize];
-
-        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
-
-        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-
-        if finite_v_index == VERT_1 {
-            (finite_vertex.as_vec3(), finite_tip_a, finite_tip_b)
-        } else if finite_v_index == VERT_2 {
-            (finite_tip_b, finite_vertex.as_vec3(), finite_tip_a)
-        } else {
-            (finite_tip_a, finite_tip_b, finite_vertex.as_vec3())
-        }
-    } else {
-        error!("Handle 2 infinite vertices for labels");
-        return;
-    };
-
-    let center = (v1 + v2 + v3) / 3.;
-
-    let v1v2 = v2 - v1;
-    let v1v3 = v3 - v1;
-    let v2v3 = v3 - v2;
-    // We could also use triangle_area = 0.5 * v1v2.cross(v1v3).length();
-    let max_side_length = v1v2.length().max(v1v3.length()).max(v2v3.length()) as f32;
-    let billboard_scale = BILLBOARD_DEFAULT_SCALE * max_side_length * Vec3::ONE;
-
-    commands.spawn((
-        BillboardTextBundle {
-            transform: Transform::from_translation(center).with_scale(billboard_scale),
-            text: Text::from_sections([TextSection {
-                value: format!("t{}", triangle_id.to_string()),
-                style: TextStyle {
-                    font_size: DEBUG_LABEL_FONT_SIZE,
-                    color,
-                    ..default()
-                },
-            }]),
-            ..default()
-        },
-        TriangleDebugEntity,
-    ));
-
-    for (v, v_id, label) in vec![
-        (v1, triangle.v1(), "v1"),
-        (v2, triangle.v2(), "v2"),
-        (v3, triangle.v3(), "v3"),
-    ] {
-        let v_display_pos = v + (center - v) * 0.15;
-        let vertex_label = match vertex_label_mode {
-            VertexLabelMode::LocalIndex => label.to_string(),
-            VertexLabelMode::GlobalIndex => {
-                if (v_id as usize) < vertices.len() {
-                    v_id.to_string()
-                } else {
-                    format!("inf_{}", infinite_vertex_local_quad_index(v_id).to_string())
-                }
-            }
-        };
-        commands.spawn((
-            BillboardTextBundle {
-                transform: Transform::from_translation(v_display_pos).with_scale(billboard_scale),
-                text: Text::from_sections([TextSection {
-                    value: vertex_label,
-                    style: TextStyle {
-                        font_size: DEBUG_LABEL_FONT_SIZE,
-                        color,
-                        ..default()
-                    },
-                }]),
-                ..default()
-            },
-            TriangleDebugEntity,
-        ));
-    }
-}
-
-pub fn draw_triangles_debug_data_gizmos(
-    mut gizmos: Gizmos,
-    debug_data: Res<TrianglesDebugData>,
-    view_config: Res<TrianglesDebugViewConfig>,
-) {
-    let Some(snapshot) = debug_data.current_snapshot() else {
-        return;
-    };
-    let vertices = &debug_data.vertices;
-
-    // Draw triangles
-    match view_config.triangles_draw_mode {
-        TrianglesDrawMode::AllAsGizmos => {
-            for (triangle_id, triangle) in snapshot.triangles.buffer().iter().enumerate() {
-                draw_triangle_gizmo(
-                    &mut gizmos,
-                    vertices,
-                    &debug_data.basis,
-                    triangle_id as TriangleId,
-                    triangle,
-                );
-            }
-        }
-        TrianglesDrawMode::ChangedAsGizmos => {
-            for triangle_id in snapshot.changed_ids.iter() {
-                let triangle = &snapshot.triangles.get(*triangle_id);
-                draw_triangle_gizmo(
-                    &mut gizmos,
-                    vertices,
-                    &debug_data.basis,
-                    *triangle_id,
-                    triangle,
-                );
-            }
-        }
-        _ => (),
-    }
-
-    // Draw last changes boundaries
-    gizmos.rect(
-        debug_data.current_changes_bounds.0,
-        Quat::IDENTITY,
-        debug_data.current_changes_bounds.1,
-        Color::WHITE,
-    );
-
-    // Draw specific event info
-    if let EventInfo::Split(vertex_id) = snapshot.event {
-        // Set circle radius as proportional to the changes bounding box
-        let circle_radius = debug_data
-            .current_changes_bounds
-            .1
-            .x
-            .min(debug_data.current_changes_bounds.1.y)
-            / 10.;
-        gizmos.circle(
-            vertices[vertex_id as usize].as_vec3(),
-            Direction3d::Z,
-            circle_radius,
-            Color::RED,
-        );
-    }
-}
-
-pub fn draw_triangle_gizmo(
-    gizmos: &mut Gizmos,
-    vertices: &Vec<Vector3>,
-    _basis: &Option<Basis>,
-    triangle_id: TriangleId,
-    triangle: &TriangleData,
-) {
-    let color = COLORS[triangle_id as usize % COLORS.len()];
-
-    let mut infinite_verts = Vec::new();
-    if triangle.v1() as usize >= vertices.len() {
-        infinite_verts.push(VERT_1);
-    }
-    if triangle.v2() as usize >= vertices.len() {
-        infinite_verts.push(VERT_2);
-    }
-    if triangle.v3() as usize >= vertices.len() {
-        infinite_verts.push(VERT_3);
-    }
-
-    let linestrip = if infinite_verts.is_empty() {
-        let (v1, v2, v3) = (
-            vertices[triangle.v1() as usize].as_vec3(),
-            vertices[triangle.v2() as usize].as_vec3(),
-            vertices[triangle.v3() as usize].as_vec3(),
-        );
-        vec![v1, v2, v3, v1]
-    } else if infinite_verts.len() == 1 {
-        let infinite_vert_local_index =
-            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
-
-        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_a_id = triangle.v(finite_vert_a_index);
-        let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
-
-        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_b_id = triangle.v(finite_vert_b_index);
-        let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-        // info!("draw gizmos, infinite_verts.len() == 1");
-
-        vec![
-            finite_tip_a,
-            finite_vertex_a.as_vec3(),
-            finite_vertex_b.as_vec3(),
-            finite_tip_b,
-        ]
-    } else if infinite_verts.len() == 2 {
-        //TODO
-        let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
-        let finite_vert_id = triangle.v(finite_v_index);
-        let finite_vertex = vertices[finite_vert_id as usize];
-
-        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
-
-        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
-
-        // // TODO Really quick & dirty. Does not work, finite_vertex is not transformed. Would need transformed finite_vertex -> point extrapolation -> detransform
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-
-        vec![finite_tip_a, finite_vertex.as_vec3(), finite_tip_b]
-    } else {
-        vec![]
-    };
-    gizmos.linestrip(linestrip, color);
-    // TODO Could draw something for 3 infinite vertices
 }
 
 pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 50.;

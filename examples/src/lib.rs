@@ -1,36 +1,33 @@
-use bevy::render::color::Color;
+mod debugger;
+use bevy::color::{palettes::css::*, Color};
+pub use debugger::*;
 
-mod triangle_debug;
-pub use triangle_debug::*;
-
-mod example_setup;
-pub use example_setup::*;
+mod plugin;
+pub use plugin::*;
 
 pub mod lines;
 
 pub mod camera;
 
-pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
-
 pub const COLORS: &'static [Color] = &[
-    Color::GREEN,
-    Color::BLUE,
-    Color::BLACK,
-    Color::RED,
-    Color::YELLOW,
-    Color::MAROON,
-    Color::PURPLE,
-    Color::SALMON,
-    Color::ORANGE,
-    Color::CYAN,
-    Color::NAVY,
-    Color::OLIVE,
-    Color::PINK,
-    Color::ALICE_BLUE,
-    Color::CRIMSON,
-    Color::TURQUOISE,
-    Color::YELLOW_GREEN,
-    Color::TEAL,
-    Color::MIDNIGHT_BLUE,
-    Color::VIOLET,
+    Color::Srgba(GREEN),
+    Color::Srgba(BLUE),
+    Color::Srgba(BLACK),
+    Color::Srgba(RED),
+    Color::Srgba(YELLOW),
+    Color::Srgba(MAROON),
+    Color::Srgba(PURPLE),
+    Color::Srgba(SALMON),
+    Color::Srgba(ORANGE),
+    Color::Srgba(CADET_BLUE),
+    Color::Srgba(NAVY),
+    Color::Srgba(OLIVE),
+    Color::Srgba(PINK),
+    Color::Srgba(ALICE_BLUE),
+    Color::Srgba(CRIMSON),
+    Color::Srgba(TURQUOISE),
+    Color::Srgba(YELLOW_GREEN),
+    Color::Srgba(TEAL),
+    Color::Srgba(MIDNIGHT_BLUE),
+    Color::Srgba(VIOLET),
 ];

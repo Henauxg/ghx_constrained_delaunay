@@ -2,12 +2,12 @@ use std::time::Instant;
 
 use bevy::{
     app::{App, Startup, Update},
+    color::palettes::css::ALICE_BLUE,
     ecs::system::{Commands, Res},
     gizmos::gizmos::Gizmos,
     log::info,
-    math::{primitives::Direction3d, Vec3},
+    math::{Dir3, Vec3},
     prelude::{EventWriter, IntoSystemConfigs, ResMut},
-    render::color::Color,
     DefaultPlugins,
 };
 use examples::{
@@ -136,9 +136,9 @@ fn load_with_ghx_cdt_crate(
 fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebugData>) {
     gizmos.circle(
         Vec3::new(0., 0., 0.),
-        Direction3d::Z,
+        Dir3::Z,
         0.01 * triangle_debug_data.context.scale_factor as f32,
-        Color::ALICE_BLUE,
+        ALICE_BLUE,
     );
 }
 
