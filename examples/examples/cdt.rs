@@ -11,9 +11,8 @@ use examples::{
     TrianglesDebugViewConfig, TrianglesDrawMode, VertexLabelMode,
 };
 use ghx_constrained_delaunay::{
-    constrained_triangulation::{
-        constrained_triangulation_from_3d_planar_vertices, ConstrainedTriangulationConfiguration,
-    },
+    constrained_triangulation::ConstrainedTriangulationConfiguration,
+    constrained_triangulation_from_2d_vertices,
     types::{Edge, Vector3, Vertex},
     utils::check_delaunay_optimal,
 };
@@ -31,22 +30,22 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let vertices = vec![
-        Vector3::new(0., 0., 0.),
-        Vector3::new(2., 0., 0.),
-        Vector3::new(2., 2., 0.),
-        Vector3::new(2., 4., 0.),
-        Vector3::new(11., 4., 0.),
-        Vector3::new(11., 1., 0.),
-        Vector3::new(7., -1., 0.),
-        Vector3::new(1., -2., 0.),
-        Vector3::new(-5., 0., 0.),
-        Vector3::new(-7., 4., 0.),
-        Vector3::new(-4., 6., 0.),
-        Vector3::new(0., 6., 0.),
-        Vector3::new(6., 1., 0.),
-        Vector3::new(8., 3., 0.),
-        Vector3::new(-3., 1., 0.),
-        Vector3::new(-4., 4., 0.),
+        Vertex::new(0., 0.),
+        Vertex::new(2., 0.),
+        Vertex::new(2., 2.),
+        Vertex::new(2., 4.),
+        Vertex::new(11., 4.),
+        Vertex::new(11., 1.),
+        Vertex::new(7., -1.),
+        Vertex::new(1., -2.),
+        Vertex::new(-5., 0.),
+        Vertex::new(-7., 4.),
+        Vertex::new(-4., 6.),
+        Vertex::new(0., 6.),
+        Vertex::new(6., 1.),
+        Vertex::new(8., 3.),
+        Vertex::new(-3., 1.),
+        Vertex::new(-4., 4.),
     ];
 
     let constrained_edges = vec![
@@ -66,10 +65,8 @@ fn setup(mut commands: Commands) {
         Edge::new(15, 14),
     ];
 
-    let plane_normal = Vector3::Z;
-    let triangulation = constrained_triangulation_from_3d_planar_vertices(
+    let triangulation = constrained_triangulation_from_2d_vertices(
         &vertices,
-        plane_normal.into(),
         &constrained_edges,
         ConstrainedTriangulationConfiguration::default(),
     )
@@ -83,7 +80,10 @@ fn setup(mut commands: Commands) {
     info!("CDT quality info: {:?}", delaunay_quality);
 
     commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
-        vertices.clone(),
+        vertices
+            .iter()
+            .map(|v| Vector3::new(v.x, v.y, 0.))
+            .collect(),
         &constrained_edges,
         triangulation.debug_context,
     ));

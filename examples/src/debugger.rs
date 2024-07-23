@@ -24,8 +24,7 @@ use bevy_mod_billboard::plugin::BillboardPlugin;
 use ghx_constrained_delaunay::glam::{Vec2, Vec3};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot},
-    infinite::{INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS},
-    types::{Edge, Float, TriangleId, TriangleVertexIndex, Vector3},
+    types::{Edge, Float, TriangleId, Vector3},
 };
 use gizmos::draw_triangles_debug_data_gizmos;
 use label::spawn_label;
@@ -35,7 +34,10 @@ use crate::lines::{LineList, LineMaterial};
 use super::COLORS;
 
 pub mod gizmos;
+pub mod infinite;
 pub mod label;
+
+pub const DEFAULT_TRIANGLES_BATCH_SIZE: usize = 15;
 
 #[derive(Default)]
 pub struct TriangleDebugPlugin;
@@ -60,13 +62,11 @@ impl Plugin for TriangleDebugPlugin {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Basis {
-    plane_origin: Vec3,
+    // plane_origin: Vec3,
     e1: Vec3,
     e2: Vec3,
-}
-pub fn detransfrom(point: Vec3, basis: &Basis) -> Vec3 {
-    basis.plane_origin + point.x * basis.e1 + point.y * basis.e2 // + 0. * e3
 }
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
@@ -101,21 +101,33 @@ pub struct TrianglesDebugData {
     pub vertices: Vec<Vector3>,
     pub constraints: HashSet<Edge>,
     pub context: DebugContext,
-    // TODO Rework. The debugger needs a collection of vertices transformed in the new basis, so that it can extrapolate from the transformed vertex, and then detransform the result.
-    pub basis: Option<Basis>,
+    pub basis: Basis,
     // State
     pub current_buffer_index: usize,
     pub current_changes_bounds: (Vec3, Vec2),
+}
+
+impl Default for TrianglesDebugData {
+    fn default() -> Self {
+        Self {
+            vertices: Default::default(),
+            constraints: HashSet::new(),
+            context: Default::default(),
+            basis: Basis {
+                e1: Vec3::X,
+                e2: Vec3::Y,
+            },
+            current_buffer_index: 0,
+            current_changes_bounds: (Vec3::ZERO, Vec2::ZERO),
+        }
+    }
 }
 impl TrianglesDebugData {
     pub fn new(vertices: Vec<Vector3>, context: DebugContext) -> Self {
         Self {
             vertices,
-            constraints: HashSet::new(),
             context,
-            basis: None,
-            current_buffer_index: 0,
-            current_changes_bounds: (Vec3::ZERO, Vec2::ZERO),
+            ..Default::default()
         }
     }
 
@@ -128,22 +140,13 @@ impl TrianglesDebugData {
             vertices,
             constraints: HashSet::from_iter(constrained_edges.iter().cloned()),
             context,
-            basis: None,
-            current_buffer_index: 0,
-            current_changes_bounds: (Vec3::ZERO, Vec2::ZERO),
+            ..Default::default()
         }
     }
 
-    pub fn with_basis_transformation(&mut self, plane_normal: Vector3) {
-        let e1 = (self.vertices[0] - self.vertices[1]).normalize();
-        let e2 = e1.cross(-plane_normal);
-        let _e3 = plane_normal;
-        let plane_origin = self.vertices[1];
-        self.basis = Some(Basis {
-            plane_origin: plane_origin.as_vec3(),
-            e1: e2.as_vec3(),
-            e2: e2.as_vec3(),
-        });
+    pub fn with_basis(mut self, basis: Basis) -> Self {
+        self.basis = basis;
+        self
     }
 
     pub fn advance_cursor(&mut self) -> usize {
@@ -378,27 +381,27 @@ pub fn update_triangles_debug_view(
     // Spawn label entites if enabled
     match view_config.label_mode {
         LabelMode::All => {
-            for (index, triangle_data) in snapshot.triangles.buffer().iter().enumerate() {
+            for (triangle_id, triangle_data) in snapshot.triangles.buffer().iter().enumerate() {
                 spawn_label(
                     &mut commands,
                     view_config.vertex_label_mode,
                     vertices,
-                    &debug_data.basis,
-                    index as TriangleId,
+                    triangle_id as TriangleId,
                     triangle_data,
+                    &debug_data.basis,
                 );
             }
         }
         LabelMode::Changed => {
-            for index in snapshot.changed_ids.iter() {
-                let triangle_data = &snapshot.triangles.get(*index);
+            for triangle_id in snapshot.changed_ids.iter() {
+                let triangle_data = &snapshot.triangles.get(*triangle_id);
                 spawn_label(
                     &mut commands,
                     view_config.vertex_label_mode,
                     vertices,
-                    &debug_data.basis,
-                    *index,
+                    *triangle_id,
                     triangle_data,
+                    &debug_data.basis,
                 );
             }
         }
@@ -452,27 +455,6 @@ pub fn spawn_triangle_mesh_batch(
         TriangleDebugEntity,
     ));
 }
-
-pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 50.;
-
-pub fn finite_vertex_from_semi_infinite_edge(
-    finite_vertex: Vector3,
-    infinite_vert_local_index: TriangleVertexIndex,
-) -> Vec3 {
-    // TODO Might need a detransformation
-    Vec3::new(
-        // TODO Change to a factor dependent on the triangle/triangulation
-        (finite_vertex.x
-            + SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR
-                * INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize]) as f32,
-        (finite_vertex.y
-            + SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR
-                * INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize]) as f32,
-        0.,
-    )
-}
-
-pub const DEFAULT_TRIANGLES_BATCH_SIZE: usize = 15;
 
 pub fn switch_triangles_draw_mode(
     mut view_config: ResMut<TrianglesDebugViewConfig>,

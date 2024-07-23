@@ -4,17 +4,19 @@ use bevy::{
     gizmos::gizmos::Gizmos,
     math::Dir3,
 };
-use ghx_constrained_delaunay::glam::Quat;
 use ghx_constrained_delaunay::{
     debug::EventInfo,
-    infinite::infinite_vertex_local_quad_index,
-    types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index, TriangleData, TriangleId,
-        Vector3, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
-    },
+    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, Vector3},
 };
+use ghx_constrained_delaunay::{glam::Quat, infinite::collect_infinite_triangle_vertices};
 
-use crate::{finite_vertex_from_semi_infinite_edge, COLORS};
+use crate::{
+    infinite::{
+        get_2_extrapolated_vertices_from_1_finite_vertex,
+        get_2_extrapolated_vertices_from_2_finite_vertices,
+    },
+    COLORS,
+};
 
 use super::{Basis, TrianglesDebugData, TrianglesDebugViewConfig, TrianglesDrawMode};
 
@@ -35,9 +37,9 @@ pub fn draw_triangles_debug_data_gizmos(
                 draw_triangle_gizmo(
                     &mut gizmos,
                     vertices,
-                    &debug_data.basis,
                     triangle_id as TriangleId,
                     triangle,
+                    &debug_data.basis,
                 );
             }
         }
@@ -47,9 +49,9 @@ pub fn draw_triangles_debug_data_gizmos(
                 draw_triangle_gizmo(
                     &mut gizmos,
                     vertices,
-                    &debug_data.basis,
                     *triangle_id,
                     triangle,
+                    &debug_data.basis,
                 );
             }
         }
@@ -85,22 +87,13 @@ pub fn draw_triangles_debug_data_gizmos(
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
     vertices: &Vec<Vector3>,
-    _basis: &Option<Basis>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
+    basis: &Basis,
 ) {
     let color = COLORS[triangle_id as usize % COLORS.len()];
 
-    let mut infinite_verts = Vec::new();
-    if triangle.v1() as usize >= vertices.len() {
-        infinite_verts.push(VERT_1);
-    }
-    if triangle.v2() as usize >= vertices.len() {
-        infinite_verts.push(VERT_2);
-    }
-    if triangle.v3() as usize >= vertices.len() {
-        infinite_verts.push(VERT_3);
-    }
+    let infinite_verts = collect_infinite_triangle_vertices(&triangle.verts);
 
     let linestrip = if infinite_verts.is_empty() {
         let (v1, v2, v3) = (
@@ -110,60 +103,26 @@ pub fn draw_triangle_gizmo(
         );
         vec![v1, v2, v3, v1]
     } else if infinite_verts.len() == 1 {
-        let infinite_vert_local_index =
-            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
-
-        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_a_id = triangle.v(finite_vert_a_index);
-        let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
-
-        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_b_id = triangle.v(finite_vert_b_index);
-        let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-        // info!("draw gizmos, infinite_verts.len() == 1");
-
-        vec![
-            finite_tip_a,
-            finite_vertex_a.as_vec3(),
-            finite_vertex_b.as_vec3(),
-            finite_tip_b,
-        ]
+        let (finite_vertex_a, finite_tip_a, finite_tip_b, finite_vertex_b) =
+            get_2_extrapolated_vertices_from_2_finite_vertices(
+                vertices,
+                triangle,
+                basis,
+                infinite_verts[0],
+            );
+        vec![finite_tip_a, finite_vertex_a, finite_vertex_b, finite_tip_b]
     } else if infinite_verts.len() == 2 {
-        //TODO
-        let finite_v_index = 3 - (infinite_verts[0] + infinite_verts[1]);
-        let finite_vert_id = triangle.v(finite_v_index);
-        let finite_vertex = vertices[finite_vert_id as usize];
-
-        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
-
-        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-
-        vec![finite_tip_a, finite_vertex.as_vec3(), finite_tip_b]
+        let (finite_tip_a, finite_vertex, finite_tip_b) =
+            get_2_extrapolated_vertices_from_1_finite_vertex(
+                vertices,
+                triangle,
+                basis,
+                opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]),
+            );
+        vec![finite_tip_a, finite_vertex, finite_tip_b]
     } else {
         vec![]
+        // TODO Could draw something for 3 infinite vertices
     };
     gizmos.linestrip(linestrip, color);
-    // TODO Could draw something for 3 infinite vertices
 }

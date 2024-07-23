@@ -6,14 +6,10 @@ use bevy::{
     transform::components::Transform,
 };
 use bevy_mod_billboard::BillboardTextBundle;
-use ghx_constrained_delaunay::glam::Vec3;
+use ghx_constrained_delaunay::{glam::Vec3, infinite::collect_infinite_triangle_vertices};
 use ghx_constrained_delaunay::{
     infinite::infinite_vertex_local_quad_index,
-    types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index,
-        opposite_vertex_index_from_edge, TriangleData, TriangleId, Vector3, NEXT_CCW_VERTEX_INDEX,
-        NEXT_CW_VERTEX_INDEX, VERT_1, VERT_2, VERT_3,
-    },
+    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, Vector3, VERT_1, VERT_2},
 };
 
 use crate::COLORS;
@@ -22,28 +18,25 @@ pub const DEBUG_LABEL_FONT_SIZE: f32 = 60.0;
 
 pub const BILLBOARD_DEFAULT_SCALE: Vec3 = Vec3::splat(0.0005);
 
-use super::{finite_vertex_from_semi_infinite_edge, Basis, TriangleDebugEntity, VertexLabelMode};
+use super::{
+    infinite::{
+        get_2_extrapolated_vertices_from_1_finite_vertex,
+        get_2_extrapolated_vertices_from_2_finite_vertices,
+    },
+    Basis, TriangleDebugEntity, VertexLabelMode,
+};
 
 pub fn spawn_label(
     commands: &mut Commands,
     vertex_label_mode: VertexLabelMode,
     vertices: &Vec<Vector3>,
-    _basis: &Option<Basis>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
+    basis: &Basis,
 ) {
     let color = COLORS[(triangle_id as usize) % COLORS.len()];
 
-    let mut infinite_verts = Vec::new();
-    if triangle.v1() as usize >= vertices.len() {
-        infinite_verts.push(VERT_1);
-    }
-    if triangle.v2() as usize >= vertices.len() {
-        infinite_verts.push(VERT_2);
-    }
-    if triangle.v3() as usize >= vertices.len() {
-        infinite_verts.push(VERT_3);
-    }
+    let infinite_verts = collect_infinite_triangle_vertices(&triangle.verts);
 
     let (v1, v2, v3) = if infinite_verts.is_empty() {
         (
@@ -52,25 +45,13 @@ pub fn spawn_label(
             vertices[triangle.v3() as usize].as_vec3(),
         )
     } else if infinite_verts.len() == 1 {
-        let infinite_vert_local_index =
-            infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
-
-        let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_a_id = triangle.v(finite_vert_a_index);
-        let finite_vertex_a = vertices[finite_vert_a_id as usize];
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
-
-        let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
-        let finite_vert_b_id = triangle.v(finite_vert_b_index);
-        let finite_vertex_b = vertices[finite_vert_b_id as usize];
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex_b, infinite_vert_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
+        let (_a, finite_tip_a, _b, finite_tip_b) =
+            get_2_extrapolated_vertices_from_2_finite_vertices(
+                vertices,
+                triangle,
+                basis,
+                infinite_verts[0],
+            );
 
         if infinite_verts[0] == VERT_1 {
             (
@@ -92,34 +73,22 @@ pub fn spawn_label(
             )
         }
     } else if infinite_verts.len() == 2 {
-        let finite_v_index = opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
+        let finite_vertex_index =
+            opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
+        let (finite_tip_a, finite_vertex, finite_tip_b) =
+            get_2_extrapolated_vertices_from_1_finite_vertex(
+                vertices,
+                triangle,
+                basis,
+                finite_vertex_index,
+            );
 
-        let finite_vert_id = triangle.v(finite_v_index);
-        let finite_vertex = vertices[finite_vert_id as usize];
-
-        let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_a =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
-
-        let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-            triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
-        );
-        let finite_tip_b =
-            finite_vertex_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
-
-        // if let Some(basis) = basis {
-        //     finite_tip_a = detransfrom(finite_tip_a, basis);
-        //     finite_tip_b = detransfrom(finite_tip_b, basis);
-        // }
-
-        if finite_v_index == VERT_1 {
-            (finite_vertex.as_vec3(), finite_tip_a, finite_tip_b)
-        } else if finite_v_index == VERT_2 {
-            (finite_tip_b, finite_vertex.as_vec3(), finite_tip_a)
+        if finite_vertex_index == VERT_1 {
+            (finite_vertex, finite_tip_a, finite_tip_b)
+        } else if finite_vertex_index == VERT_2 {
+            (finite_tip_b, finite_vertex, finite_tip_a)
         } else {
-            (finite_tip_a, finite_tip_b, finite_vertex.as_vec3())
+            (finite_tip_a, finite_tip_b, finite_vertex)
         }
     } else {
         error!("Handle 2 infinite vertices for labels");
