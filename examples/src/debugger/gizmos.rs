@@ -103,7 +103,7 @@ pub fn draw_triangle_gizmo(
         );
         vec![v1, v2, v3, v1]
     } else if infinite_verts.len() == 1 {
-        let (finite_vertex_a, finite_tip_a, finite_tip_b, finite_vertex_b) =
+        let (finite_vertex_a, finite_tip_a, finite_vertex_b, finite_tip_b) =
             get_2_extrapolated_vertices_from_2_finite_vertices(
                 vertices,
                 triangle,

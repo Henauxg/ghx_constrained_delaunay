@@ -167,7 +167,7 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::None,
         VertexLabelMode::GlobalIndex,
-        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
+        TrianglesDrawMode::ContoursAndInteriorAsMeshes,
         false,
     ));
 

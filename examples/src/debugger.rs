@@ -70,7 +70,6 @@ impl Plugin for TriangleDebugPlugin {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Basis {
-    // plane_origin: Vec3,
     e1: Vec3,
     e2: Vec3,
 }
@@ -78,12 +77,20 @@ pub struct Basis {
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TrianglesDrawMode {
     #[default]
+    /// Draws all the triangles, as gizmos.
     AllAsGizmos,
+    // Draws only the triangles that changed, as gizmos.
     ChangedAsGizmos,
+    /// Draw all the triangles as meshes. Groups `batch_size` triangles per mesh.
+    ///
+    /// Increase `batch_size` for more performances.
     AllAsMeshBatches {
         batch_size: usize,
     },
-    AllAsContourAndInteriorMeshes,
+    /// Only displays finite triangles.
+    ///
+    /// 1 mesh for the constrained edges, 1 mesh for all the other lines.
+    ContoursAndInteriorAsMeshes,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -307,7 +314,7 @@ pub fn update_triangles_debug_view(
         TrianglesDrawMode::AllAsMeshBatches { batch_size } => {
             commands.trigger(SpawnMeshBatches(batch_size))
         }
-        TrianglesDrawMode::AllAsContourAndInteriorMeshes => {
+        TrianglesDrawMode::ContoursAndInteriorAsMeshes => {
             commands.trigger(SpawnContourAndInteriorMeshes);
         }
         _ => (),
@@ -388,9 +395,9 @@ pub fn switch_triangles_draw_mode(
             }
         }
         TrianglesDrawMode::AllAsMeshBatches { batch_size: _ } => {
-            view_config.triangles_draw_mode = TrianglesDrawMode::AllAsContourAndInteriorMeshes
+            view_config.triangles_draw_mode = TrianglesDrawMode::ContoursAndInteriorAsMeshes
         }
-        TrianglesDrawMode::AllAsContourAndInteriorMeshes => {
+        TrianglesDrawMode::ContoursAndInteriorAsMeshes => {
             view_config.triangles_draw_mode = TrianglesDrawMode::AllAsGizmos
         }
     };

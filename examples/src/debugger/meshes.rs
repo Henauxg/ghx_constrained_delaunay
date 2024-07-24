@@ -6,8 +6,18 @@ use bevy::{
     prelude::{Commands, Event, Mesh, Res, ResMut, Trigger},
     utils::default,
 };
+use ghx_constrained_delaunay::{
+    infinite::collect_infinite_triangle_vertices, types::opposite_vertex_index_from_edge,
+};
 
-use crate::{lines::LineList, COLORS};
+use crate::{
+    infinite::{
+        get_2_extrapolated_vertices_from_1_finite_vertex,
+        get_2_extrapolated_vertices_from_2_finite_vertices,
+    },
+    lines::LineList,
+    COLORS,
+};
 
 use super::{TriangleDebugEntity, TriangleDebugViewAssets, TrianglesDebugData};
 
@@ -32,16 +42,44 @@ pub fn spawn_all_as_mesh_batches(
 
     let mut lines = Some(vec![]);
     let mut batch_index = 0;
-    for (index, t) in snapshot.triangles.buffer().iter().enumerate() {
-        let (v1, v2, v3) = (
-            vertices[t.v1() as usize].as_vec3(),
-            vertices[t.v2() as usize].as_vec3(),
-            vertices[t.v3() as usize].as_vec3(),
-        );
-        lines
-            .as_mut()
-            .unwrap()
-            .extend(vec![(v1, v2), (v2, v3), (v3, v1)]);
+    for (index, triangle) in snapshot.triangles.buffer().iter().enumerate() {
+        let infinite_verts = collect_infinite_triangle_vertices(&triangle.verts);
+
+        let triangle_lines = if infinite_verts.is_empty() {
+            let (v1, v2, v3) = (
+                vertices[triangle.v1() as usize].as_vec3(),
+                vertices[triangle.v2() as usize].as_vec3(),
+                vertices[triangle.v3() as usize].as_vec3(),
+            );
+            vec![(v1, v2), (v2, v3), (v3, v1)]
+        } else if infinite_verts.len() == 1 {
+            let (finite_vertex_a, finite_tip_a, finite_vertex_b, finite_tip_b) =
+                get_2_extrapolated_vertices_from_2_finite_vertices(
+                    vertices,
+                    triangle,
+                    &debug_data.basis,
+                    infinite_verts[0],
+                );
+            vec![
+                (finite_tip_a, finite_vertex_a),
+                (finite_vertex_a, finite_vertex_b),
+                (finite_vertex_b, finite_tip_b),
+            ]
+        } else if infinite_verts.len() == 2 {
+            let (finite_tip_a, finite_vertex, finite_tip_b) =
+                get_2_extrapolated_vertices_from_1_finite_vertex(
+                    vertices,
+                    triangle,
+                    &debug_data.basis,
+                    opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]),
+                );
+            vec![(finite_tip_a, finite_vertex), (finite_vertex, finite_tip_b)]
+        } else {
+            vec![]
+            // TODO Could draw something for 3 infinite vertices
+        };
+
+        lines.as_mut().unwrap().extend(triangle_lines);
 
         if index % batch_size == batch_size - 1 {
             spawn_triangle_mesh_batch(
@@ -100,6 +138,9 @@ pub fn spawn_contour_and_interior_meshes(
     let mut contour = vec![];
     let mut interior_lines = vec![];
     for t in snapshot.triangles.buffer().iter() {
+        if t.is_pseudo_infinite() {
+            continue;
+        }
         for edge in t.edges() {
             let collection = if debug_data.constraints.contains(&edge)
                 || debug_data.constraints.contains(&edge.opposite())

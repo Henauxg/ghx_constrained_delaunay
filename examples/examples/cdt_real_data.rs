@@ -84,7 +84,7 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::Changed,
         VertexLabelMode::GlobalIndex,
-        TrianglesDrawMode::AllAsContourAndInteriorMeshes,
+        TrianglesDrawMode::ContoursAndInteriorAsMeshes,
         true,
     ));
     // TODO Center camera on data
