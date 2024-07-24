@@ -1,5 +1,5 @@
 use crate::{
-    infinite::is_finite,
+    infinite::{is_finite, is_infinite},
     utils::{egdes_intersect, EdgesIntersectionResult},
 };
 
@@ -323,8 +323,13 @@ impl TriangleData {
     }
 
     #[inline]
-    pub(crate) fn is_finite(&self) -> bool {
+    pub fn is_finite(&self) -> bool {
         is_finite(self.v1()) && is_finite(self.v2()) && is_finite(self.v3())
+    }
+
+    #[inline]
+    pub fn is_pseudo_infinite(&self) -> bool {
+        is_infinite(self.v1()) || is_infinite(self.v2()) || is_infinite(self.v3())
     }
 }
 
