@@ -25,313 +25,174 @@ pub use triangulation::{
 
 #[cfg(test)]
 mod tests {
-    use glam::Vec3;
 
     use crate::{
-        constrained_triangulation::{
-            constrained_triangulation_from_3d_planar_vertices,
-            ConstrainedTriangulationConfiguration,
-        },
-        triangulation::{triangulation_from_3d_planar_vertices, TriangulationConfiguration},
-        types::{Edge, Vector3},
+        constrained_triangulation::ConstrainedTriangulationConfiguration,
+        constrained_triangulation_from_2d_vertices,
+        triangulation::TriangulationConfiguration,
+        triangulation_from_2d_vertices,
+        types::{Edge, Vertex},
     };
 
     #[test]
     fn delaunay_level_1() {
-        // ---------------
+        // 1-------------2
         // |  \          |
         // |     \       |
         // |        \    |
         // |           \ |
-        // ---------------
-        let mut vertices = Vec::<Vector3>::new();
+        // 0-------------3
+        let vertices = vec![
+            Vertex::new(0., 0.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 0.),
+        ];
 
-        vertices.push([0., 0., 0.].into());
-        vertices.push([0., 5., 0.].into());
-        vertices.push([5., 5., 0.].into());
-        vertices.push([5., 0., 0.].into());
+        let triangulation =
+            triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
+                .expect("Triangulation should succeed");
 
-        let plane_normal = Vec3::Z;
-        let triangulation = triangulation_from_3d_planar_vertices(
-            &vertices,
-            plane_normal.into(),
-            TriangulationConfiguration::default(),
-        )
-        .expect("Triangulation should succeed");
-
-        assert_eq!(vec![[1, 3, 2], [0, 3, 1]], triangulation.triangles);
+        assert_eq!(vec![[0, 1, 3], [1, 2, 3]], triangulation.triangles);
     }
 
     #[test]
     fn delaunay_level_2() {
-        // ---------------
+        // 1-------------5
         // |           / |
         // |        /    |
         // |     /       |
         // |  /          |
-        // ---------------
+        // 2-------------4
         // |  \          |
         // |     \       |
         // |        \    |
         // |           \ |
-        // ---------------
+        // 0-------------3
         let vertices = vec![
-            Vector3::new(0., 0., 0.),
-            Vector3::new(0., 10., 0.),
-            Vector3::new(0., 5., 0.),
-            Vector3::new(5., 0., 0.),
-            Vector3::new(5., 5., 0.),
-            Vector3::new(5., 10., 0.),
+            Vertex::new(0., 0.),
+            Vertex::new(0., 10.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 0.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 10.),
         ];
 
-        let plane_normal = Vec3::Z;
-        let triangulation = triangulation_from_3d_planar_vertices(
-            &vertices,
-            plane_normal.into(),
-            TriangulationConfiguration::default(),
-        )
-        .unwrap();
+        let triangulation =
+            triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
+                .expect("Triangulation should succeed");
 
         assert_eq!(
-            vec![[3, 4, 2], [2, 4, 5], [1, 2, 5], [0, 3, 2]],
+            vec![[0, 2, 3], [2, 4, 3], [1, 5, 2], [5, 4, 2]],
             triangulation.triangles
         );
     }
 
     #[test]
-    fn constrained_delaunay_level_3() {
-        // ---------------<-------------------------------------
-        // |                        keep                       |
-        // |   ----------->---------------------------------   |
-        // |   |                   remove                  |   |
-        // |   |   -------<--------     -------<--------   |   |
-        // |   |   |              |     |              |   |   |
-        // v   ∧   v     keep     ∧     v     keep     ∧   v   ∧
-        // |   |   |              |     |              |   |   |
-        // |   |   ------->--------     ------->--------   |   |
-        // |   |                                           |   |
-        // |   -----------<---------------------------------   |
-        // |                                                   |
-        // --------------->-------------------------------------
+    fn constrained_delaunay_level_1() {
+        // 1-------------2
+        // |          /  |
+        // |       /     |
+        // |    /        |
+        // | /           |
+        // 0-------------3
         let vertices = vec![
-            Vector3::new(-4., 3., 0.),
-            Vector3::new(3., 3., 0.),
-            Vector3::new(3., -2., 0.),
-            Vector3::new(-4., -2., 0.),
-            Vector3::new(-3., 2., 0.),
-            Vector3::new(2., 2., 0.),
-            Vector3::new(2., -1., 0.),
-            Vector3::new(-3., -1., 0.),
-            Vector3::new(-2., 1., 0.),
-            Vector3::new(-1., 1., 0.),
-            Vector3::new(-1., 0., 0.),
-            Vector3::new(-2., 0., 0.),
-            Vector3::new(0., 1., 0.),
-            Vector3::new(1., 1., 0.),
-            Vector3::new(1., 0., 0.),
-            Vector3::new(0., 0., 0.),
+            Vertex::new(0., 0.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 0.),
         ];
+        let edges = vec![Edge::new(0, 2)];
 
-        let mut constrained_edges = Vec::new();
-
-        // mesh frontier MUST be counter clockwise
-        // then other domains MUST alternate between clockwise and counter clockwise
-
-        constrained_edges.extend([
-            // counter clockwise
-            Edge::new(0, 3),
-            Edge::new(3, 2),
-            Edge::new(2, 1),
-            Edge::new(1, 0),
-            //clockwise
-            Edge::new(4, 5),
-            Edge::new(5, 6),
-            Edge::new(6, 7),
-            Edge::new(7, 4),
-            //counter clockwise
-            Edge::new(8, 11),
-            Edge::new(11, 10),
-            Edge::new(10, 9),
-            Edge::new(9, 8),
-            //counter clockwise
-            Edge::new(12, 15),
-            Edge::new(15, 14),
-            Edge::new(14, 13),
-            Edge::new(13, 12),
-        ]);
-
-        let plane_normal = Vec3::Z;
-        let triangulation = constrained_triangulation_from_3d_planar_vertices(
+        let triangulation = constrained_triangulation_from_2d_vertices(
             &vertices,
-            plane_normal.into(),
-            &constrained_edges,
+            &edges,
             ConstrainedTriangulationConfiguration::default(),
         )
-        .unwrap();
+        .expect("Triangulation should succeed");
 
-        let mut constrained_vertices = Vec::new();
-        for triangle in triangulation.triangles {
-            constrained_vertices.extend([
-                vertices[triangle[0] as usize],
-                vertices[triangle[1] as usize],
-                vertices[triangle[2] as usize],
-            ]);
-        }
-
-        // TODO Compare indices
-        assert_eq!(36, constrained_vertices.len());
-        assert_eq!(
-            vec![
-                Vector3::new(1.0, 1.0, 0.0),
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(1.0, 0.0, 0.0),
-                Vector3::new(0.0, 1.0, 0.0),
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(1.0, 1.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(3.0, -2.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(3.0, -2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-3.0, 2.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-3.0, 2.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-1.0, 1.0, 0.0),
-                Vector3::new(-2.0, 0.0, 0.0),
-                Vector3::new(-1.0, 0.0, 0.0),
-                Vector3::new(-2.0, 1.0, 0.0),
-                Vector3::new(-2.0, 0.0, 0.0),
-                Vector3::new(-1.0, 1.0, 0.0),
-            ],
-            constrained_vertices
-        );
+        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
     }
 
     #[test]
-    fn constrained_delaunay_level_4() {
+    fn constrained_delaunay_level_2() {
+        // 1-------------2
+        // |          /  |
+        // |       /     |
+        // |    /        |
+        // | /           |
+        // 0-------------3
         let vertices = vec![
-            Vector3::new(-4., 3., 0.),
-            Vector3::new(3., 3., 0.),
-            Vector3::new(3., -2., 0.),
-            Vector3::new(-4., -2., 0.),
-            Vector3::new(-3., 2., 0.),
-            Vector3::new(2., 2., 0.),
-            Vector3::new(2., -1., 0.),
-            Vector3::new(-3., -1., 0.),
-            Vector3::new(-2., 1., 0.),
-            Vector3::new(-1., 1., 0.),
-            Vector3::new(-1., 0., 0.),
-            Vector3::new(-2., 0., 0.),
-            Vector3::new(0., 1., 0.),
-            Vector3::new(1., 1., 0.),
-            Vector3::new(1., 0., 0.),
-            Vector3::new(0., 0., 0.),
+            Vertex::new(0., 0.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 0.),
         ];
+        let edges = vec![Edge::new(0, 2)];
 
-        let mut constrained_edges = Vec::new();
+        let triangulation = constrained_triangulation_from_2d_vertices(
+            &vertices,
+            &edges,
+            ConstrainedTriangulationConfiguration::default(),
+        )
+        .expect("Triangulation should succeed");
 
-        // mesh frontier MUST be counter clockwise
-        // then other domains MUST alternate between clockwise and counter clockwise
+        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
+    }
 
-        constrained_edges.extend([
-            // counter clockwise
-            Edge::new(0, 3),
-            Edge::new(3, 2),
-            Edge::new(2, 1),
-            Edge::new(1, 0),
-            //clockwise
+    #[test]
+    fn constrained_delaunay_level_3() {
+        // ```text
+        // 1------>-------------2
+        // |    keep (CW)       |
+        // |  6----<---------5  |
+        // |  | remove (CCW) |  |
+        // ^  v              ^  v
+        // |  7-->-----------4  |
+        // 0--------<-----------3
+        // ```
+        let vertices = vec![
+            Vertex::new(0., 0.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 0.),
+            Vertex::new(4., 1.),
+            Vertex::new(4., 4.),
+            Vertex::new(1., 4.),
+            Vertex::new(1., 1.),
+        ];
+        let constrained_edges = vec![
+            // CCW
+            Edge::new(0, 1),
+            Edge::new(1, 2),
+            Edge::new(2, 3),
+            Edge::new(3, 0),
+            // CW
             Edge::new(4, 5),
             Edge::new(5, 6),
             Edge::new(6, 7),
             Edge::new(7, 4),
-            //counter clockwise
-            Edge::new(8, 11),
-            Edge::new(11, 10),
-            Edge::new(10, 9),
-            Edge::new(9, 8),
-            //counter clockwise
-            Edge::new(12, 15),
-            Edge::new(15, 14),
-            Edge::new(14, 13),
-            Edge::new(13, 12),
-        ]);
+        ];
 
-        let plane_normal = Vec3::Z;
-        let triangulation = constrained_triangulation_from_3d_planar_vertices(
+        let triangulation = constrained_triangulation_from_2d_vertices(
             &vertices,
-            plane_normal.into(),
             &constrained_edges,
             ConstrainedTriangulationConfiguration::default(),
         )
-        .unwrap();
+        .expect("Triangulation should succeed");
 
-        let mut constrained_vertices = Vec::new();
-        for triangle in triangulation.triangles {
-            constrained_vertices.extend([
-                vertices[triangle[0] as usize],
-                vertices[triangle[1] as usize],
-                vertices[triangle[2] as usize],
-            ]);
-        }
-
-        // TODO Compare indices
-        assert_eq!(36, constrained_vertices.len());
         assert_eq!(
             vec![
-                Vector3::new(1.0, 1.0, 0.0),
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(1.0, 0.0, 0.0),
-                Vector3::new(0.0, 1.0, 0.0),
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(1.0, 1.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(3.0, -2.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(3.0, -2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-4.0, -2.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-3.0, -1.0, 0.0),
-                Vector3::new(-3.0, 2.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(-3.0, 2.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(-4.0, 3.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(3.0, 3.0, 0.0),
-                Vector3::new(2.0, 2.0, 0.0),
-                Vector3::new(2.0, -1.0, 0.0),
-                Vector3::new(-1.0, 1.0, 0.0),
-                Vector3::new(-2.0, 0.0, 0.0),
-                Vector3::new(-1.0, 0.0, 0.0),
-                Vector3::new(-2.0, 1.0, 0.0),
-                Vector3::new(-2.0, 0.0, 0.0),
-                Vector3::new(-1.0, 1.0, 0.0),
+                [1, 7, 0],
+                [3, 0, 7],
+                [3, 7, 4],
+                [2, 3, 4],
+                [2, 4, 5],
+                [6, 2, 5],
+                [1, 2, 6],
+                [1, 6, 7]
             ],
-            constrained_vertices
+            triangulation.triangles
         );
     }
 }

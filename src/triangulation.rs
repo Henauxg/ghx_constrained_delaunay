@@ -1063,62 +1063,49 @@ pub(crate) fn check_and_swap_quad_diagonal(
 mod tests {
     use crate::{
         triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
-        types::{Float, Vector3A, Vertex},
+        types::{Vector3, Vector3A, Vertex},
     };
 
     #[test]
     fn triangulation_normalize_set_of_vertices() {
-        let mut vertices = Vec::<[Float; 2]>::new();
+        let vertices = vec![
+            Vertex::new(3., 2.),
+            Vertex::new(-1., 2.),
+            Vertex::new(-1., -2.),
+            Vertex::new(3., -2.),
+        ];
 
-        vertices.push([3.0, 2.0]);
-        vertices.push([-1.0, 2.0]);
-        vertices.push([-1.0, -2.0]);
-        vertices.push([3.0, -2.0]);
-
-        let mut planar_vertices = Vec::with_capacity(vertices.len());
-        for v in &vertices {
-            planar_vertices.push(Vertex::from_array(*v));
-        }
-
-        normalize_vertices_coordinates(&mut planar_vertices);
+        let normalized_vertices = normalize_vertices_coordinates(&vertices);
 
         assert_eq!(
-            Vec::from([
-                Vertex::from([1., 1.]),
-                Vertex::from([0., 1.]),
-                Vertex::from([0., 0.]),
-                Vertex::from([1., 0.])
-            ]),
-            planar_vertices
+            vec![
+                Vertex::new(1., 1.),
+                Vertex::new(0., 1.),
+                Vertex::new(0., 0.),
+                Vertex::new(1., 0.),
+            ],
+            normalized_vertices.0
         );
     }
 
     #[test]
     fn triangulation_set_to_2d_plane_vertices() {
-        let mut vertices = Vec::<[Float; 3]>::new();
+        let vertices = vec![
+            Vector3::new(-3., 2., 0.),
+            Vector3::new(1., 2., 0.),
+            Vector3::new(11., -2., 0.),
+            Vector3::new(-3., -2., 0.),
+        ];
 
-        vertices.push([-3., 2., 0.]);
-        vertices.push([1., 2., 0.]);
-        vertices.push([1., -2., 0.]);
-        vertices.push([-3., -2., 0.]);
-
-        let plane_normal = Vector3A::Z;
-
-        let mut vertices_data = Vec::with_capacity(vertices.len());
-        for v in &vertices {
-            vertices_data.push(Vector3A::from_array(*v));
-        }
-
-        let planar_vertices =
-            transform_to_2d_planar_coordinate_system(&mut vertices_data, plane_normal);
+        let planar_vertices = transform_to_2d_planar_coordinate_system(&vertices, Vector3A::Z);
 
         assert_eq!(
-            Vec::from([
-                Vertex::from([3.0, 2.0]),
-                Vertex::from([-1.0, 2.0]),
-                Vertex::from([-1.0, -2.0]),
-                Vertex::from([3.0, -2.0])
-            ]),
+            vec![
+                -Vertex::new(-3., 2.),
+                -Vertex::new(1., 2.),
+                -Vertex::new(11., -2.),
+                -Vertex::new(-3., -2.),
+            ],
             planar_vertices
         );
     }
