@@ -741,8 +741,12 @@ pub(crate) fn swap_quad_diagonal(
     triangulation::update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
     triangulation::update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
 
-    vertex_to_triangle[quad.v1() as usize] = from;
-    vertex_to_triangle[quad.v2() as usize] = to;
+    if is_finite(quad.v1()) {
+        vertex_to_triangle[quad.v1() as usize] = from;
+    }
+    if is_finite(quad.v2()) {
+        vertex_to_triangle[quad.v2() as usize] = to;
+    }
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot(
@@ -752,7 +756,7 @@ pub(crate) fn swap_quad_diagonal(
         &[tt_left_neighbor, tf_right_neighbor],
     );
 
-    // Update in memory collectiosn that may contain now out of date data
+    // Update in memory collections that may contain now out of date data
     for edges_data_collection in edges_data_collections.iter_mut() {
         update_edges_data(
             *edges_data_collection,
