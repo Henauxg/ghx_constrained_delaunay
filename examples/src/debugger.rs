@@ -15,9 +15,8 @@ use bevy::{
     hierarchy::DespawnRecursiveExt,
     input::{common_conditions::input_just_pressed, keyboard::KeyCode, ButtonInput},
     log::info,
-    pbr::{MaterialMeshBundle, MaterialPlugin, StandardMaterial},
+    pbr::{MaterialPlugin, StandardMaterial},
     prelude::{default, AlphaMode, Component, Event, Resource},
-    render::mesh::Mesh,
     utils::HashSet,
 };
 use bevy_mod_billboard::plugin::BillboardPlugin;
@@ -28,14 +27,19 @@ use ghx_constrained_delaunay::{
 };
 use gizmos::draw_triangles_debug_data_gizmos;
 use label::spawn_label;
+use meshes::{
+    spawn_all_as_mesh_batches, spawn_contour_and_interior_meshes, SpawnContourAndInteriorMeshes,
+    SpawnMeshBatches,
+};
 
-use crate::lines::{LineList, LineMaterial};
+use crate::lines::LineMaterial;
 
 use super::COLORS;
 
 pub mod gizmos;
 pub mod infinite;
 pub mod label;
+pub mod meshes;
 
 pub const DEFAULT_TRIANGLES_BATCH_SIZE: usize = 15;
 
@@ -59,6 +63,8 @@ impl Plugin for TriangleDebugPlugin {
             )
                 .chain(),
         );
+        app.observe(spawn_all_as_mesh_batches);
+        app.observe(spawn_contour_and_interior_meshes);
     }
 }
 
@@ -263,10 +269,8 @@ pub struct TriangleDebugEntity;
 
 pub fn update_triangles_debug_view(
     mut commands: Commands,
-    debug_assets: Res<TriangleDebugViewAssets>,
     view_config: Res<TrianglesDebugViewConfig>,
     mut debug_data: ResMut<TrianglesDebugData>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut debug_data_updates_events: EventReader<TriangleDebugCursorUpdate>,
     triangles_query: Query<Entity, With<TriangleDebugEntity>>,
 ) {
@@ -301,79 +305,10 @@ pub fn update_triangles_debug_view(
     // TODO With a better diff from the debug context, could only spawn the difference.
     match view_config.triangles_draw_mode {
         TrianglesDrawMode::AllAsMeshBatches { batch_size } => {
-            let mut lines = Some(vec![]);
-            let mut batch_index = 0;
-            for (index, t) in snapshot.triangles.buffer().iter().enumerate() {
-                let (v1, v2, v3) = (
-                    vertices[t.v1() as usize].as_vec3(),
-                    vertices[t.v2() as usize].as_vec3(),
-                    vertices[t.v3() as usize].as_vec3(),
-                );
-                lines
-                    .as_mut()
-                    .unwrap()
-                    .extend(vec![(v1, v2), (v2, v3), (v3, v1)]);
-
-                if index % batch_size == batch_size - 1 {
-                    spawn_triangle_mesh_batch(
-                        &mut commands,
-                        &mut meshes,
-                        &debug_assets,
-                        batch_index,
-                        lines.take().unwrap(),
-                    );
-                    lines = Some(vec![]);
-                    batch_index += 1;
-                }
-            }
-            let lines = lines.unwrap();
-            if !lines.is_empty() {
-                spawn_triangle_mesh_batch(
-                    &mut commands,
-                    &mut meshes,
-                    &debug_assets,
-                    batch_index,
-                    lines,
-                );
-            }
-            info!("Spawned {} triangle mesh batches", batch_index);
+            commands.trigger(SpawnMeshBatches(batch_size))
         }
         TrianglesDrawMode::AllAsContourAndInteriorMeshes => {
-            let mut contour = vec![];
-            let mut interior_lines = vec![];
-            for t in snapshot.triangles.buffer().iter() {
-                for edge in t.edges() {
-                    let collection = if debug_data.constraints.contains(&edge)
-                        || debug_data.constraints.contains(&edge.opposite())
-                    {
-                        &mut contour
-                    } else {
-                        &mut interior_lines
-                    };
-                    collection.push((
-                        vertices[edge.from as usize].as_vec3(),
-                        vertices[edge.to as usize].as_vec3(),
-                    ));
-                }
-            }
-            commands.spawn((
-                MaterialMeshBundle {
-                    mesh: meshes.add(LineList { lines: contour }),
-                    material: debug_assets.contour_materal.clone(),
-                    ..default()
-                },
-                TriangleDebugEntity,
-            ));
-            commands.spawn((
-                MaterialMeshBundle {
-                    mesh: meshes.add(LineList {
-                        lines: interior_lines,
-                    }),
-                    material: debug_assets.interior_line_materal.clone(),
-                    ..default()
-                },
-                TriangleDebugEntity,
-            ));
+            commands.trigger(SpawnContourAndInteriorMeshes);
         }
         _ => (),
     }
@@ -437,23 +372,6 @@ pub fn update_triangles_debug_view(
     let size = Vec2::new((x_max - x_min) as f32, (y_max - y_min) as f32);
     let pos = Vec3::new(x_min as f32 + size.x / 2., y_min as f32 + size.y / 2., 0.);
     debug_data.current_changes_bounds = (pos, size);
-}
-
-pub fn spawn_triangle_mesh_batch(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    debug_assets: &Res<TriangleDebugViewAssets>,
-    batch_index: usize,
-    lines: Vec<(Vec3, Vec3)>,
-) {
-    commands.spawn((
-        MaterialMeshBundle {
-            mesh: meshes.add(LineList { lines }),
-            material: debug_assets.color_materials[batch_index % COLORS.len()].clone(),
-            ..default()
-        },
-        TriangleDebugEntity,
-    ));
 }
 
 pub fn switch_triangles_draw_mode(
