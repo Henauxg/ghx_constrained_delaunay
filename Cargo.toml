@@ -1,6 +1,6 @@
 [package]
 name = "ghx_constrained_delaunay"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "2d constrained Delaunay triangulation"
 repository = "https://github.com/Henauxg/ghx_constrained_delaunay"
