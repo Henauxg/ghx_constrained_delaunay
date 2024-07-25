@@ -5,7 +5,7 @@ use crate::{
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
         EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
         TriangleVertexIndex, Vertex, VertexId, EDGE_TO_VERTS, NEXT_CCW_VERTEX_INDEX,
-        NEXT_CW_VERTEX_INDEX, QUAD_4, VERT_1, VERT_2, VERT_3,
+        NEXT_CW_VERTEX_INDEX, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
     },
     utils::{is_point_strictly_on_right_side_of_edge, test_point_edge_side},
 };
@@ -88,6 +88,28 @@ pub fn collect_infinite_triangle_vertices(tri: &[VertexId]) -> ArrayVec<Triangle
     }
     if is_infinite(tri[VERT_3 as usize]) {
         infinite_verts.push(VERT_3);
+    }
+    infinite_verts
+}
+
+#[inline(always)]
+/// The slice MUST have at least 3 vertices
+pub fn collect_infinite_quad_vertices(quad: &[VertexId]) -> ArrayVec<QuadVertexIndex, 2> {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "collect_infinite_quad_vertices").entered();
+
+    let mut infinite_verts = ArrayVec::new();
+    if is_infinite(quad[QUAD_1 as usize]) {
+        infinite_verts.push(QUAD_1);
+    }
+    if is_infinite(quad[QUAD_2 as usize]) {
+        infinite_verts.push(QUAD_2);
+    }
+    if is_infinite(quad[QUAD_3 as usize]) {
+        infinite_verts.push(QUAD_3);
+    }
+    if is_infinite(quad[QUAD_4 as usize]) {
+        infinite_verts.push(QUAD_3);
     }
     infinite_verts
 }

@@ -1,9 +1,10 @@
 use tracing::error;
 
 use crate::infinite::{
-    collect_infinite_triangle_vertices, is_vertex_in_half_plane_1, is_vertex_in_half_plane_2,
-    vertex_placement_1_infinite_vertex, vertex_placement_2_infinite_vertex, INFINITE_V0_ID,
-    INFINITE_V1_ID, INFINITE_V2_ID, INFINITE_V3_ID,
+    collect_infinite_quad_vertices, collect_infinite_triangle_vertices, is_vertex_in_half_plane_1,
+    is_vertex_in_half_plane_2, vertex_placement_1_infinite_vertex,
+    vertex_placement_2_infinite_vertex, INFINITE_V0_ID, INFINITE_V1_ID, INFINITE_V2_ID,
+    INFINITE_V3_ID,
 };
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
@@ -915,7 +916,7 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 
-    let infinite_verts = collect_infinite_triangle_vertices(&quad.verts);
+    let infinite_verts = collect_infinite_quad_vertices(&quad.verts);
 
     if infinite_verts.is_empty() {
         is_vertex_in_triangle_circumcircle(
