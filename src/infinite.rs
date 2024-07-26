@@ -137,46 +137,6 @@ pub(crate) fn is_vertex_in_half_plane_1(
     is_point_strictly_on_right_side_of_edge(edge_vertices, vertices[quad.v4() as usize])
 }
 
-/// Test if q4 is inside the circle with 2 infinite points (half-plane defined by the finite point and the slope between the 2 infinite points)
-#[cold]
-pub(crate) fn is_vertex_in_half_plane_2(
-    vertices: &Vec<Vertex>,
-    quad: &Quad,
-    infinite_v1: TriangleVertexIndex,
-    infinite_v2: TriangleVertexIndex,
-) -> bool {
-    #[cfg(feature = "more_profile_traces")]
-    let _span = span!(Level::TRACE, "is_vertex_in_half_plane_2").entered();
-
-    const INFINITE_VERTS_SLOPES: [Float; 3] = [1., -1., 1.];
-
-    let infinite_vert_1_local_index = infinite_vertex_local_quad_index(quad.v(infinite_v1));
-    let infinite_vert_2_local_index = infinite_vertex_local_quad_index(quad.v(infinite_v2));
-
-    // Index of the finite vertex in q1q2q3
-    let finite_vert_index = opposite_vertex_index_from_edge(infinite_v1, infinite_v2);
-
-    let line_point_1 = vertices[quad.v(finite_vert_index) as usize];
-    // Sum/2 defines a convenient surjection to (0..2)
-    let a = INFINITE_VERTS_SLOPES
-        [((infinite_vert_1_local_index + infinite_vert_2_local_index) / 2) as usize];
-    let b = line_point_1.y - a * line_point_1.x;
-    // Another point on the line, its position depends of which infinite vertices are considered. We need delta < 0 for edges Q1-Q2 and Q2-Q3, positive otherwise.
-    let delta_x = if infinite_vert_1_local_index == QUAD_4 || infinite_vert_2_local_index == QUAD_4
-    {
-        EXTRAPOLATION_DELTA_VALUE
-    } else {
-        -EXTRAPOLATION_DELTA_VALUE
-    };
-    let line_point_2_x = line_point_1.x + delta_x;
-    let line_point_2 = Vertex::new(line_point_2_x, a * line_point_2_x + b);
-    // Strict seems to be necessary here, in order to avoid creating flat triangles
-    is_point_strictly_on_right_side_of_edge(
-        (line_point_1, line_point_2),
-        vertices[quad.v4() as usize],
-    )
-}
-
 #[cold]
 pub(crate) fn vertex_placement_1_infinite_vertex(
     vertices: &Vec<Vertex>,

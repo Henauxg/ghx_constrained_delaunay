@@ -1,16 +1,15 @@
 use tracing::error;
 
 use crate::infinite::{
-    collect_infinite_quad_vertices, collect_infinite_triangle_vertices, is_vertex_in_half_plane_1,
-    is_vertex_in_half_plane_2, vertex_placement_1_infinite_vertex,
-    vertex_placement_2_infinite_vertex, INFINITE_V0_ID, INFINITE_V1_ID, INFINITE_V2_ID,
-    INFINITE_V3_ID,
+    collect_infinite_triangle_vertices, is_finite, is_infinite, is_vertex_in_half_plane_1,
+    vertex_placement_1_infinite_vertex, vertex_placement_2_infinite_vertex, INFINITE_V0_ID,
+    INFINITE_V1_ID, INFINITE_V2_ID, INFINITE_V3_ID,
 };
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
     vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
     TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vector3A, Vertex, VertexId, EDGE_12,
-    EDGE_23, EDGE_31,
+    EDGE_23, EDGE_31, VERT_1, VERT_2,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -916,21 +915,28 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 
-    let infinite_verts = collect_infinite_quad_vertices(&quad.verts);
+    // Get rid of this case early: an infinite vertex cannot be in the circumcircle of the other triangle
+    // Note: infinite q4 is not possible in DT (we always place a finite vertex in q4).
+    if is_infinite(quad.v3()) {
+        return false;
+    }
 
-    if infinite_verts.is_empty() {
+    let is_q1_finite = is_finite(quad.v1());
+    let is_q2_finite = is_finite(quad.v2());
+    if is_q1_finite && is_q2_finite {
         is_vertex_in_triangle_circumcircle(
             vertices[quad.v1() as usize],
             vertices[quad.v2() as usize],
             vertices[quad.v3() as usize],
             vertices[quad.v4() as usize],
         )
-    } else if infinite_verts.len() == 1 {
-        is_vertex_in_half_plane_1(vertices, quad, infinite_verts[0])
+    } else if !is_q1_finite && !is_q2_finite {
+        true
+    } else if !is_q1_finite {
+        is_vertex_in_half_plane_1(vertices, quad, VERT_1)
     } else {
-        is_vertex_in_half_plane_2(vertices, quad, infinite_verts[0], infinite_verts[1])
+        is_vertex_in_half_plane_1(vertices, quad, VERT_2)
     }
-    // 3 infinite vertices is not possible by construction, the container triangle is split into 3 triangles as soon as the first point is inserted.
 }
 
 /// ```text
