@@ -5,16 +5,17 @@ use tracing::error;
 
 use crate::infinite::{
     edge_from_semi_infinite_edge, infinite_vertex_local_quad_index, is_finite, is_infinite,
+    is_vertex_in_half_plane_1,
 };
 use crate::triangulation::{
-    normalize_vertices_coordinates, should_swap_diagonals, Triangulation, TriangulationError,
+    normalize_vertices_coordinates, update_triangle_neighbor, Triangulation, TriangulationError,
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,
-    ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4,
+    ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2,
 };
-use crate::utils::{egdes_intersect, EdgesIntersectionResult};
+use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
 #[cfg(feature = "debug_context")]
 use crate::debug::{DebugConfiguration, DebugContext, Phase};
@@ -576,6 +577,25 @@ fn register_intersected_edges(
     Ok(())
 }
 
+/// Represents an edge between two triangles
+///
+/// ```text
+///               q3
+///              /  \
+///            /  Tt  \
+///          /          \
+///      q1=e1 -------- q2=e2
+///          \          /
+///            \  Tf  /
+///              \  /
+///               q4
+/// ```
+///
+/// where:
+/// Tf: from triangle
+/// Tt: to triangle
+/// e1, e2: edge vertices
+/// q1, q2, q3, q4: quad coords
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct EdgeData {
     from_triangle_id: TriangleId,
@@ -601,25 +621,6 @@ impl EdgeData {
     }
 }
 
-/// Represents an edge between two triangles
-///
-/// ```text
-///               q3
-///              /  \
-///            /  Tt  \
-///          /          \
-///      q1=e1 -------- q2=e2
-///          \          /
-///            \  Tf  /
-///              \  /
-///               q4
-/// ```
-///
-/// where:
-/// Tf: from triangle
-/// Tt: to triangle
-/// e1, e2: edge vertices
-/// q1, q2, q3, q4: quad coords
 impl EdgeData {
     pub fn to_quad(&self, triangles: &Triangles) -> Quad {
         Quad::new([
@@ -738,8 +739,8 @@ pub(crate) fn swap_quad_diagonal(
     triangles.get_mut(from).neighbors = [to.into(), tf_left_neighbor, tt_left_neighbor];
     triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, from.into()];
 
-    triangulation::update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
-    triangulation::update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
+    update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
+    update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
 
     if is_finite(quad.v1()) {
         vertex_to_triangle[quad.v1() as usize] = from;
@@ -932,6 +933,7 @@ fn restore_delaunay_triangulation_constrained(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation_constrained").entered();
 
+    // TODO Optimization: Share alloc + clear + maybe only store from/to pairs
     let mut swaps_history = HashSet::new();
     while let Some(new_edge) = new_diagonals_created.pop_front() {
         if new_edge.edge.undirected_equals(&constrained_edge) {
@@ -939,7 +941,7 @@ fn restore_delaunay_triangulation_constrained(
         } else {
             let quad = new_edge.to_quad(triangles);
 
-            let should_swap = should_swap_diagonals(&quad, vertices);
+            let should_swap = constrained_should_swap_diagonals(&quad, vertices);
 
             // Use a small swap history to detect infinite swap loops & cycles.
             // Ideally we would like to prevent them instead of detecting them but this seems to be harder than it looks.
@@ -962,5 +964,36 @@ fn restore_delaunay_triangulation_constrained(
                 ));
             }
         }
+    }
+}
+
+/// This is almost the exact copy of [triangulation::should_swap_diagonals] but this needs to also check q4 for infinite.
+/// TODO Optimization: If we could ensure that we build all [EdgeData] with a finite q4 we could forego this chekck here too and use the same implem (and optimize a check away by the same occasion)
+#[inline(always)]
+pub fn constrained_should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
+
+    // Get rid of this case early: an infinite vertex cannot be in the circumcircle of the other triangle
+    // Note: infinite q4 is not possible in DT (we always place a finite vertex in q4). This can only occur in CDT
+    if is_infinite(quad.v3()) || is_infinite(quad.v4()) {
+        return false;
+    }
+
+    let is_q1_finite = is_finite(quad.v1());
+    let is_q2_finite = is_finite(quad.v2());
+    if is_q1_finite && is_q2_finite {
+        is_vertex_in_triangle_circumcircle(
+            vertices[quad.v1() as usize],
+            vertices[quad.v2() as usize],
+            vertices[quad.v3() as usize],
+            vertices[quad.v4() as usize],
+        )
+    } else if !is_q1_finite && !is_q2_finite {
+        true
+    } else if !is_q1_finite {
+        is_vertex_in_half_plane_1(vertices, quad, VERT_1)
+    } else {
+        is_vertex_in_half_plane_1(vertices, quad, VERT_2)
     }
 }
