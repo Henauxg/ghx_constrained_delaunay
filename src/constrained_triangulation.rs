@@ -275,6 +275,8 @@ fn apply_constraints(
     // We create them here to share the allocation between all those calls as an optimization.
     let mut intersections = VecDeque::new();
     let mut new_diagonals_created = VecDeque::new();
+    // Shared alloc for `restore_delaunay_triangulation_constrained`
+    let mut swaps_history = HashSet::new();
 
     for (_edge_index, constrained_edge) in constrained_edges.iter().enumerate() {
         #[cfg(feature = "debug_context")]
@@ -350,6 +352,7 @@ fn apply_constraints(
             &mut vertex_to_triangle,
             constrained_edge,
             &mut new_diagonals_created,
+            &mut swaps_history,
             #[cfg(feature = "debug_context")]
             debug_context,
         );
@@ -928,13 +931,13 @@ fn restore_delaunay_triangulation_constrained(
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
+    swaps_history: &mut HashSet<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "restore_delaunay_triangulation_constrained").entered();
 
-    // TODO Optimization: Share alloc + clear + maybe only store from/to pairs
-    let mut swaps_history = HashSet::new();
+    swaps_history.clear();
     while let Some(new_edge) = new_diagonals_created.pop_front() {
         if new_edge.edge.undirected_equals(&constrained_edge) {
             continue;
@@ -946,7 +949,7 @@ fn restore_delaunay_triangulation_constrained(
             // Use a small swap history to detect infinite swap loops & cycles.
             // Ideally we would like to prevent them instead of detecting them but this seems to be harder than it looks.
             // Simply being a bit more more strict on the circumcircle test causes issues on some datasets.
-            if should_swap && swaps_history.insert(new_edge.clone()) {
+            if should_swap && swaps_history.insert((new_edge.from(), new_edge.to())) {
                 swap_quad_diagonal(
                     triangles,
                     vertex_to_triangle,
