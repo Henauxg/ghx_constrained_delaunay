@@ -22,7 +22,7 @@ use examples::{
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     debug::{DebugConfiguration, Phase, PhaseRecord},
-    types::{Edge, Float, Vector3, Vertex, VertexId},
+    types::{Edge, Float, Vertex, VertexId},
     Triangulation,
 };
 use serde::Deserialize;
@@ -60,7 +60,7 @@ pub struct Frame {
 pub struct TriangulatedFrame {
     pub triangulation: Triangulation,
     pub edges: Vec<Edge>,
-    pub displayed_vertices: Vec<Vector3>,
+    pub displayed_vertices: Vec<Vec3>,
 }
 
 #[derive(Resource)]
@@ -149,7 +149,7 @@ fn setup(mut commands: Commands) {
         let displayed_vertices = frame
             .vertices
             .iter()
-            .map(|v| Vector3::new(v.0 as Float, v.1 as Float, 0.))
+            .map(|v| Vec3::new(v.0 as f32, v.1 as f32, 0.))
             .collect();
         triangulated_frames.push(TriangulatedFrame {
             triangulation,

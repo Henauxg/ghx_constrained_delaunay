@@ -2,6 +2,7 @@ use bevy::{
     app::{App, Startup},
     ecs::system::Commands,
     log::info,
+    math::Vec3,
     prelude::{EventWriter, IntoSystemConfigs, ResMut},
     DefaultPlugins,
 };
@@ -13,7 +14,7 @@ use examples::{
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     constrained_triangulation_from_2d_vertices,
-    types::{Edge, Vector3, Vertex},
+    types::{Edge, Vertex},
     utils::check_delaunay_optimal,
 };
 
@@ -82,7 +83,7 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
         vertices
             .iter()
-            .map(|v| Vector3::new(v.x, v.y, 0.))
+            .map(|v| Vec3::new(v.x as f32, v.y as f32, 0.))
             .collect(),
         &constrained_edges,
         triangulation.debug_context,

@@ -5,7 +5,7 @@ use ghx_constrained_delaunay::{
     },
     types::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index, Float, TriangleData,
-        TriangleVertexIndex, Vector3, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX,
+        TriangleVertexIndex, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX,
     },
 };
 
@@ -16,11 +16,11 @@ pub const SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR: Float = 50.;
 
 #[inline]
 pub fn extrapolated_vertex_from_semi_infinite_edge(
-    finite_vertex: Vector3,
+    finite_vertex: Vec3,
     infinite_vert_local_index: TriangleVertexIndex,
     basis: &Basis,
 ) -> Vec3 {
-    finite_vertex.as_vec3()
+    finite_vertex
         + (SEMI_INFINITE_EDGE_VISUAL_LEN_FACTOR
             * INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize]) as f32
             * basis.e1
@@ -30,7 +30,7 @@ pub fn extrapolated_vertex_from_semi_infinite_edge(
 }
 
 pub fn get_2_extrapolated_vertices_from_2_finite_vertices(
-    vertices: &Vec<Vector3>,
+    vertices: &Vec<Vec3>,
     triangle: &TriangleData,
     basis: &Basis,
     infinite_vert_index: TriangleVertexIndex,
@@ -55,16 +55,11 @@ pub fn get_2_extrapolated_vertices_from_2_finite_vertices(
         infinite_vert_local_index,
         basis,
     );
-    (
-        finite_vertex_a.as_vec3(),
-        finite_tip_a,
-        finite_vertex_b.as_vec3(),
-        finite_tip_b,
-    )
+    (finite_vertex_a, finite_tip_a, finite_vertex_b, finite_tip_b)
 }
 
 pub fn get_2_extrapolated_vertices_from_1_finite_vertex(
-    vertices: &Vec<Vector3>,
+    vertices: &Vec<Vec3>,
     triangle: &TriangleData,
     basis: &Basis,
     finite_vertex_index: TriangleVertexIndex,
@@ -90,5 +85,5 @@ pub fn get_2_extrapolated_vertices_from_1_finite_vertex(
         basis,
     );
 
-    (finite_tip_a, finite_vertex.as_vec3(), finite_tip_b)
+    (finite_tip_a, finite_vertex, finite_tip_b)
 }

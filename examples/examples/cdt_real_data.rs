@@ -18,7 +18,7 @@ use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
     debug::{DebugConfiguration, Phase, PhaseRecord},
     hashbrown::HashSet,
-    types::{Edge, Vector3, Vertex, VertexId},
+    types::{Edge, Vertex, VertexId},
     utils::check_degenerate_triangles,
     Triangulation,
 };
@@ -70,10 +70,10 @@ fn setup(mut commands: Commands) {
     let (triangulation, edges) = load_with_ghx_cdt_crate(&vertices, &edges);
 
     // Modify to change the display scale
-    const SCALE: f64 = 1.;
+    const SCALE: f32 = 1.;
     let displayed_vertices = vertices
         .iter()
-        .map(|v| SCALE * Vector3::new(v.x, v.y, 0.))
+        .map(|v| SCALE * Vec3::new(v.x as f32, v.y as f32, 0.))
         .collect();
 
     commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(

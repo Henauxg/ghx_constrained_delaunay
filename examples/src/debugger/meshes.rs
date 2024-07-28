@@ -47,9 +47,9 @@ pub fn spawn_all_as_mesh_batches(
 
         let triangle_lines = if infinite_verts.is_empty() {
             let (v1, v2, v3) = (
-                vertices[triangle.v1() as usize].as_vec3(),
-                vertices[triangle.v2() as usize].as_vec3(),
-                vertices[triangle.v3() as usize].as_vec3(),
+                vertices[triangle.v1() as usize],
+                vertices[triangle.v2() as usize],
+                vertices[triangle.v3() as usize],
             );
             vec![(v1, v2), (v2, v3), (v3, v1)]
         } else if infinite_verts.len() == 1 {
@@ -149,10 +149,7 @@ pub fn spawn_contour_and_interior_meshes(
             } else {
                 &mut interior_lines
             };
-            collection.push((
-                vertices[edge.from as usize].as_vec3(),
-                vertices[edge.to as usize].as_vec3(),
-            ));
+            collection.push((vertices[edge.from as usize], vertices[edge.to as usize]));
         }
     }
 

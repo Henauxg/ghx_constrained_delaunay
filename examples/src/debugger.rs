@@ -23,7 +23,7 @@ use bevy_mod_billboard::plugin::BillboardPlugin;
 use ghx_constrained_delaunay::glam::{Vec2, Vec3};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot},
-    types::{Edge, Float, TriangleId, Vector3},
+    types::{Edge, TriangleId},
 };
 use gizmos::draw_triangles_debug_data_gizmos;
 use label::spawn_label;
@@ -111,7 +111,7 @@ pub enum VertexLabelMode {
 #[derive(Resource)]
 pub struct TrianglesDebugData {
     // Inputs
-    pub vertices: Vec<Vector3>,
+    pub vertices: Vec<Vec3>,
     pub constraints: HashSet<Edge>,
     pub context: DebugContext,
     pub basis: Basis,
@@ -136,7 +136,7 @@ impl Default for TrianglesDebugData {
     }
 }
 impl TrianglesDebugData {
-    pub fn new(vertices: Vec<Vector3>, context: DebugContext) -> Self {
+    pub fn new(vertices: Vec<Vec3>, context: DebugContext) -> Self {
         Self {
             vertices,
             context,
@@ -145,7 +145,7 @@ impl TrianglesDebugData {
     }
 
     pub fn new_with_constrained_edges(
-        vertices: Vec<Vector3>,
+        vertices: Vec<Vec3>,
         constrained_edges: &Vec<Edge>,
         context: DebugContext,
     ) -> Self {
@@ -351,8 +351,7 @@ pub fn update_triangles_debug_view(
     };
 
     // Register snapshot changed data
-    let (mut x_min, mut x_max, mut y_min, mut y_max) =
-        (Float::MAX, Float::MIN, Float::MAX, Float::MIN);
+    let (mut x_min, mut x_max, mut y_min, mut y_max) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
     for index in snapshot.changed_ids.iter() {
         let t = &snapshot.triangles.get(*index);
 

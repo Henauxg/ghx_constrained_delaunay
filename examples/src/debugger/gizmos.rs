@@ -2,11 +2,11 @@ use bevy::{
     color::{palettes::css::RED, Color},
     ecs::system::Res,
     gizmos::gizmos::Gizmos,
-    math::Dir3,
+    math::{Dir3, Vec3},
 };
 use ghx_constrained_delaunay::{
     debug::EventInfo,
-    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, Vector3},
+    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId},
 };
 use ghx_constrained_delaunay::{glam::Quat, infinite::collect_infinite_triangle_vertices};
 
@@ -75,18 +75,13 @@ pub fn draw_triangles_debug_data_gizmos(
             .x
             .min(debug_data.current_changes_bounds.1.y)
             / 10.;
-        gizmos.circle(
-            vertices[vertex_id as usize].as_vec3(),
-            Dir3::Z,
-            circle_radius,
-            RED,
-        );
+        gizmos.circle(vertices[vertex_id as usize], Dir3::Z, circle_radius, RED);
     }
 }
 
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
-    vertices: &Vec<Vector3>,
+    vertices: &Vec<Vec3>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
     basis: &Basis,
@@ -97,9 +92,9 @@ pub fn draw_triangle_gizmo(
 
     let linestrip = if infinite_verts.is_empty() {
         let (v1, v2, v3) = (
-            vertices[triangle.v1() as usize].as_vec3(),
-            vertices[triangle.v2() as usize].as_vec3(),
-            vertices[triangle.v3() as usize].as_vec3(),
+            vertices[triangle.v1() as usize],
+            vertices[triangle.v2() as usize],
+            vertices[triangle.v3() as usize],
         );
         vec![v1, v2, v3, v1]
     } else if infinite_verts.len() == 1 {

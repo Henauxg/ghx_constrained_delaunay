@@ -9,7 +9,7 @@ use bevy_mod_billboard::BillboardTextBundle;
 use ghx_constrained_delaunay::{glam::Vec3, infinite::collect_infinite_triangle_vertices};
 use ghx_constrained_delaunay::{
     infinite::infinite_vertex_local_quad_index,
-    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, Vector3, VERT_1, VERT_2},
+    types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, VERT_1, VERT_2},
 };
 
 use crate::COLORS;
@@ -29,7 +29,7 @@ use super::{
 pub fn spawn_label(
     commands: &mut Commands,
     vertex_label_mode: VertexLabelMode,
-    vertices: &Vec<Vector3>,
+    vertices: &Vec<Vec3>,
     triangle_id: TriangleId,
     triangle: &TriangleData,
     basis: &Basis,
@@ -40,9 +40,9 @@ pub fn spawn_label(
 
     let (v1, v2, v3) = if infinite_verts.is_empty() {
         (
-            vertices[triangle.v1() as usize].as_vec3(),
-            vertices[triangle.v2() as usize].as_vec3(),
-            vertices[triangle.v3() as usize].as_vec3(),
+            vertices[triangle.v1() as usize],
+            vertices[triangle.v2() as usize],
+            vertices[triangle.v3() as usize],
         )
     } else if infinite_verts.len() == 1 {
         let (_a, finite_tip_a, _b, finite_tip_b) =
@@ -56,19 +56,19 @@ pub fn spawn_label(
         if infinite_verts[0] == VERT_1 {
             (
                 (finite_tip_a + finite_tip_b) / 2.,
-                vertices[triangle.v2() as usize].as_vec3(),
-                vertices[triangle.v3() as usize].as_vec3(),
+                vertices[triangle.v2() as usize],
+                vertices[triangle.v3() as usize],
             )
         } else if infinite_verts[0] == VERT_2 {
             (
-                vertices[triangle.v1() as usize].as_vec3(),
+                vertices[triangle.v1() as usize],
                 (finite_tip_a + finite_tip_b) / 2.,
-                vertices[triangle.v3() as usize].as_vec3(),
+                vertices[triangle.v3() as usize],
             )
         } else {
             (
-                vertices[triangle.v1() as usize].as_vec3(),
-                vertices[triangle.v2() as usize].as_vec3(),
+                vertices[triangle.v1() as usize],
+                vertices[triangle.v2() as usize],
                 (finite_tip_a + finite_tip_b) / 2.,
             )
         }
