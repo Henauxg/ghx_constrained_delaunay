@@ -16,8 +16,8 @@ glam = { version = ">=0.21, <=0.28" }
 hashbrown = "0.14.5"
 arrayvec = "0.7.4"
 thiserror = "1.0.63"
-tracing = "0.1.40"
 
+tracing = { version = "0.1.40", optional = true }
 rayon = { version = "1.10.0", optional = true }
 
 [features]
@@ -40,10 +40,10 @@ parallel_filtering = ["dep:rayon"]
 # Register debug data (triangles) in buffers during the execution of the triangulation
 debug_context = []
 # Add logs during the triangulation process to indicate the current progress
-progress_log = ["debug_context"]
+progress_log = ["debug_context", "dep:tracing"]
 
 # Adds profile spans to use with the Tracy profiler
-profile_traces = []
+profile_traces = ["dep:tracing"]
 # Adds more profile spans to use with the Tracy profiler
 more_profile_traces = ["profile_traces"]
 

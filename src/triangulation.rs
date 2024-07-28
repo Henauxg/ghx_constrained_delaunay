@@ -1,5 +1,3 @@
-use tracing::error;
-
 use crate::infinite::{
     collect_infinite_triangle_vertices, is_finite, is_infinite, is_vertex_in_half_plane_1,
     vertex_placement_1_infinite_vertex, vertex_placement_2_infinite_vertex, INFINITE_V0_ID,
@@ -76,7 +74,7 @@ pub struct Triangulation {
 /// An internal error occured, which could be due to an invalid input, or possibly an error in the algorithm.
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 #[error("triangulation error")]
-pub struct TriangulationError;
+pub struct TriangulationError(pub String);
 
 /// Same as [triangulation_from_2d_vertices] but input vertices are in 3d and will be transformed to 2d before the triangulation.
 ///
@@ -415,11 +413,10 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             #[cfg(feature = "debug_context")]
             debug_context,
         ) else {
-            error!(
-                "Internal error, found no triangle containing vertex {:?}, step {}",
+            return Err(TriangulationError(format!(
+                "Internal error, failed to find placement for vertex {:?}, step {}",
                 vertex_id, _index
-            );
-            return Err(TriangulationError);
+            )));
         };
 
         match vertex_place {

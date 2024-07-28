@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
 use hashbrown::HashSet;
-use tracing::error;
 
 use crate::infinite::{
     edge_from_semi_infinite_edge, infinite_vertex_local_quad_index, is_finite, is_infinite,
@@ -408,21 +407,20 @@ fn loop_around_vertex_and_search_intersection(
     constrained_edge_verts: &EdgeVertices,
     next_edge_index: fn(TriangleVertexIndex) -> TriangleEdgeIndex,
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
-) -> EdgeFirstIntersection {
+) -> Result<EdgeFirstIntersection, TriangulationError> {
     let mut triangle_id = from_triangle_id;
 
     // We search by circling around the first vertex of the constrained edge
     // We use `triangles.len()` as an upper bound on the number of triangles around a vertex
     for _i in 0..triangles.count() {
         if _i > 0 && triangle_id == from_triangle_id {
-            error!("Internal error, aborting cycle when searching for the first intersection of an edge");
-            break;
+            return Err(TriangulationError(format!("Internal error, aborting cycle when searching for the first intersection of an edge")));
         }
 
         let triangle = triangles.get(triangle_id);
 
         if triangle.verts.contains(&constrained_edge.to) {
-            return EdgeFirstIntersection::EdgeAlreadyInTriangulation;
+            return Ok(EdgeFirstIntersection::EdgeAlreadyInTriangulation);
         }
 
         let vert_index = triangle.vertex_index(constrained_edge.from);
@@ -439,14 +437,13 @@ fn loop_around_vertex_and_search_intersection(
         if intersection == EdgesIntersectionResult::Crossing {
             let neighbor_triangle = triangle.neighbor(edge_index);
             if neighbor_triangle.exists() {
-                return EdgeFirstIntersection::Intersection(EdgeData {
+                return Ok(EdgeFirstIntersection::Intersection(EdgeData {
                     from_triangle_id: triangle_id,
                     to_triangle_id: neighbor_triangle.id,
                     edge,
-                });
+                }));
             } else {
-                error!("Internal error, loop_around_vertex_and_search_intersection found a triangle with a crossed edge but no neihgbor, triangle {} {:?}, starting_vertex {}", triangle_id, triangle, constrained_edge.from);
-                break;
+                return Err(TriangulationError(format!("Internal error, loop_around_vertex_and_search_intersection found a triangle with a crossed edge but no neihgbor, triangle {} {:?}, starting_vertex {}", triangle_id, triangle, constrained_edge.from)));
             }
         }
 
@@ -457,7 +454,7 @@ fn loop_around_vertex_and_search_intersection(
             break;
         }
     }
-    EdgeFirstIntersection::NotFound
+    Ok(EdgeFirstIntersection::NotFound)
 }
 
 fn search_first_interstected_quad(
@@ -481,7 +478,7 @@ fn search_first_interstected_quad(
         outermost_clockwise_edge_index_around,
         #[cfg(feature = "debug_context")]
         debug_context,
-    );
+    )?;
     match &intersection {
         EdgeFirstIntersection::NotFound => (),
         _ => return Ok(intersection),
@@ -505,14 +502,8 @@ fn search_first_interstected_quad(
         outermost_counter_clockwise_edge_index_around,
         #[cfg(feature = "debug_context")]
         debug_context,
-    );
-    match &intersection {
-        EdgeFirstIntersection::NotFound => {
-            error!("Internal error, search_first_interstected_quad found no triangle with the constrained edge intersection, starting_vertex {}", constrained_edge.from);
-            return Err(TriangulationError);
-        }
-        _ => return Ok(intersection),
-    }
+    )?;
+    Ok(intersection)
 }
 
 fn register_intersected_edges(
@@ -543,8 +534,9 @@ fn register_intersected_edges(
             edge_data
         }
         EdgeFirstIntersection::EdgeAlreadyInTriangulation => return Ok(()),
-        // (Not possible here, `search_first_interstected_quad` would already return an error)
-        EdgeFirstIntersection::NotFound => return Err(TriangulationError),
+        EdgeFirstIntersection::NotFound => return Err(TriangulationError(format!(
+            "Internal error, the search for the first intersected quad found no triangle with the constrained edge intersection, from starting_vertex {}", constrained_edge.from
+           ))),
     };
 
     // Search all the edges intersected by this constrained edge
@@ -572,8 +564,9 @@ fn register_intersected_edges(
                 intersections.push_back(intersection.clone());
             }
             None => {
-                error!("Internal error, triangle {} {:?} should have at least 1 intersection with the constrained edge {:?}", triangle_id, triangle, constrained_edge);
-                return Err(TriangulationError);
+                return Err(TriangulationError(format!(
+                  "Internal error, triangle {} {:?} should have at least 1 intersection with the constrained edge {:?}", triangle_id, triangle, constrained_edge
+                   )));
             }
         }
     }
@@ -888,11 +881,10 @@ fn remove_crossed_edges(
     while let Some(intersection) = intersections.pop_front() {
         // This is a safety against a possible infinite loop.
         if non_convex_counter > intersections.len() {
-            error!(
+            return Err(TriangulationError(format!(
                 "Failed to remove crossed edges for constrained egde {:?}, no convex quads in the intersection queue",
                 constrained_edge_vertices
-            );
-            return Err(TriangulationError);
+                 )));
         }
         let quad = intersection.to_quad(triangles);
         // If the quad is not convex (diagonals do not cross) or if an edge tip lie on the other edge,
