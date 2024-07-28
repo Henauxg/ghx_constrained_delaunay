@@ -23,7 +23,7 @@ path = "examples/cdt_real_data.rs"
 
 # Examples dependencies
 [dependencies]
-ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
+ghx_constrained_delaunay = { path = "../", version = "0.2.0", features = [
     "debug_context",
     "parallel_filtering",
     # "progress_log",
