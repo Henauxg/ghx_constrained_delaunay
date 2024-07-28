@@ -19,13 +19,11 @@ path = "examples/dt_random_data.rs"
 # Examples dependencies
 [dependencies]
 ghx_constrained_delaunay = { path = "../", version = "0.1.0", features = [
-    "f64",
     "parallel_filtering",
     "profile_traces",
 ] }
 
 rand = "0.8"
-glam = { version = "0.25" }
 shapefile = "0.6.0"
 tracing = "0.1.40"
 tracing-tracy = { version = "0.11.0", features = ["flush-on-exit"] }

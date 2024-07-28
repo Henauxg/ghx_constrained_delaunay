@@ -3,14 +3,14 @@ use crate::{
     utils::{egdes_intersect, EdgesIntersectionResult},
 };
 
-#[cfg(not(feature = "f64"))]
+#[cfg(feature = "f32")]
 pub mod f32;
-#[cfg(not(feature = "f64"))]
+#[cfg(feature = "f32")]
 pub use f32::*;
 
-#[cfg(feature = "f64")]
+#[cfg(not(feature = "f32"))]
 pub mod f64;
-#[cfg(feature = "f64")]
+#[cfg(not(feature = "f32"))]
 pub use f64::*;
 
 #[cfg(not(feature = "u64_indexes"))]
