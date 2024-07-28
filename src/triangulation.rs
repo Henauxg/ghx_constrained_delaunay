@@ -8,8 +8,8 @@ use crate::infinite::{
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
     vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
-    TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vector3A, Vertex, VertexId, EDGE_12,
-    EDGE_23, EDGE_31, VERT_1, VERT_2,
+    TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31,
+    VERT_1, VERT_2,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -85,7 +85,7 @@ pub struct TriangulationError;
 /// - `plane_normal` must be normalized
 pub fn triangulation_from_3d_planar_vertices(
     vertices: &Vec<Vector3>,
-    plane_normal: Vector3A,
+    plane_normal: Vector3,
     config: TriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
     if vertices.len() < 3 {
@@ -147,11 +147,11 @@ pub fn triangulation_from_2d_vertices(
 /// - There must be at least two vertices
 pub fn transform_to_2d_planar_coordinate_system(
     vertices: &Vec<Vector3>,
-    plane_normal: Vector3A,
+    plane_normal: Vector3,
 ) -> Vec<Vertex> {
     // Create a base B for the plan, using the first two vertices as the first base vector
     let basis_1 = (vertices[0] - vertices[1]).normalize();
-    let basis_2 = basis_1.cross((-plane_normal).into());
+    let basis_2 = basis_1.cross(-plane_normal);
     // basis_3 would be plane_normal
 
     // Transform every vertices into base B 2D coordinates
@@ -1070,7 +1070,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
 mod tests {
     use crate::{
         triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
-        types::{Vector3, Vector3A, Vertex},
+        types::{Vector3, Vertex},
     };
 
     #[test]
@@ -1104,7 +1104,7 @@ mod tests {
             Vector3::new(-3., -2., 0.),
         ];
 
-        let planar_vertices = transform_to_2d_planar_coordinate_system(&vertices, Vector3A::Z);
+        let planar_vertices = transform_to_2d_planar_coordinate_system(&vertices, Vector3::Z);
 
         assert_eq!(
             vec![

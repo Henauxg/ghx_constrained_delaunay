@@ -12,7 +12,7 @@ use crate::triangulation::{
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
-    next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vector3A, Vertex,
+    next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vertex,
     ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2,
 };
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
@@ -61,7 +61,7 @@ impl Default for ConstrainedTriangulationConfiguration {
 /// - `plane_normal` must be normalized
 pub fn constrained_triangulation_from_3d_planar_vertices(
     vertices: &Vec<Vector3>,
-    plane_normal: Vector3A,
+    plane_normal: Vector3,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
@@ -808,7 +808,7 @@ fn update_edges_data(
 }
 
 fn quad_diagonals_intersection(vertices: &Vec<Vertex>, quad: &Quad) -> EdgesIntersectionResult {
-    // TODO Share alloc ?
+    // TODO Optimization: Share alloc /use ArrayVec/Use collect_quad
     let mut infinite_verts = Vec::new();
     if is_infinite(quad.v1()) {
         infinite_verts.push((
