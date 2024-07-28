@@ -12,7 +12,7 @@ use crate::triangulation::{
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
-    next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vector3, Vertex,
+    next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
     ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2,
 };
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
@@ -59,9 +59,9 @@ impl Default for ConstrainedTriangulationConfiguration {
 /// Additional requirements:
 /// - All the vertices are expected to belong to the same 2d plane, with the provided `plane_normal`.
 /// - `plane_normal` must be normalized
-pub fn constrained_triangulation_from_3d_planar_vertices(
-    vertices: &Vec<Vector3>,
-    plane_normal: Vector3,
+pub fn constrained_triangulation_from_3d_planar_vertices<T: Vertex3d>(
+    vertices: &Vec<T>,
+    plane_normal: T,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
@@ -104,8 +104,8 @@ pub fn constrained_triangulation_from_3d_planar_vertices(
 /// | ----------->--------------------------------- |
 /// -------------<-----------------------------------
 /// ```
-pub fn constrained_triangulation_from_2d_vertices(
-    vertices: &Vec<Vertex>,
+pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
+    vertices: &Vec<T>,
     constrained_edges: &Vec<Edge>,
     config: ConstrainedTriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {

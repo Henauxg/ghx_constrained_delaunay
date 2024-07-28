@@ -23,10 +23,15 @@ pub mod u64;
 #[cfg(feature = "u64_indexes")]
 pub use u64::IndexType;
 
-pub type VertexId = IndexType;
-pub type TriangleId = IndexType;
+/// Defines the input vertices formats for the algorithm.
+///
+/// Not related to the vertex format used during the algorithm computations.
+pub mod vertex;
+pub use vertex::{Vertex2d, Vertex3d};
 
 // TODO Could use new types to avoid possible unwanted misuses
+pub type VertexId = IndexType;
+pub type TriangleId = IndexType;
 
 /// Local index of a vertex in a triangle
 pub type TriangleVertexIndex = u8;

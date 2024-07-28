@@ -8,8 +8,8 @@ use crate::infinite::{
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
     vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
-    TriangleEdgeIndex, TriangleId, Triangles, Vector3, Vertex, VertexId, EDGE_12, EDGE_23, EDGE_31,
-    VERT_1, VERT_2,
+    TriangleEdgeIndex, TriangleId, Triangles, Vertex, Vertex2d, Vertex3d, VertexId, EDGE_12,
+    EDGE_23, EDGE_31, VERT_1, VERT_2,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -83,9 +83,9 @@ pub struct TriangulationError;
 /// Additional requirements:
 /// - All the vertices are expected to belong to the same 2d plane, with the provided `plane_normal`.
 /// - `plane_normal` must be normalized
-pub fn triangulation_from_3d_planar_vertices(
-    vertices: &Vec<Vector3>,
-    plane_normal: Vector3,
+pub fn triangulation_from_3d_planar_vertices<T: Vertex3d>(
+    vertices: &Vec<T>,
+    plane_normal: T,
     config: TriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
     if vertices.len() < 3 {
@@ -101,8 +101,8 @@ pub fn triangulation_from_3d_planar_vertices(
 ///
 /// Vertices requirements:
 /// - Vertices are expected to be valid floating points values. You can use [crate::utils::validate_vertices] to check your vertices beforehand for NaN or infinity.
-pub fn triangulation_from_2d_vertices(
-    vertices: &Vec<Vertex>,
+pub fn triangulation_from_2d_vertices<T: Vertex2d>(
+    vertices: &Vec<T>,
     config: TriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
     #[cfg(feature = "profile_traces")]
@@ -145,9 +145,9 @@ pub fn triangulation_from_2d_vertices(
 /// Transforms 3d coordinates of all vertices into 2d coordinates on a plane defined by the given normal and vertices.
 /// - Input vertices need to all belong to the same 3d plan
 /// - There must be at least two vertices
-pub fn transform_to_2d_planar_coordinate_system(
-    vertices: &Vec<Vector3>,
-    plane_normal: Vector3,
+pub fn transform_to_2d_planar_coordinate_system<T: Vertex3d>(
+    vertices: &Vec<T>,
+    plane_normal: T,
 ) -> Vec<Vertex> {
     // Create a base B for the plan, using the first two vertices as the first base vector
     let basis_1 = (vertices[0] - vertices[1]).normalize();
@@ -164,8 +164,8 @@ pub fn transform_to_2d_planar_coordinate_system(
 
 /// This scaling ensures that all of the coordinates are between 0 and 1 but does not modify the relative positions of the points in the x-y plane.
 /// The use of normalized coordinates, although not essential, reduces the effects of roundoff error and is also convenient from a computational point of view.
-pub(crate) fn normalize_vertices_coordinates(
-    vertices: &Vec<Vertex>,
+pub(crate) fn normalize_vertices_coordinates<T: Vertex2d>(
+    vertices: &Vec<T>,
 ) -> (Vec<Vertex>, Float, Float, Float) {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "normalize_vertices_coordinates").entered();
@@ -175,17 +175,17 @@ pub(crate) fn normalize_vertices_coordinates(
         (Float::MAX, Float::MAX, Float::MIN, Float::MIN);
 
     for vertex in vertices.iter() {
-        if vertex.x < x_min {
-            x_min = vertex.x;
+        if vertex.x() < x_min {
+            x_min = vertex.x();
         }
-        if vertex.x > x_max {
-            x_max = vertex.x;
+        if vertex.x() > x_max {
+            x_max = vertex.x();
         }
-        if vertex.y < y_min {
-            y_min = vertex.y;
+        if vertex.y() < y_min {
+            y_min = vertex.y();
         }
-        if vertex.y > y_max {
-            y_max = vertex.y;
+        if vertex.y() > y_max {
+            y_max = vertex.y();
         }
     }
 
@@ -193,8 +193,8 @@ pub(crate) fn normalize_vertices_coordinates(
 
     for vertex in vertices.iter() {
         normalized_vertices.push(Vertex {
-            x: (vertex.x - x_min) / scale_factor,
-            y: (vertex.y - y_min) / scale_factor,
+            x: (vertex.x() - x_min) / scale_factor,
+            y: (vertex.y() - y_min) / scale_factor,
         });
     }
 
@@ -1068,9 +1068,11 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
 #[cfg(test)]
 mod tests {
+    use glam::Vec3;
+
     use crate::{
         triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
-        types::{Vector3, Vertex},
+        types::Vertex,
     };
 
     #[test]
@@ -1098,13 +1100,13 @@ mod tests {
     #[test]
     fn triangulation_set_to_2d_plane_vertices() {
         let vertices = vec![
-            Vector3::new(-3., 2., 0.),
-            Vector3::new(1., 2., 0.),
-            Vector3::new(11., -2., 0.),
-            Vector3::new(-3., -2., 0.),
+            Vec3::new(-3., 2., 0.),
+            Vec3::new(1., 2., 0.),
+            Vec3::new(11., -2., 0.),
+            Vec3::new(-3., -2., 0.),
         ];
 
-        let planar_vertices = transform_to_2d_planar_coordinate_system(&vertices, Vector3::Z);
+        let planar_vertices = transform_to_2d_planar_coordinate_system(&vertices, Vec3::Z);
 
         assert_eq!(
             vec![

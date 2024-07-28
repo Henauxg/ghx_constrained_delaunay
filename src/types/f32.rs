@@ -1,5 +1,6 @@
-use glam::{Vec2, Vec3, Vec3A};
+use glam::Vec2;
 
+/// The float type used in the algorithm's computations
 pub type Float = f32;
+/// The vertex type used in the algorithm's computations
 pub type Vertex = Vec2;
-pub type Vector3 = Vec3;
