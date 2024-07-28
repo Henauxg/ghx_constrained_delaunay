@@ -343,7 +343,7 @@ fn apply_constraints(
             &mut new_diagonals_created,
             #[cfg(feature = "debug_context")]
             debug_context,
-        );
+        )?;
 
         // Restore Delaunay triangulation
         restore_delaunay_triangulation_constrained(
@@ -879,19 +879,31 @@ fn remove_crossed_edges(
     intersections: &mut VecDeque<EdgeData>,
     new_diagonals_created: &mut VecDeque<EdgeData>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) {
+) -> Result<(), TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "remove_crossed_edges").entered();
 
+    // TODO Optimization: could try to store quads directly in the intersections queue (small gain to avoid multiple conversions when some edges are pushed back for re-processing)
+    let mut non_convex_counter = 0;
     while let Some(intersection) = intersections.pop_front() {
+        // This is a safety against a possible infinite loop.
+        if non_convex_counter > intersections.len() {
+            error!(
+                "Failed to remove crossed edges for constrained egde {:?}, no convex quads in the intersection queue",
+                constrained_edge_vertices
+            );
+            return Err(TriangulationError);
+        }
         let quad = intersection.to_quad(triangles);
         // If the quad is not convex (diagonals do not cross) or if an edge tip lie on the other edge,
         // we skip this edge and put it on the stack to re-process it later
         if quad_diagonals_intersection(vertices, &quad) != EdgesIntersectionResult::Crossing {
             intersections.push_back(intersection);
+            non_convex_counter += 1;
         }
         // Swap the diagonal of this strictly convex quadrilateral if the two diagonals cross normaly
         else {
+            non_convex_counter = 0;
             swap_quad_diagonal(
                 triangles,
                 vertex_to_triangle,
@@ -923,6 +935,8 @@ fn remove_crossed_edges(
             }
         }
     }
+
+    Ok(())
 }
 
 fn restore_delaunay_triangulation_constrained(
