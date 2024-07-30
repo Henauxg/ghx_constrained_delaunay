@@ -48,10 +48,10 @@ fn main() -> anyhow::Result<()> {
     vertices.shrink_to_fit();
     edges.shrink_to_fit();
 
-    load_with_spade(&vertices, &edges)?;
+    load_with_ghx_cdt_crate(&vertices, &edges)?;
     println!();
 
-    load_with_ghx_cdt_crate(&vertices, &edges)?;
+    load_with_spade(&vertices, &edges)?;
     println!();
 
     load_with_cdt_crate(&vertices, &edges)?;
@@ -65,15 +65,9 @@ fn load_with_spade(vertices: &Vec<Point2<f64>>, edges: &Vec<[usize; 2]>) -> anyh
 
     println!("Loading triangulation (spade)...");
     let now = Instant::now();
-    let cdt =
+    let _ =
         spade::ConstrainedDelaunayTriangulation::<_>::bulk_load_cdt(vertices_clone, edges_clone)?;
     let elapsed = now.elapsed().as_millis();
-    println!("{} vertices (without duplicates)", cdt.num_vertices());
-    println!("{} undirected edges", cdt.num_undirected_edges());
-    println!("{} constraint edges", cdt.num_constraints());
-    println!("{} triangles", cdt.num_inner_faces());
-    println!("{} convex hull edges", cdt.convex_hull_size());
-    println!();
     println!("loading time (spade with constraints): {}ms", elapsed);
 
     let vertices_clone = vertices.clone();
