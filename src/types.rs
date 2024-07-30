@@ -338,7 +338,7 @@ impl TriangleData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Triangles {
     pub buffer: Vec<TriangleData>,
 }

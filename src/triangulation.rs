@@ -72,9 +72,25 @@ pub struct Triangulation {
 }
 
 /// An internal error occured, which could be due to an invalid input, or possibly an error in the algorithm.
-#[derive(thiserror::Error, Debug, Eq, PartialEq)]
+#[derive(thiserror::Error, Debug)]
 #[error("triangulation error")]
-pub struct TriangulationError(pub String);
+pub struct TriangulationError {
+    pub msg: String,
+    #[cfg(feature = "debug_context")]
+    pub debug_context: DebugContext,
+}
+impl TriangulationError {
+    pub(crate) fn new(
+        msg: String,
+        #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+    ) -> Self {
+        Self {
+            msg,
+            #[cfg(feature = "debug_context")]
+            debug_context: debug_context.clone(),
+        }
+    }
+}
 
 /// Same as [triangulation_from_2d_vertices] but input vertices are in 3d and will be transformed to 2d before the triangulation.
 ///
@@ -413,10 +429,14 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             #[cfg(feature = "debug_context")]
             debug_context,
         ) else {
-            return Err(TriangulationError(format!(
-                "Internal error, failed to find placement for vertex {:?}, step {}",
-                vertex_id, _index
-            )));
+            return Err(TriangulationError::new(
+                format!(
+                    "Internal error, failed to find placement for vertex {:?}, step {}",
+                    vertex_id, _index
+                ),
+                #[cfg(feature = "debug_context")]
+                debug_context,
+            ));
         };
 
         match vertex_place {

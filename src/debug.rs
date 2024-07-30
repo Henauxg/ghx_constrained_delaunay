@@ -45,7 +45,7 @@ impl Default for DebugConfiguration {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DebugSnapshot {
     pub step: usize,
     pub triangulation_phase: Phase,
@@ -71,7 +71,7 @@ impl DebugSnapshot {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct DebugContext {
     pub config: DebugConfiguration,
 

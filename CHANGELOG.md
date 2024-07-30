@@ -2,6 +2,7 @@
 
 ## Version 0.2.0 (TBD)
 
+- fix: In CDT, update internal function `remove_crossed_edges` to be faillible, to avoid a possible infinite loop.
 - changed: defaults to using `f64` instead of `f32` inside the algorithm for more stable results (benchmarks were already using `f64`). `f32` can still be enabled via the `f32` cargo feature.
   
 - vertices format:
@@ -11,7 +12,7 @@
   - removed: `Vector3A` type . It was not used except for the `plane_normal` input format, and it was already being converted immediately to a `Vector3`.
   - removed: the `Vector3` type now superseded by the `Vertex3d` trait.
 
-- fix: In CDT, update internal function `remove_crossed_edges` to be faillible, to avoid a possible infinite loop.
+- changed: `tracing` dependency is now optional. Error messages (and `DebugContext` when the `debug_context` feature is enabled) are returned within a `TriangulationError`.
  
 - examples: The visual debugger in the examples now always uses `glam::f32::Vec3` for vertices storage.
 
