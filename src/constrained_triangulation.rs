@@ -3,8 +3,9 @@ use std::collections::VecDeque;
 use hashbrown::HashSet;
 
 use crate::infinite::{
-    edge_from_semi_infinite_edge, infinite_vertex_local_quad_index, is_finite, is_infinite,
-    is_vertex_in_half_plane_1,
+    collect_infinite_quad_vertices, edge_from_semi_infinite_edge, infinite_vertex_local_quad_index,
+    is_finite, is_infinite, is_vertex_in_half_plane_1, quad_diagonals_intersection_1_infinite,
+    quad_diagonals_intersection_2_infinite,
 };
 use crate::triangulation::{
     normalize_vertices_coordinates, update_triangle_neighbor, Triangulation, TriangulationError,
@@ -12,7 +13,7 @@ use crate::triangulation::{
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
-    ADJACENT_QUAD_VERTICES_INDEXES, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2,
+    VERT_1, VERT_2,
 };
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
@@ -816,66 +817,17 @@ fn update_edges_data(
 }
 
 fn quad_diagonals_intersection(vertices: &Vec<Vertex>, quad: &Quad) -> EdgesIntersectionResult {
-    // TODO Optimization: Share alloc /use ArrayVec/Use collect_quad
-    let mut infinite_verts = Vec::new();
-    if is_infinite(quad.v1()) {
-        infinite_verts.push((
-            infinite_vertex_local_quad_index(quad.v1()),
-            vertices[quad.v2() as usize],
-            QUAD_1,
-        ));
-    }
-    if is_infinite(quad.v2()) {
-        infinite_verts.push((
-            infinite_vertex_local_quad_index(quad.v2()),
-            vertices[quad.v1() as usize],
-            QUAD_2,
-        ));
-    }
-    if is_infinite(quad.v3()) {
-        infinite_verts.push((
-            infinite_vertex_local_quad_index(quad.v3()),
-            vertices[quad.v4() as usize],
-            QUAD_3,
-        ));
-    }
-    if is_infinite(quad.v4()) {
-        infinite_verts.push((
-            infinite_vertex_local_quad_index(quad.v4()),
-            vertices[quad.v3() as usize],
-            QUAD_4,
-        ));
-    }
+    let infinite_verts = collect_infinite_quad_vertices(&quad.verts);
 
     if infinite_verts.is_empty() {
         quad.to_vertices(vertices).diagonals_intersection_test()
     }
-    // For the cases with infite vertices, we know that a quad's diagonal has at least 1 finite vertex
-    // TODO Those cases do not seem to be present in tested data sets. Try to have a dataset/test making use of it
+    // For the cases with infinite vertices, we know that a quad's diagonal has at least 1 finite vertex.
+    // TODO Those cases do not seem to be present in the tested data sets. Try to have a dataset/test making use of it
     else if infinite_verts.len() == 1 {
-        // TODO Cold function
-        let (infinite_vert_index, finite_vertex, finite_vert_index) = infinite_verts[0];
-        let other_diagonal_verts = ADJACENT_QUAD_VERTICES_INDEXES[finite_vert_index as usize];
-        let other_diagonal_edge = (
-            vertices[quad.v(other_diagonal_verts[0]) as usize],
-            vertices[quad.v(other_diagonal_verts[1]) as usize],
-        );
-
-        egdes_intersect(
-            &other_diagonal_edge,
-            &edge_from_semi_infinite_edge(finite_vertex, infinite_vert_index),
-        )
+        quad_diagonals_intersection_1_infinite(vertices, quad, infinite_verts[0])
     } else {
-        // TODO Cold function
-        let (infinite_vert_id_0, finite_vert_0, _) = infinite_verts[0];
-        let infinite_edge_segment_0 =
-            edge_from_semi_infinite_edge(finite_vert_0, infinite_vert_id_0);
-
-        let (infinite_vert_id_1, finite_vert_1, _) = infinite_verts[1];
-        let infinite_edge_segment_1 =
-            edge_from_semi_infinite_edge(finite_vert_1, infinite_vert_id_1);
-
-        egdes_intersect(&infinite_edge_segment_0, &infinite_edge_segment_1)
+        quad_diagonals_intersection_2_infinite(vertices, quad, infinite_verts[0], infinite_verts[1])
     }
 }
 

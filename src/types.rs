@@ -88,6 +88,7 @@ pub const ADJACENT_QUAD_VERTICES_INDEXES: [[TriangleVertexIndex; 2]; 4] = [
     [QUAD_2, QUAD_1],
     [QUAD_1, QUAD_2],
 ];
+pub const OPPOSITE_QUAD_VERTEX_INDEX: [TriangleVertexIndex; 4] = [QUAD_2, QUAD_1, QUAD_4, QUAD_3];
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct Edge {

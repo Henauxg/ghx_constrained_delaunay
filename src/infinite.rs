@@ -4,10 +4,14 @@ use crate::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index, opposite_edge_index,
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
         EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
-        TriangleVertexIndex, Vertex, VertexId, EDGE_TO_VERTS, NEXT_CCW_VERTEX_INDEX,
-        NEXT_CW_VERTEX_INDEX, QUAD_1, QUAD_2, QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
+        TriangleVertexIndex, Vertex, VertexId, ADJACENT_QUAD_VERTICES_INDEXES, EDGE_TO_VERTS,
+        NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, OPPOSITE_QUAD_VERTEX_INDEX, QUAD_1, QUAD_2,
+        QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
     },
-    utils::{is_point_strictly_on_right_side_of_edge, test_point_edge_side},
+    utils::{
+        egdes_intersect, is_point_strictly_on_right_side_of_edge, test_point_edge_side,
+        EdgesIntersectionResult,
+    },
 };
 
 use arrayvec::ArrayVec;
@@ -265,4 +269,49 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
     } else {
         return Some(VertexPlacement::InsideTriangle(triangle_id));
     }
+}
+
+#[cold]
+pub(crate) fn quad_diagonals_intersection_1_infinite(
+    vertices: &Vec<Vertex>,
+    quad: &Quad,
+    infinite_vertex_index: QuadVertexIndex,
+) -> EdgesIntersectionResult {
+    let infinite_vert_local_index = infinite_vertex_local_quad_index(quad.v(infinite_vertex_index));
+    let finite_vertex =
+        vertices[quad.v(OPPOSITE_QUAD_VERTEX_INDEX[infinite_vertex_index as usize]) as usize];
+    let other_diagonal_verts = ADJACENT_QUAD_VERTICES_INDEXES[infinite_vertex_index as usize];
+    let other_diagonal_edge = (
+        vertices[quad.v(other_diagonal_verts[0]) as usize],
+        vertices[quad.v(other_diagonal_verts[1]) as usize],
+    );
+
+    egdes_intersect(
+        &other_diagonal_edge,
+        &edge_from_semi_infinite_edge(finite_vertex, infinite_vert_local_index),
+    )
+}
+
+#[cold]
+pub(crate) fn quad_diagonals_intersection_2_infinite(
+    vertices: &Vec<Vertex>,
+    quad: &Quad,
+    infinite_vert_index_0: QuadVertexIndex,
+    infinite_vert_index_1: QuadVertexIndex,
+) -> EdgesIntersectionResult {
+    let infinite_vert_local_index_0 =
+        infinite_vertex_local_quad_index(quad.v(infinite_vert_index_0));
+    let finite_vert_0 =
+        vertices[quad.v(OPPOSITE_QUAD_VERTEX_INDEX[infinite_vert_index_0 as usize]) as usize];
+    let infinite_edge_segment_0 =
+        edge_from_semi_infinite_edge(finite_vert_0, infinite_vert_local_index_0);
+
+    let infinite_vert_local_index_1 =
+        infinite_vertex_local_quad_index(quad.v(infinite_vert_index_1));
+    let finite_vert_1 =
+        vertices[quad.v(OPPOSITE_QUAD_VERTEX_INDEX[infinite_vert_index_1 as usize]) as usize];
+    let infinite_edge_segment_1 =
+        edge_from_semi_infinite_edge(finite_vert_1, infinite_vert_local_index_1);
+
+    egdes_intersect(&infinite_edge_segment_0, &infinite_edge_segment_1)
 }
