@@ -142,9 +142,9 @@ Investigate if it is possible to return to a `[(-inf,-inf), (0,+inf), (+inf,-inf
 
 - Compacting vertices and triangle indexes on u32 by default (u64 available as a feature). Using u16 for even smaller datasets yielded no significant gain.
 - Compacting the `Neighbor` (optional triangle id) type to fit on a custom u32/u64.
-- Using `f32` vertices positions by default (`f64` available as a feature). `f64` are use in the benchmarks.
 - Most vecs/stacks are pre-allocated and shared between iterations of the algorithm.
 - Hot functions are inlined (circumcircle test, …).
+- `f32` vertices positions can be used internally an option (`f32` available as a feature). `f64` are used in the benchmarks.
 - The density of vertices in the bins during the binsort phase can be configured as an input. Increasing it slightly gives better results for non-local vertices datasets (local vertices ⇒ neighbor vertices in the input collection are close to each other spatially)
 - for DT only, and when the triangles count is sufficiently large, pseudo infinite triangles removal can be done in parallel. Although not the most performance critical part of the triangulation, this still yields some measurable improvements.
 
