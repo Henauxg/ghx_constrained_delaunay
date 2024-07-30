@@ -179,6 +179,10 @@ impl TrianglesDebugData {
         self.current_buffer_index
     }
 
+    pub fn set_cursor_to_first_snapshot(&mut self) {
+        self.current_buffer_index = 0;
+    }
+
     pub fn set_cursor_to_last_snapshot(&mut self) {
         self.current_buffer_index = self.context.snapshots.len() - 1;
     }
