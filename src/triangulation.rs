@@ -223,7 +223,7 @@ pub(crate) enum VertexPlacement {
 }
 
 fn find_vertex_placement(
-    vertex: Vertex,
+    vertex_id: VertexId,
     from: TriangleId,
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
@@ -232,6 +232,7 @@ fn find_vertex_placement(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "find_vertex_placement").entered();
 
+    let vertex = vertices[vertex_id as usize];
     let mut current_triangle: Neighbor = from.into();
     let mut previous_triangle = current_triangle;
 
@@ -245,6 +246,12 @@ fn find_vertex_placement(
         let triangle = triangles.get(triangle_id);
 
         let infinite_verts = collect_infinite_triangle_vertices(&triangle.verts);
+
+        // Temporary debug help
+        // println!(
+        //     "find_vertex_placement for vertex {}, {:?}, currently in triangle id {}, triangle {:?}, infinite_verts: {:?}",
+        //     vertex_id, vertex, triangle_id, triangle, infinite_verts
+        // );
 
         if infinite_verts.is_empty() {
             let (v1, v2, v3) = triangle.to_vertices(vertices);
@@ -296,7 +303,7 @@ fn find_vertex_placement(
                 vertex,
                 triangle,
                 triangle_id,
-                infinite_verts,
+                infinite_verts[0],
                 &mut previous_triangle,
                 &mut current_triangle,
             );
@@ -409,6 +416,12 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         vertices.len(),
     ));
 
+    println!(
+        "First insertion of vertex {}, {:?}",
+        first_vertex_id,
+        vertices[(*first_vertex_id) as usize]
+    );
+
     // Loop over all the input vertices
     for (_index, &vertex_id) in vertices_iterator {
         #[cfg(feature = "debug_context")]
@@ -419,10 +432,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             }
         }
 
-        // Find an existing triangle which encloses P
-        let vertex = vertices[vertex_id as usize];
         let Some(vertex_place) = find_vertex_placement(
-            vertex,
+            vertex_id,
             triangle_id,
             &triangles,
             &vertices,
@@ -438,6 +449,11 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 debug_context,
             ));
         };
+
+        println!(
+            "Found vertex place for vertex {}, {:?}",
+            vertex_id, vertex_place
+        );
 
         match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {

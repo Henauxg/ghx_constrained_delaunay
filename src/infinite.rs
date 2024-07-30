@@ -147,14 +147,14 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     vertex: Vertex,
     triangle: &TriangleData,
     triangle_id: TriangleId,
-    infinite_verts: ArrayVec<TriangleVertexIndex, 2>,
+    infinite_vertex_index: TriangleVertexIndex,
     previous_triangle: &mut Neighbor,
     current_triangle: &mut Neighbor,
 ) -> Option<VertexPlacement> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "vertex_placement_1_infinite_vertex").entered();
 
-    let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_verts[0] as usize];
+    let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_vertex_index as usize];
     let finite_vert_a_id = triangle.v(finite_vert_a_index);
     let finite_vertex_a = vertices[finite_vert_a_id as usize];
 
@@ -162,7 +162,7 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return Some(VertexPlacement::OnVertex(finite_vert_a_id));
     }
 
-    let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_verts[0] as usize];
+    let finite_vert_b_index = NEXT_CCW_VERTEX_INDEX[infinite_vertex_index as usize];
     let finite_vert_b_id = triangle.v(finite_vert_b_index);
     let finite_vertex_b = vertices[finite_vert_b_id as usize];
 
@@ -183,7 +183,8 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return None;
     }
 
-    let infinite_vert_local_index = infinite_vertex_local_quad_index(triangle.v(infinite_verts[0]));
+    let infinite_vert_local_index =
+        infinite_vertex_local_quad_index(triangle.v(infinite_vertex_index));
     let edge_a = edge_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
     let edge_a_index = vertex_next_ccw_edge_index(finite_vert_a_index);
     let edge_a_test = test_point_edge_side(edge_a, vertex);
@@ -203,6 +204,13 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return None;
     }
 
+    // Temporary debug help
+    // println!(
+    //     "vertex_placement_1_infinite_vertex currently in triangle id {}, finite_vert_a_id {}, finite_vert_b_id {}, edge_a_index {}, edge_b_index {}",
+    //     triangle_id,finite_vert_a_id,finite_vert_b_id,edge_a_index,edge_b_index
+    // );
+
+    // TODO Min ?
     if edge_ab_test.is_near_edge() {
         return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_ab_index));
     } else if edge_a_test.is_near_edge() {
