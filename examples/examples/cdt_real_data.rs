@@ -5,7 +5,7 @@ use bevy::{
     color::palettes::css::ALICE_BLUE,
     ecs::system::{Commands, Res},
     gizmos::gizmos::Gizmos,
-    log::info,
+    log::{error, info},
     math::{Dir3, Vec3},
     prelude::{EventWriter, IntoSystemConfigs, ResMut},
     DefaultPlugins,
@@ -16,16 +16,19 @@ use examples::{
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
+    constrained_triangulation_from_2d_vertices,
     debug::{DebugConfiguration, Phase, PhaseRecord},
     hashbrown::HashSet,
     types::{Edge, Vertex, VertexId},
     utils::check_degenerate_triangles,
-    Triangulation,
 };
 
 const SHP_FILE_NAME: &str = "light/ne_50m_coastline";
 // const SHP_FILE_NAME: &str = "heavy/ne_10m_coastline";
 // const SHP_FILE_NAME: &str = "heavy/Europe_coastline";
+
+// Modify to change the display scale
+const DISPLAY_SCALE: f32 = 1.;
 
 const SHP_FILES_PATH: &str = "../assets";
 
@@ -43,7 +46,7 @@ fn setup(mut commands: Commands) {
     let mut reader = shapefile::Reader::from_path(shape_file_path).unwrap();
 
     let mut vertices = Vec::new();
-    let mut edges = Vec::new();
+    let mut constrained_edges = Vec::new();
 
     for shape_record in reader.iter_shapes_and_records() {
         let (shape, _) = shape_record.unwrap();
@@ -54,7 +57,10 @@ fn setup(mut commands: Commands) {
                     let first_vertex = vertices.len();
                     vertices.extend(part.iter().map(|p| Vertex::new(p.x, p.y)));
                     let last_vertex = vertices.len() - 1;
-                    edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
+                    constrained_edges.extend(
+                        (first_vertex..last_vertex)
+                            .map(|i| Edge::new(i as VertexId, (i + 1) as VertexId)),
+                    );
                 }
             }
             _ => unimplemented!(),
@@ -62,40 +68,10 @@ fn setup(mut commands: Commands) {
     }
 
     info!("{} vertices", vertices.len());
-    info!("{} constraint edges", edges.len());
+    info!("{} constraint edges", constrained_edges.len());
 
     vertices.shrink_to_fit();
-    edges.shrink_to_fit();
-
-    let (triangulation, edges) = load_with_ghx_cdt_crate(&vertices, &edges);
-
-    // Modify to change the display scale
-    const SCALE: f32 = 1.;
-    let displayed_vertices = vertices
-        .iter()
-        .map(|v| SCALE * Vec3::new(v.x as f32, v.y as f32, 0.))
-        .collect();
-
-    commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
-        displayed_vertices,
-        &edges,
-        triangulation.debug_context,
-    ));
-    commands.insert_resource(TrianglesDebugViewConfig::new(
-        LabelMode::Changed,
-        VertexLabelMode::GlobalIndex,
-        TrianglesDrawMode::ContoursAndInteriorAsMeshes,
-        true,
-    ));
-    // TODO Center camera on data
-}
-
-fn load_with_ghx_cdt_crate(
-    vertices: &[Vertex],
-    edges: &[[usize; 2]],
-) -> (Triangulation, Vec<Edge>) {
-    let vertices_clone = vertices.iter().map(|p| p.clone()).collect::<Vec<_>>();
-
+    constrained_edges.shrink_to_fit();
     let config = ConstrainedTriangulationConfiguration {
         debug_config: DebugConfiguration {
             phase_record: PhaseRecord::InAny(HashSet::from([
@@ -109,28 +85,42 @@ fn load_with_ghx_cdt_crate(
     };
 
     info!("Loading cdt (ghx_cdt crate)");
-    let edges = edges
-        .iter()
-        // TODO into()
-        .map(|[from, to]| Edge::new(*from as VertexId, *to as VertexId))
-        .collect::<Vec<_>>();
     let now = Instant::now();
-    let triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
-        &vertices_clone,
-        &edges,
-        config,
-    )
-    .unwrap();
-    info!(
-        "loading time (ghx_cdt crate with constraints): {}ms",
-        now.elapsed().as_millis()
-    );
+    let triangulation_result =
+        constrained_triangulation_from_2d_vertices(&vertices, &constrained_edges, config);
+    let debug_context = match triangulation_result {
+        Ok(triangulation) => {
+            let delaunay_quality =
+                check_degenerate_triangles(triangulation.triangles.iter().copied(), &vertices);
+            info!("Delaunay quality info:: {:?}", delaunay_quality);
+            info!(
+                "loading time (ghx_cdt crate with constraints): {}ms",
+                now.elapsed().as_millis()
+            );
+            triangulation.debug_context
+        }
+        Err(err) => {
+            error!("Failed triangulation: {:?}", err.msg);
+            err.debug_context
+        }
+    };
 
-    let delaunay_quality =
-        check_degenerate_triangles(triangulation.triangles.iter().copied(), &vertices_clone);
-    info!("Delaunay quality info:: {:?}", delaunay_quality);
-
-    (triangulation, edges)
+    let displayed_vertices = vertices
+        .iter()
+        .map(|v| DISPLAY_SCALE * Vec3::new(v.x as f32, v.y as f32, 0.))
+        .collect();
+    commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
+        displayed_vertices,
+        &constrained_edges,
+        debug_context,
+    ));
+    commands.insert_resource(TrianglesDebugViewConfig::new(
+        LabelMode::Changed,
+        VertexLabelMode::GlobalIndex,
+        TrianglesDrawMode::ContoursAndInteriorAsMeshes,
+        true,
+    ));
+    // TODO Center camera on data
 }
 
 fn draw_origin_circle(mut gizmos: Gizmos, triangle_debug_data: Res<TrianglesDebugData>) {

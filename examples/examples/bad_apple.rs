@@ -21,6 +21,7 @@ use examples::{
 };
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
+    constrained_triangulation_from_2d_vertices,
     debug::{DebugConfiguration, Phase, PhaseRecord},
     types::{Edge, Float, Vertex, VertexId},
     Triangulation,
@@ -136,7 +137,7 @@ fn setup(mut commands: Commands) {
             .iter()
             .map(|e| Edge::new(e.0 as VertexId, e.1 as VertexId))
             .collect();
-        let triangulation = ghx_constrained_delaunay::constrained_triangulation_from_2d_vertices(
+        let triangulation = constrained_triangulation_from_2d_vertices(
             &frame
                 .vertices
                 .iter()
