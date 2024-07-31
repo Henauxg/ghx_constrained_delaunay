@@ -91,7 +91,7 @@ pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
 }
 
 #[derive(Debug)]
-pub struct EdgeSideTestResult(Float);
+pub struct EdgeSideTestResult(pub Float);
 impl EdgeSideTestResult {
     #[inline]
     pub fn is_on_right_side(&self) -> bool {
