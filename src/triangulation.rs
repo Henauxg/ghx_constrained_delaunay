@@ -4,10 +4,11 @@ use crate::infinite::{
     INFINITE_V1_ID, INFINITE_V2_ID, INFINITE_V3_ID,
 };
 use crate::types::{
-    next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
-    vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
-    TriangleEdgeIndex, TriangleId, Triangles, Vertex, Vertex2d, Vertex3d, VertexId, EDGE_12,
-    EDGE_23, EDGE_31, VERT_1, VERT_2,
+    next_clockwise_edge_index, next_clockwise_vertex_index, next_counter_clockwise_edge_index,
+    opposite_vertex_index, vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Edge, Float,
+    Neighbor, Quad, TriangleData, TriangleEdgeIndex, TriangleId, Triangles, Vertex, Vertex2d,
+    Vertex3d, VertexId, EDGE_12, EDGE_23, EDGE_31, NEXT_CLOCKWISE_EDGE_INDEX, NEXT_CW_VERTEX_INDEX,
+    VERT_1, VERT_2,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -253,7 +254,58 @@ fn find_vertex_placement(
         //     vertex_id, vertex, triangle_id, triangle, infinite_verts
         // );
 
+        // TODO Optimization: since we memorize where we come from, we could memorize the edge we come from and avoid testing it and its vrtices again. => Would need to guarantee that if the vertex was on the edge, previous triangle would have detected it.
+        // Would not need previous_triangle anymore + less vertices to check for OnVertex + 2 edges to test instead of 3 for Neighbor/OnEdge/Inside
         if infinite_verts.is_empty() {
+            // ----------- Optim implem test
+            // let previous_edge = Edge::new(0, 0); // TODO
+            // let vertex_to_check_index =
+            //     next_clockwise_vertex_index(triangle.vertex_index(previous_edge.from));
+            // let vertex_to_check_id = triangle.v(vertex_to_check_index);
+            // let vertex_to_check = vertices[vertex_to_check_id as usize];
+            // if is_vertex_pair_too_close(vertex_to_check, vertex) {
+            //     return Some(VertexPlacement::OnVertex(vertex_to_check_id));
+            // }
+
+            // let a = vertices[previous_edge.from as usize];
+            // let edge_a_test = test_point_edge_side((a, vertex_to_check), vertex);
+            // if edge_a_test.is_on_left_side() {
+            //     previous_edge = Edge::new(previous_edge.from, vertex_to_check_id);
+            //     current_triangle =
+            //         triangle.neighbor(vertex_next_ccw_edge_index(vertex_to_check_index));
+            //     continue;
+            // }
+
+            // let b = vertices[previous_edge.to as usize];
+            // let edge_b_test = test_point_edge_side((vertex_to_check, b), vertex);
+            // if edge_b_test.is_on_left_side() {
+            //     previous_edge = Edge::new(vertex_to_check_id, previous_edge.to);
+            //     current_triangle =
+            //         triangle.neighbor(vertex_next_cw_edge_index(vertex_to_check_index));
+            //     continue;
+            // }
+
+            // // TODO Distance may be better than this
+            // // If we're here edge_a_test and edge_b_test are both <= 0.
+            // let (min_abs, edge_index) = if edge_b_test.0 < edge_a_test.0 {
+            //     (
+            //         edge_a_test.0,
+            //         vertex_next_ccw_edge_index(vertex_to_check_index),
+            //     )
+            // } else {
+            //     (
+            //         edge_b_test.0,
+            //         vertex_next_cw_edge_index(vertex_to_check_index),
+            //     )
+            // };
+
+            // if min_abs <= -Float::EPSILON {
+            //     return Some(VertexPlacement::InsideTriangle(triangle_id));
+            // } else {
+            //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
+            // }
+            // ----------- Optim implem test
+
             let (v1, v2, v3) = triangle.to_vertices(vertices);
 
             // TODO Profile this check's position
@@ -288,15 +340,30 @@ fn find_vertex_placement(
                 continue;
             }
 
-            if edge_12_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12));
-            } else if edge_23_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23));
-            } else if edge_31_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
+            // TODO Distance may be better than this
+            let edge_12_test_abs = edge_12_test.0.abs();
+            let edge_23_test_abs = edge_23_test.0.abs();
+            let (mut min_abs, mut edge_index) = (edge_31_test.0.abs(), EDGE_31);
+            if edge_12_test_abs < min_abs {
+                (min_abs, edge_index) = (edge_12_test_abs, EDGE_12);
+            } else if edge_23_test_abs < min_abs {
+                (min_abs, edge_index) = (edge_23_test_abs, EDGE_23);
+            }
+            if min_abs < Float::EPSILON {
+                return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
             } else {
                 return Some(VertexPlacement::InsideTriangle(triangle_id));
             }
+
+            // if edge_12_test.is_near_edge() {
+            //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12));
+            // } else if edge_23_test.is_near_edge() {
+            //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23));
+            // } else if edge_31_test.is_near_edge() {
+            //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
+            // } else {
+            //     return Some(VertexPlacement::InsideTriangle(triangle_id));
+            // }
         } else if infinite_verts.len() == 1 {
             let res = vertex_placement_1_infinite_vertex(
                 vertices,
@@ -416,11 +483,11 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         vertices.len(),
     ));
 
-    println!(
-        "First insertion of vertex {}, {:?}",
-        first_vertex_id,
-        vertices[(*first_vertex_id) as usize]
-    );
+    // println!(
+    //     "First insertion of vertex {}, {:?}",
+    //     first_vertex_id,
+    //     vertices[(*first_vertex_id) as usize]
+    // );
 
     // Loop over all the input vertices
     for (_index, &vertex_id) in vertices_iterator {
@@ -450,10 +517,10 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             ));
         };
 
-        println!(
-            "Found vertex place for vertex {}, {:?}",
-            vertex_id, vertex_place
-        );
+        // println!(
+        //     "Found vertex place for vertex {}, {:?}",
+        //     vertex_id, vertex_place
+        // );
 
         match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
@@ -478,6 +545,10 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 )
             }
             VertexPlacement::OnVertex(existing_vertex_id) => {
+                // println!(
+                //     "------- Found duplicate vertex {}, already existing as {}",
+                //     vertex_id, existing_vertex_id
+                // );
                 if let Some(vertex_merge_mapping) = vertex_merge_mapping {
                     vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
                 }

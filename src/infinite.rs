@@ -3,7 +3,7 @@ use crate::{
     types::{
         next_clockwise_vertex_index, next_counter_clockwise_vertex_index, opposite_edge_index,
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
-        EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
+        Edge, EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
         TriangleVertexIndex, Vertex, VertexId, ADJACENT_QUAD_VERTICES_INDEXES, EDGE_TO_VERTS,
         NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX, OPPOSITE_QUAD_VERTEX_INDEX, QUAD_1, QUAD_2,
         QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
@@ -74,6 +74,24 @@ pub fn edge_from_semi_infinite_edge(
             finite_vertex.x + INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize],
             finite_vertex.y + INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize],
         ),
+    )
+}
+
+/// Returns a finite segment from an edge between a finite vertex and an infinite vertex
+///  - infinite_vert_local_index is the local index of the infinite vertex
+#[inline]
+pub fn reversed_edge_from_semi_infinite_edge(
+    finite_vertex: Vertex,
+    infinite_vert_local_index: QuadVertexIndex,
+) -> EdgeVertices {
+    (
+        Vertex::new(
+            // We care about the delta sign here since we create a segment from an infinite line,
+            // starting from the finite point and aimed towards the infinite point.
+            finite_vertex.x + INFINITE_VERTS_X_DELTAS[infinite_vert_local_index as usize],
+            finite_vertex.y + INFINITE_VERTS_Y_DELTAS[infinite_vert_local_index as usize],
+        ),
+        finite_vertex,
     )
 }
 
@@ -154,6 +172,8 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "vertex_placement_1_infinite_vertex").entered();
 
+    // TODO Version with previous_edge
+
     let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_vertex_index as usize];
     let finite_vert_a_id = triangle.v(finite_vert_a_index);
     let finite_vertex_a = vertices[finite_vert_a_id as usize];
@@ -174,10 +194,7 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     // Check previous triangle to avoid looping between two triangles
     let edge_ab_test = test_point_edge_side((finite_vertex_a, finite_vertex_b), vertex);
     let edge_ab_index = vertex_next_cw_edge_index(finite_vert_a_index);
-    if edge_ab_test.is_on_left_side()
-           // Avoid looping between two triangles
-        && *previous_triangle != triangle.neighbor(edge_ab_index)
-    {
+    if edge_ab_test.is_on_left_side() && *previous_triangle != triangle.neighbor(edge_ab_index) {
         *previous_triangle = *current_triangle;
         *current_triangle = triangle.neighbor(edge_ab_index);
         return None;
@@ -185,11 +202,10 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
 
     let infinite_vert_local_index =
         infinite_vertex_local_quad_index(triangle.v(infinite_vertex_index));
-    let edge_a = edge_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
+    let edge_a = reversed_edge_from_semi_infinite_edge(finite_vertex_a, infinite_vert_local_index);
     let edge_a_index = vertex_next_ccw_edge_index(finite_vert_a_index);
     let edge_a_test = test_point_edge_side(edge_a, vertex);
-    // Test for right side because edge_a is oriented the wrong way. We could also reverse edge_a
-    if edge_a_test.is_on_right_side() && *previous_triangle != triangle.neighbor(edge_a_index) {
+    if edge_a_test.is_on_left_side() && *previous_triangle != triangle.neighbor(edge_a_index) {
         *previous_triangle = *current_triangle;
         *current_triangle = triangle.neighbor(edge_a_index);
         return None;
@@ -209,14 +225,22 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     //     "vertex_placement_1_infinite_vertex currently in triangle id {}, finite_vert_a_id {}, finite_vert_b_id {}, edge_a_index {}, edge_b_index {}",
     //     triangle_id,finite_vert_a_id,finite_vert_b_id,edge_a_index,edge_b_index
     // );
+    // println!(
+    //     "edge_ab_test {:?} edge_a_test {:?} edge_b_test {:?}",
+    //     edge_ab_test, edge_a_test, edge_b_test
+    // );
 
-    // TODO Min ?
-    if edge_ab_test.is_near_edge() {
-        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_ab_index));
-    } else if edge_a_test.is_near_edge() {
-        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
-    } else if edge_b_test.is_near_edge() {
-        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
+    // TODO Squared distance from vertex to edges ?
+    let edge_a_test_abs = edge_a_test.0.abs();
+    let edge_b_test_abs = edge_b_test.0.abs();
+    let (mut min_abs, mut edge_index) = (edge_ab_test.0.abs(), edge_ab_index);
+    if edge_a_test_abs < min_abs {
+        (min_abs, edge_index) = (edge_a_test_abs, edge_a_index);
+    } else if edge_b_test_abs < min_abs {
+        (min_abs, edge_index) = (edge_b_test_abs, edge_b_index);
+    }
+    if min_abs < Float::EPSILON {
+        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
     } else {
         return Some(VertexPlacement::InsideTriangle(triangle_id));
     }
@@ -234,6 +258,47 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
 ) -> Option<VertexPlacement> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "vertex_placement_2_infinite_vertex").entered();
+
+    // ----------- Optim implem test
+    // We know that 2 verts are infinite. But previous edge can only be at most semi-infinite, so 1 vertex in previous edge is infinite, and vertex_to_check is infinite.
+    // => no need for any OnVertex check
+    // => only 1 edge to check: finite-vertex<->vertex_to_check (maybe not in that order)
+    // => no need for `infinite_verts`
+
+    // let from_vert_index = triangle.vertex_index(previous_edge.from);
+    // let vcheck_index = next_clockwise_vertex_index(from_vert_index);
+    // let vcheck_id = triangle.v(vcheck_index);
+    // let vcheck_infinite_local_index = infinite_vertex_local_quad_index(vcheck_id);
+
+    // let (edge_vertices, edge_index, edge) = if is_infinite(previous_edge.from) {
+    //     let finite_vertex = vertices[previous_edge.to as usize];
+    //     (
+    //         reversed_edge_from_semi_infinite_edge(finite_vertex, vcheck_infinite_local_index),
+    //         vertex_next_cw_edge_index(vcheck_index),
+    //         Edge::new(vcheck_id, previous_edge.to),
+    //     )
+    // } else {
+    //     let finite_vertex = vertices[previous_edge.from as usize];
+    //     (
+    //         edge_from_semi_infinite_edge(finite_vertex, vcheck_infinite_local_index),
+    //         vertex_next_cw_edge_index(from_vert_index),
+    //         Edge::new(previous_edge.to, vcheck_id),
+    //     )
+    // };
+    // let edge_test = test_point_edge_side(edge_vertices, vertex);
+    // if edge_test.is_on_left_side() {
+    //     previous_edge = edge;
+    //     *current_triangle = triangle.neighbor(edge_index);
+    //     return None;
+    // }
+
+    // if edge_test.0.abs() < Float::EPSILON {
+    //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
+    // } else {
+    //     return Some(VertexPlacement::InsideTriangle(triangle_id));
+    // }
+
+    // --------------
 
     let finite_v_index = opposite_vertex_index_from_edge(infinite_verts[0], infinite_verts[1]);
     let finite_vert_id = triangle.v(finite_v_index);
@@ -260,23 +325,36 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
     let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
         triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
     );
-    let edge_b = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
+    let edge_b = reversed_edge_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
     let edge_b_index = vertex_next_ccw_edge_index(finite_v_index);
     let edge_b_test = test_point_edge_side(edge_b, vertex);
-    // Test for right side because edge_b is oriented the wrong way. We could also reverse edge_b
-    if edge_b_test.is_on_right_side() && *previous_triangle != triangle.neighbor(edge_b_index) {
+    if edge_b_test.is_on_left_side() && *previous_triangle != triangle.neighbor(edge_b_index) {
         *previous_triangle = *current_triangle;
         *current_triangle = triangle.neighbor(edge_b_index);
         return None;
     }
 
-    if edge_a_test.is_near_edge() {
-        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
-    } else if edge_b_test.is_near_edge() {
-        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
+    let edge_a_test_abs = edge_a_test.0.abs();
+    let edge_b_test_abs = edge_b_test.0.abs();
+    // let (mut min_abs, mut edge_index) = (edge_a_test_abs, edge_a_index);
+    let (min_abs, edge_index) = if edge_b_test_abs < edge_a_test_abs {
+        (edge_b_test_abs, edge_b_index)
+    } else {
+        (edge_a_test_abs, edge_a_index)
+    };
+    if min_abs < Float::EPSILON {
+        return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
     } else {
         return Some(VertexPlacement::InsideTriangle(triangle_id));
     }
+
+    // if edge_a_test.is_near_edge() {
+    //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_a_index));
+    // } else if edge_b_test.is_near_edge() {
+    //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_b_index));
+    // } else {
+    //     return Some(VertexPlacement::InsideTriangle(triangle_id));
+    // }
 }
 
 #[cold]
