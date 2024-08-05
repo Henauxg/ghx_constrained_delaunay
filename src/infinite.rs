@@ -173,6 +173,17 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     let _span = span!(Level::TRACE, "vertex_placement_1_infinite_vertex").entered();
 
     // TODO Version with previous_edge
+    // ----------- Optim implem test
+    // We know that 1 vert is infinite. We don't know if it's in the previous edge or if it is vcheck
+    // Do a disjunction ?
+    // TODO If we don't need infinite_vertex_index here either, we might just count the ifninite vertices instead of collect_infinite_triangle_vertices (and maybe use the infinite count in the trvaersed edge)
+
+    // let vertex_to_check_index =
+    //     next_clockwise_vertex_index(triangle.vertex_index(previous_edge.from));
+    // let vertex_to_check_id = triangle.v(vertex_to_check_index);
+
+    // TODO If we knwo that the infintie vertex is in the edge, we can have 2 aces : from or to
+    // -----------
 
     let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_vertex_index as usize];
     let finite_vert_a_id = triangle.v(finite_vert_a_index);

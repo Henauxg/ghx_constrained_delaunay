@@ -259,6 +259,7 @@ fn find_vertex_placement(
         if infinite_verts.is_empty() {
             // ----------- Optim implem test
             // let previous_edge = Edge::new(0, 0); // TODO
+            // TODO Might share index and id of vcheck between all 3 cases
             // let vertex_to_check_index =
             //     next_clockwise_vertex_index(triangle.vertex_index(previous_edge.from));
             // let vertex_to_check_id = triangle.v(vertex_to_check_index);
