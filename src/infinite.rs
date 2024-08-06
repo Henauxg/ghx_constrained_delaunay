@@ -176,13 +176,102 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     // ----------- Optim implem test
     // We know that 1 vert is infinite. We don't know if it's in the previous edge or if it is vcheck
     // Do a disjunction ?
-    // TODO If we don't need infinite_vertex_index here either, we might just count the ifninite vertices instead of collect_infinite_triangle_vertices (and maybe use the infinite count in the trvaersed edge)
+    // TODO If we don't need infinite_vertex_index here either, we might just count the infinite vertices instead of collect_infinite_triangle_vertices (and maybe use the infinite count in previous_edge)
 
-    // let vertex_to_check_index =
-    //     next_clockwise_vertex_index(triangle.vertex_index(previous_edge.from));
+    // let mut previous_edge = Edge::new(0, 0); // TODO
+    // let from_vert_index = triangle.vertex_index(previous_edge.from);
+    // let vertex_to_check_index = next_clockwise_vertex_index(from_vert_index);
     // let vertex_to_check_id = triangle.v(vertex_to_check_index);
 
-    // TODO If we knwo that the infintie vertex is in the edge, we can have 2 aces : from or to
+    // let (edge_1_test, edge_1_index, edge_2_test, edge_2_index) = if is_finite(vertex_to_check_id) {
+    //     let vertex_to_check = vertices[vertex_to_check_id as usize];
+    //     if is_vertex_pair_too_close(vertex_to_check, vertex) {
+    //         return Some(VertexPlacement::OnVertex(vertex_to_check_id));
+    //     }
+
+    //     // TODO 1 finite edge and 1 extrapolated
+    //     // TODO May refactor with the infinite vertex_to_check_id case (just compute the edges, edge indexes, ...)
+
+    //     if is_finite(previous_edge.from) {
+    //         let finite_vertex_id = previous_edge.from;
+    //         let finite_edge_index = vertex_next_cw_edge_index(from_vert_index);
+    //         let finite_edge = Edge::new(finite_vertex_id, vertex_to_check_id);
+    //         let finite_edge_vertices = finite_edge.to_vertices(vertices);
+    //         let finite_edge_test = test_point_edge_side(finite_edge_vertices, vertex);
+    //         if finite_edge_test.is_on_left_side() {
+    //             previous_edge = finite_edge;
+    //             *current_triangle = triangle.neighbor(finite_edge_index);
+    //             return None;
+    //         }
+
+    //         let infinite_vertex_local_index = infinite_vertex_local_quad_index(previous_edge.to);
+    //         let infinite_edge = Edge::new(vertex_to_check_id, previous_edge.to);
+    //         let infinite_edge_index = vertex_next_cw_edge_index(vertex_to_check_index);
+    //         let infinite_edge_vertices =
+    //             edge_from_semi_infinite_edge(vertex_to_check, infinite_vertex_local_index);
+    //         let infinite_edge_test = test_point_edge_side(infinite_edge_vertices, vertex);
+    //         if finite_edge_test.is_on_left_side() {
+    //             previous_edge = infinite_edge;
+    //             *current_triangle = triangle.neighbor(infinite_edge_index);
+    //             return None;
+    //         }
+    //         (
+    //             finite_edge_test,
+    //             finite_edge_index,
+    //             infinite_edge_test,
+    //             infinite_edge_index,
+    //         )
+    //     } else {
+    //         let finite_vertex_id = previous_edge.to;
+
+    //         // TODO
+    //     };
+    // } else {
+    //     // We don't need to check if Vertex is on vertex_to_check here since this is not possible.
+    //     let vcheck_infinite_local_index = infinite_vertex_local_quad_index(vertex_to_check_id);
+    //     let from = vertices[previous_edge.from as usize];
+    //     let to = vertices[previous_edge.to as usize];
+
+    //     let edge_vertices_1 = edge_from_semi_infinite_edge(from, vcheck_infinite_local_index);
+    //     let edge_index_1 = vertex_next_cw_edge_index(from_vert_index);
+    //     let edge_1 = Edge::new(previous_edge.from, vertex_to_check_id);
+
+    //     let edge_test_1 = test_point_edge_side(edge_vertices_1, vertex);
+    //     if edge_test_1.is_on_left_side() {
+    //         previous_edge = edge_1;
+    //         *current_triangle = triangle.neighbor(edge_index_1);
+    //         return None;
+    //     }
+
+    //     let edge_vertices_2 =
+    //         reversed_edge_from_semi_infinite_edge(to, vcheck_infinite_local_index);
+    //     let edge_index_2 = vertex_next_cw_edge_index(vertex_to_check_index);
+    //     let edge_2 = Edge::new(vertex_to_check_id, previous_edge.to);
+
+    //     let edge_test_2 = test_point_edge_side(edge_vertices_2, vertex);
+    //     if edge_test_2.is_on_left_side() {
+    //         previous_edge = edge_2;
+    //         *current_triangle = triangle.neighbor(edge_index_2);
+    //         return None;
+    //     }
+
+    //     (edge_test_1, edge_index_1, edge_test_2, edge_index_2)
+    // };
+    // // TODO Distance may be better than this
+    // // If we're here edge tests are both <= 0.
+    // let (min_abs, edge_index) = if edge_2_test.0 < edge_1_test.0 {
+    //     (edge_1_test.0, edge_1_index)
+    // } else {
+    //     (edge_2_test.0, edge_2_index)
+    // };
+
+    // if min_abs <= -Float::EPSILON {
+    //     return Some(VertexPlacement::InsideTriangle(triangle_id));
+    // } else {
+    //     return Some(VertexPlacement::OnTriangleEdge(triangle_id, edge_index));
+    // }
+
+    // TODO If we know that the infintie vertex is in the edge, we can have 2 cases : from or to
     // -----------
 
     let finite_vert_a_index = NEXT_CW_VERTEX_INDEX[infinite_vertex_index as usize];
