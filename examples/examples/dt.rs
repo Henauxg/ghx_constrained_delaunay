@@ -37,7 +37,10 @@ fn setup(mut commands: Commands) {
 
     let q = check_delaunay_optimal(
         triangulation.triangles.iter().copied(),
-        &vertices.iter().map(|v| Vertex::new(v.x, v.y)).collect(),
+        &vertices
+            .iter()
+            .map(|v| Vertex::new(v.x, v.y))
+            .collect::<Vec<Vertex>>(),
         false,
     );
     info!("DT quality info: {:?}", q);

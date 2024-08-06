@@ -146,7 +146,7 @@ impl TrianglesDebugData {
 
     pub fn new_with_constrained_edges(
         vertices: Vec<Vec3>,
-        constrained_edges: &Vec<Edge>,
+        constrained_edges: &[Edge],
         context: DebugContext,
     ) -> Self {
         Self {

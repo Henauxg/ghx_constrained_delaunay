@@ -81,7 +81,7 @@ pub fn draw_triangles_debug_data_gizmos(
 
 pub fn draw_triangle_gizmo(
     gizmos: &mut Gizmos,
-    vertices: &Vec<Vec3>,
+    vertices: &[Vec3],
     triangle_id: TriangleId,
     triangle: &TriangleData,
     basis: &Basis,

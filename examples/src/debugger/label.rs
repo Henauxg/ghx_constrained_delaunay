@@ -29,7 +29,7 @@ use super::{
 pub fn spawn_label(
     commands: &mut Commands,
     vertex_label_mode: VertexLabelMode,
-    vertices: &Vec<Vec3>,
+    vertices: &[Vec3],
     triangle_id: TriangleId,
     triangle: &TriangleData,
     basis: &Basis,

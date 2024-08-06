@@ -75,7 +75,10 @@ fn setup(mut commands: Commands) {
 
     let delaunay_quality = check_delaunay_optimal(
         triangulation.triangles,
-        &vertices.iter().map(|v| Vertex::new(v[0], v[1])).collect(),
+        &vertices
+            .iter()
+            .map(|v| Vertex::new(v[0], v[1]))
+            .collect::<Vec<Vertex>>(),
         false,
     );
     info!("CDT quality info: {:?}", delaunay_quality);

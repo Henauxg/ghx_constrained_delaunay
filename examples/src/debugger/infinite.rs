@@ -30,7 +30,7 @@ pub fn extrapolated_vertex_from_semi_infinite_edge(
 }
 
 pub fn get_2_extrapolated_vertices_from_2_finite_vertices(
-    vertices: &Vec<Vec3>,
+    vertices: &[Vec3],
     triangle: &TriangleData,
     basis: &Basis,
     infinite_vert_index: TriangleVertexIndex,
@@ -59,7 +59,7 @@ pub fn get_2_extrapolated_vertices_from_2_finite_vertices(
 }
 
 pub fn get_2_extrapolated_vertices_from_1_finite_vertex(
-    vertices: &Vec<Vec3>,
+    vertices: &[Vec3],
     triangle: &TriangleData,
     basis: &Basis,
     finite_vertex_index: TriangleVertexIndex,

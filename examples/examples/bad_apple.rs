@@ -132,17 +132,18 @@ fn setup(mut commands: Commands) {
     let mut triangulated_frames = Vec::new();
     for (_i, frame) in frames.iter().enumerate() {
         // info!("Loading frame n°{}", _i);
-        let edges = frame
+        let edges: Vec<Edge> = frame
             .edges
             .iter()
             .map(|e| Edge::new(e.0 as VertexId, e.1 as VertexId))
             .collect();
+        // let vertices: Vec<Vertex> = ,
         let triangulation = constrained_triangulation_from_2d_vertices(
             &frame
                 .vertices
                 .iter()
                 .map(|v| Vertex::new(v.0 as Float, v.1 as Float))
-                .collect(),
+                .collect::<Vec<Vertex>>(),
             &edges,
             config.clone(),
         )
