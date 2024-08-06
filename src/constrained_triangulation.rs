@@ -8,7 +8,7 @@ use crate::infinite::{
     quad_diagonals_intersection_2_infinite,
 };
 use crate::triangulation::{
-    normalize_vertices_coordinates, update_triangle_neighbor, Triangulation, TriangulationError,
+    normalize_vertices_coordinates, update_neighbor_neighbor, Triangulation, TriangulationError,
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
@@ -60,9 +60,9 @@ impl Default for ConstrainedTriangulationConfiguration {
 /// - All the vertices are expected to belong to the same 2d plane, with the provided `plane_normal`.
 /// - `plane_normal` must be normalized
 pub fn constrained_triangulation_from_3d_planar_vertices<T: Vertex3d>(
-    vertices: &Vec<T>,
+    vertices: &[T],
     plane_normal: T,
-    constrained_edges: &Vec<Edge>,
+    constrained_edges: &[Edge],
     config: ConstrainedTriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
     if vertices.len() < 3 {
@@ -105,8 +105,8 @@ pub fn constrained_triangulation_from_3d_planar_vertices<T: Vertex3d>(
 /// -------------<-----------------------------------
 /// ```
 pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
-    vertices: &Vec<T>,
-    constrained_edges: &Vec<Edge>,
+    vertices: &[T],
+    constrained_edges: &[Edge],
     config: ConstrainedTriangulationConfiguration,
 ) -> Result<Triangulation, TriangulationError> {
     #[cfg(feature = "profile_traces")]
@@ -117,7 +117,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
     }
 
     // Uniformly scale the coordinates of the points so that they all lie between 0 and 1.
-    let (mut normalized_vertices, _scale_factor, _x_min, _y_min) =
+    let (normalized_vertices, _scale_factor, _x_min, _y_min) =
         normalize_vertices_coordinates(vertices);
 
     #[cfg(feature = "debug_context")]
@@ -126,7 +126,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
 
     let mut vertex_merge_mapping = Some((0..vertices.len() as VertexId).collect());
     let mut triangles = wrap_and_triangulate_2d_normalized_vertices(
-        &mut normalized_vertices,
+        &normalized_vertices,
         config.bin_vertex_density_power,
         &mut vertex_merge_mapping,
         #[cfg(feature = "debug_context")]
@@ -247,9 +247,9 @@ fn cdt_filter_triangles(
 }
 
 fn apply_constraints(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     triangles: &mut Triangles,
-    constrained_edges: &Vec<Edge>,
+    constrained_edges: &[Edge],
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Result<HashSet<Edge>, TriangulationError> {
@@ -371,7 +371,7 @@ enum EdgeFirstIntersection {
 }
 
 fn edge_and_constrained_edge_intersection(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     edge: &Edge,
     constrained_edge_verts: &EdgeVertices,
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
@@ -402,7 +402,7 @@ fn edge_and_constrained_edge_intersection(
 
 fn loop_around_vertex_and_search_intersection(
     triangles: &Triangles,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     from_triangle_id: TriangleId,
     constrained_edge: Edge,
     constrained_edge_verts: &EdgeVertices,
@@ -468,7 +468,7 @@ fn loop_around_vertex_and_search_intersection(
 
 fn search_first_interstected_quad(
     triangles: &Triangles,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
     start_triangle: TriangleId,
@@ -517,10 +517,10 @@ fn search_first_interstected_quad(
 
 fn register_intersected_edges(
     triangles: &Triangles,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     constrained_edge: Edge,
     constrained_edge_vertices: &EdgeVertices,
-    vertex_to_triangle: &Vec<TriangleId>,
+    vertex_to_triangle: &[TriangleId],
     intersections: &mut VecDeque<EdgeData>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Result<(), TriangulationError> {
@@ -649,7 +649,7 @@ impl EdgeData {
 }
 
 fn get_next_triangle_edge_intersection(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     constrained_edge: &EdgeVertices,
     triangle: &TriangleData,
     triangle_id: TriangleId,
@@ -751,8 +751,8 @@ pub(crate) fn swap_quad_diagonal(
     triangles.get_mut(from).neighbors = [to.into(), tf_left_neighbor, tt_left_neighbor];
     triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, from.into()];
 
-    update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
-    update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
+    update_neighbor_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
+    update_neighbor_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
 
     if is_finite(quad.v1()) {
         vertex_to_triangle[quad.v1() as usize] = from;
@@ -816,7 +816,7 @@ fn update_edges_data(
     }
 }
 
-fn quad_diagonals_intersection(vertices: &Vec<Vertex>, quad: &Quad) -> EdgesIntersectionResult {
+fn quad_diagonals_intersection(vertices: &[Vertex], quad: &Quad) -> EdgesIntersectionResult {
     let infinite_verts = collect_infinite_quad_vertices(&quad.verts);
 
     if infinite_verts.is_empty() {
@@ -833,7 +833,7 @@ fn quad_diagonals_intersection(vertices: &Vec<Vertex>, quad: &Quad) -> EdgesInte
 
 fn remove_crossed_edges(
     triangles: &mut Triangles,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge_vertices: &EdgeVertices,
     intersections: &mut VecDeque<EdgeData>,
@@ -901,7 +901,7 @@ fn remove_crossed_edges(
 
 fn restore_delaunay_triangulation_constrained(
     triangles: &mut Triangles,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     vertex_to_triangle: &mut Vec<TriangleId>,
     constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
@@ -947,7 +947,7 @@ fn restore_delaunay_triangulation_constrained(
 /// This is almost the exact copy of [triangulation::should_swap_diagonals] but this needs to also check q4 for infinite.
 /// TODO Optimization: If we could ensure that we build all [EdgeData] with a finite q4 we could forego this chekck here too and use the same implem (and optimize a check away by the same occasion)
 #[inline(always)]
-pub fn constrained_should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool {
+pub fn constrained_should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 

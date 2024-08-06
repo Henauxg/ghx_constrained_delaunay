@@ -120,7 +120,7 @@ pub fn collect_infinite_quad_vertices(quad: &[VertexId]) -> ArrayVec<QuadVertexI
 
 #[cold]
 pub(crate) fn is_vertex_in_half_plane_1(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     quad: &Quad,
     infinite_vert: TriangleVertexIndex,
 ) -> bool {
@@ -143,7 +143,7 @@ pub(crate) fn is_vertex_in_half_plane_1(
 
 #[cold]
 pub(crate) fn vertex_placement_1_infinite_vertex(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     vertex: Vertex,
     triangle: &TriangleData,
     triangle_id: TriangleId,
@@ -216,7 +216,7 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
 
 #[cold]
 pub(crate) fn vertex_placement_2_infinite_vertex(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     vertex: Vertex,
     triangle: &TriangleData,
     triangle_id: TriangleId,
@@ -273,7 +273,7 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
 
 #[cold]
 pub(crate) fn quad_diagonals_intersection_1_infinite(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     quad: &Quad,
     infinite_vertex_index: QuadVertexIndex,
 ) -> EdgesIntersectionResult {
@@ -294,7 +294,7 @@ pub(crate) fn quad_diagonals_intersection_1_infinite(
 
 #[cold]
 pub(crate) fn quad_diagonals_intersection_2_infinite(
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     quad: &Quad,
     infinite_vert_index_0: QuadVertexIndex,
     infinite_vert_index_1: QuadVertexIndex,

@@ -27,7 +27,7 @@ pub enum Orientation {
 pub struct InvalidVertex;
 
 /// Used to validate a vertices collection
-pub fn validate_vertices(vertices: &Vec<Vertex>) -> Result<(), InvalidVertex> {
+pub fn validate_vertices(vertices: &[Vertex]) -> Result<(), InvalidVertex> {
     for v in vertices.iter() {
         if v.is_nan() || !v.is_finite() {
             return Err(InvalidVertex);
@@ -229,7 +229,7 @@ impl DegenerateTrianglesInfo {
 /// Check degenerate (flat) triangles
 pub fn check_degenerate_triangles(
     triangles: impl IntoIterator<Item = [VertexId; 3]>,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
 ) -> DegenerateTrianglesInfo {
     let mut flat_triangles_count = 0;
     let mut ccw_triangles_count = 0;
@@ -280,7 +280,7 @@ pub fn get_circumcircle_info(verts: &[Vertex; 3]) -> (Vertex, Float) {
 /// TODO Results may not be true if used on infinite vertices DURING the triangulation. After the triangulation, infintie vertices are always remove,d so this is not an issue.
 pub fn check_circumcircles(
     triangles: impl IntoIterator<Item = [VertexId; 3]> + Clone,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     _progress_log: bool,
 ) -> CircumcirclesQualityInfo {
     let triangles1 = triangles.clone().into_iter();
@@ -350,7 +350,7 @@ impl DelaunayQualityInfo {
 /// Slow and simple check of the Delaunay optimality of a triangulation
 pub fn check_delaunay_optimal<T>(
     triangles: T,
-    vertices: &Vec<Vertex>,
+    vertices: &[Vertex],
     progress_log: bool,
 ) -> DelaunayQualityInfo
 where

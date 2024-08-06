@@ -108,7 +108,7 @@ impl Edge {
 
     #[inline]
     /// **DO NOT** call if the edge has 1 or more infinite vertices
-    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> EdgeVertices {
+    pub fn to_vertices(&self, vertices: &[Vertex]) -> EdgeVertices {
         (vertices[self.from as usize], vertices[self.to as usize])
     }
 
@@ -272,7 +272,7 @@ impl TriangleData {
 
     #[inline]
     /// **DO NOT** call if the triangle has 1 or more infinite vertices
-    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> TriangleVertices {
+    pub fn to_vertices(&self, vertices: &[Vertex]) -> TriangleVertices {
         (
             vertices[self.verts[VERT_1 as usize] as usize],
             vertices[self.verts[VERT_2 as usize] as usize],
@@ -281,7 +281,7 @@ impl TriangleData {
     }
     #[inline]
     /// **DO NOT** call if the triangle has 1 or more infinite vertices
-    pub fn to_vertices_array(&self, vertices: &Vec<Vertex>) -> [Vertex; 3] {
+    pub fn to_vertices_array(&self, vertices: &[Vertex]) -> [Vertex; 3] {
         [
             vertices[self.verts[VERT_1 as usize] as usize],
             vertices[self.verts[VERT_2 as usize] as usize],
@@ -503,7 +503,7 @@ impl Quad {
 
     #[inline]
     /// **DO NOT** call if the quad has 1 or more infinite vertices
-    pub fn to_vertices(&self, vertices: &Vec<Vertex>) -> QuadVertices {
+    pub fn to_vertices(&self, vertices: &[Vertex]) -> QuadVertices {
         QuadVertices {
             verts: [
                 vertices[self.v1() as usize],
