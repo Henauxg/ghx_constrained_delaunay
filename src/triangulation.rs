@@ -227,7 +227,7 @@ fn find_vertex_placement(
     from: TriangleId,
     triangles: &Triangles,
     vertices: &Vec<Vertex>,
-    #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
+    // #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
 ) -> Option<VertexPlacement> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "find_vertex_placement").entered();
@@ -380,7 +380,7 @@ fn verts_count_to_restoration_stack_initial_capacity(verts_count: usize) -> usiz
 
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
-    vertices: &mut Vec<Vertex>,
+    vertices: &Vec<Vertex>,
     bin_vertex_density_power: f64,
     vertex_merge_mapping: &mut Option<Vec<VertexId>>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
@@ -393,7 +393,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
     let partitioned_vertices = VertexBinSort::sort(&vertices, bin_vertex_density_power);
 
-    let mut vertices_iterator = partitioned_vertices.iter().enumerate();
+    let mut vertices_iterator = partitioned_vertices.iter().enumerate().peekable();
     // There is always at least 3 vertices
     let (_, first_vertex_id) = vertices_iterator.next().unwrap();
     let mut triangles = create_initial_triangles(vertices.len(), *first_vertex_id);
@@ -409,8 +409,69 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         vertices.len(),
     ));
 
+    // let triangles_double_buffer = TrianglesDoubleBuffer {
+    //     b1: triangles.clone(),
+    //     b2: triangles,
+    // };
+
+    // let (to_predictor_send, to_predictor_recv) =
+    //     mpsc::channel::<(VertexId, TriangleId, Vec<(TriangleId,TriangleData)>)>();
+    // let (from_predictor_send, from_predictor_recv) =
+    //     mpsc::channel::<Option<VertexPlacement>>();
+
+    // // Allocate/copy once.
+    // // TODO Could we avoid this clone with lifetimes ? (read-only here)
+    // let predictor_vertices = vertices.clone();
+
+    // // TODO Some measures: when should we start predicting vertex placement? Right at the start, or from a certain number of triangles ?
+    // {
+    //     let (_, &next_vertex_id) = vertices_iterator.peek().unwrap();
+    //     match to_predictor_send.send((next_vertex_id, triangle_id, Vec::new())) {
+    //         Ok(_) => (),
+    //         // TODO Handle error
+    //         Err(_) => println!("Failed to send vertex placement request to the predictor"),
+    //     };
+
+    //     // Allocate once, and then memcpy to refresh
+    //     let mut triangles_mirror = Triangles::with_capacity(vertices.len() * 2 + 2);
+    //     triangles_mirror
+    //         .buffer
+    //         .extend_from_slice(&triangles.buffer);
+
+    //     thread::spawn(move ||
+    //         // triangles_snapshot is a snapshot of the triangles at some point in the past.
+    //         while let Ok((vertex_id, triangle_id, triangles_deltas)) = to_predictor_recv.recv() {
+    //             for (triangle_id, triangle) in triangles_deltas.into_iter(){
+    //                 // TODO Constraint, new ids are in order in triangles_deltas (so that i can just push and assume it is ok)
+    //                 if triangle_id as usize >= triangles_mirror.count() {
+    //                     triangles_mirror.push(triangle);
+    //                 } else {
+    //                     *triangles_mirror.get_mut(triangle_id) = triangle;
+    //                 }
+    //             }
+
+    //             let vertex = predictor_vertices[vertex_id as usize];
+    //             let predicted_vertex_place = find_vertex_placement(
+    //                 vertex,
+    //                 triangle_id,
+    //                 &triangles_mirror,
+    //                 &predictor_vertices,
+    //             );
+    //             if let Err(_) = from_predictor_send.send(predicted_vertex_place) {
+    //                 // TODO Handle error
+    //                 println!("Failed to send vertex placement response from the predictor")
+    //             }
+    //         }
+    //     );
+    // }
+
+    // TODO Performance: triangle_deltas could be double buffered to avoid allocations (since we clear it each iteration)
+    // let mut triangle_deltas = Vec::with_capacity(25);
+    // let mut modified_triangles = BTreeSet::new();
+
     // Loop over all the input vertices
-    for (_index, &vertex_id) in vertices_iterator {
+    while let Some((_index, &vertex_id)) = vertices_iterator.next() {
+        // for (_index, &vertex_id) in vertices_iterator {
         #[cfg(feature = "debug_context")]
         {
             let force_end = debug_context.advance_step();
@@ -419,6 +480,34 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             }
         }
 
+        // TODO Handle the first loop (no prediction pending? or launch one early ? or ?)
+        // TODO Wait for the previous search job to be finished + Check its results
+        // let Ok(predicted_vertex_place) = from_predictor_recv.recv() else {
+        //     // TODO Handle this case
+        //     println!("Error on prediction recv");
+        //    break;
+        // };
+        // if predicted_vertex_place.is_none()  {
+        //     println!("Internal error, failed to predict placement for vertex {:?}, step {}",
+        //     vertex_id, _index);
+        // };
+
+        // If there is a vertex after the current one, queue a prediction
+        // if let Some((_, &next_vertex_id)) = vertices_iterator.peek() {
+        //     // TODO Better
+        //     match to_predictor_send.send((next_vertex_id, triangle_id, mem::take(&mut triangle_deltas))) {
+        //         Ok(_) => (),
+        //         // TODO Handle error
+        //         Err(_) => println!("Failed to send vertex placement request to the predictor"),
+        //     };
+        // }
+
+        // TODO Prediciton verifier: check if the result is valid
+        // OnVertex => no need to check, will be true.
+        // OnEdge: TODO
+        // InsideTriangle: TODO
+        // If the prediciton is wrong: still, do a vertex placement search from the predicted triangle (which should be better than just the last inserted triangle)
+
         // Find an existing triangle which encloses P
         let vertex = vertices[vertex_id as usize];
         let Some(vertex_place) = find_vertex_placement(
@@ -426,8 +515,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             triangle_id,
             &triangles,
             &vertices,
-            #[cfg(feature = "debug_context")]
-            debug_context,
+            // #[cfg(feature = "debug_context")]
+            // debug_context,
         ) else {
             return Err(TriangulationError::new(
                 format!(
@@ -439,6 +528,13 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             ));
         };
 
+        // TODO Tmp
+        // if vertex_place == predicted_vertex_place {
+        //     println!("Accurate vertex prediction, step {}",_index);
+        // } else {
+        //     println!("Failed vertex prediction, step {}, vertex_place {:?}, predicted_vertex_place {:?}",_index,vertex_place,predicted_vertex_place);
+        // }
+
         match vertex_place {
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
                 split_triangle_into_three_triangles(
@@ -446,6 +542,8 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     enclosing_triangle_id,
                     vertex_id,
                     &mut quads_to_check,
+                    // &mut modified_triangles,
+                    // &mut triangle_deltas,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 )
@@ -457,6 +555,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     edge_index,
                     vertex_id,
                     &mut quads_to_check,
+                    // &mut triangle_deltas,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 )
@@ -474,6 +573,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             vertices,
             vertex_id,
             &mut quads_to_check,
+            // &mut triangle_deltas,
             #[cfg(feature = "debug_context")]
             debug_context,
         );
@@ -656,14 +756,14 @@ impl VertexBinSort {
 ///      from
 ///      /|\
 ///     / | \
-///    /  |  \
+/// n2 /  |  \ n3
 ///   /   |   \
 ///  /    |    \
 /// /  t1 | t2  \
 /// \     |     /
 ///  \    |    /
 ///   \   |   /
-///    \  |  /
+/// n1 \  |  / n4
 ///     \ | /
 ///      \|/
 ///       to
@@ -672,14 +772,14 @@ impl VertexBinSort {
 ///
 ///      /|\
 ///     /3|2\
-///    /  |  \
+/// n2 /  |  \ n3
 ///   / t1|t2 \
 ///  /    |    \
 /// /2___1|1___3\
 /// \3   1|1   2/
 ///  \ t3 | t4 /
 ///   \   |   /
-///    \  |  /
+/// n1 \  |  / n4
 ///     \2|3/
 ///      \|/
 /// ```
@@ -689,6 +789,7 @@ pub(crate) fn split_quad_into_four_triangles(
     edge_index: TriangleEdgeIndex,
     vertex_id: VertexId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
+    // triangle_deltas: &mut Vec<(TriangleId, TriangleData)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
@@ -699,92 +800,87 @@ pub(crate) fn split_quad_into_four_triangles(
     // TODO Comment is not true anymore in the general sense, but still true in this function
     // The triangle is always guaranteed to have a neighbor on the edge since a vertex
     // cannot land on a container triangle's edge.
-    let t2 = triangles.get(triangle_id).neighbor(edge_index);
+    let t2 = triangles.get(triangle_id).neighbor(edge_index).id;
     // Create two new triangles for the other two
     let t3 = triangles.next_id();
     let t4 = triangles.next_id() + 1;
 
+    let n1 = triangles
+        .get(t1)
+        .neighbor(next_clockwise_edge_index(edge_index));
+    let n2 = triangles
+        .get(t1)
+        .neighbor(next_counter_clockwise_edge_index(edge_index));
+
     let edge = triangles.get(t1).edge(edge_index);
 
     // t3
-    let t3_neighbor_23 = triangles
-        .get(t1)
-        .neighbor(next_clockwise_edge_index(edge_index));
     let t3_v3 = triangles.get(t1).v(opposite_vertex_index(edge_index));
-    triangles.create(
-        [vertex_id, edge.to, t3_v3],
-        [t4.into(), t3_neighbor_23, t1.into()],
-    );
+    triangles.create([vertex_id, edge.to, t3_v3], [t4.into(), n1, t1.into()]);
 
-    let t2_opposite_v_id = triangles.get(t2.id).get_opposite_vertex_id(&edge);
-    let t2_opposite_v_index = triangles.get(t2.id).vertex_index(t2_opposite_v_id);
+    // TODO Optim: Can do a tiny bit better
+    let t2_opposite_v_id = triangles.get(t2).get_opposite_vertex_id(&edge);
+    let t2_opposite_v_index = triangles.get(t2).vertex_index(t2_opposite_v_id);
+
+    let n4 = triangles
+        .get(t2)
+        .neighbor(vertex_next_cw_edge_index(t2_opposite_v_index));
+    let n3 = triangles
+        .get(t2)
+        .neighbor(vertex_next_ccw_edge_index(t2_opposite_v_index));
 
     // t4
-    let t4_neighbor_23 = triangles
-        .get(t2.id)
-        .neighbor(vertex_next_cw_edge_index(t2_opposite_v_index));
     triangles.create(
         [vertex_id, t2_opposite_v_id, edge.to],
-        [t2.into(), t4_neighbor_23, t3.into()],
+        [t2.into(), n4, t3.into()],
     );
-
-    // Update triangle indexes
-    update_triangle_neighbor(t3_neighbor_23, t1.into(), t3.into(), triangles);
-    update_triangle_neighbor(t4_neighbor_23, t2.into(), t4.into(), triangles);
 
     // Update t1 verts
     let verts = [vertex_id, t3_v3, edge.from];
     triangles.get_mut(t1).verts = verts;
     // Update t1 neighbors
-    let neighbors = [
-        t3.into(),
-        triangles
-            .get(t1)
-            .neighbor(next_counter_clockwise_edge_index(edge_index)),
-        t2.into(),
-    ];
+    let neighbors = [t3.into(), n2, t2.into()];
     triangles.get_mut(t1).neighbors = neighbors;
 
     // Update t2 verts
     let verts = [vertex_id, edge.from, t2_opposite_v_id];
-    triangles.get_mut(t2.id).verts = verts;
+    triangles.get_mut(t2).verts = verts;
     // Update t2 neighbors
-    let neighbors = [
-        t1.into(),
-        triangles
-            .get(t2.id)
-            .neighbor(vertex_next_ccw_edge_index(t2_opposite_v_index)),
-        t4.into(),
-    ];
-    triangles.get_mut(t2.id).neighbors = neighbors;
+    let neighbors = [t1.into(), n3, t4.into()];
+    triangles.get_mut(t2).neighbors = neighbors;
+
+    // triangle_deltas.push((t1, triangles.get(t1).clone()));
+    // triangle_deltas.push((t2, triangles.get(t2).clone()));
+    // triangle_deltas.push((t3, triangles.get(t3).clone()));
+    // triangle_deltas.push((t4, triangles.get(t4).clone()));
+
+    // Update neighbors and fill in quads_to_check directly for later. Way better for performances.
+    if n1.exists() {
+        update_triangle_neighbor(n1.id, t1.into(), t3.into(), triangles);
+        quads_to_check.push((t3, n1.id));
+        // triangle_deltas.push((n1.id, triangles.get(n1.id).clone()));
+    }
+    if n4.exists() {
+        update_triangle_neighbor(n4.id, t2.into(), t4.into(), triangles);
+        quads_to_check.push((t4, n4.id));
+        // triangle_deltas.push((n4.id, triangles.get(n4.id).clone()));
+    }
+    if n2.exists() {
+        quads_to_check.push((t1, n2.id));
+    }
+    if n3.exists() {
+        quads_to_check.push((t2, n3.id));
+    }
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot_event(
         Phase::SplitQuad,
         EventInfo::Split(vertex_id),
         &triangles,
-        &[t1, t2.id, t3, t4],
+        &[t1, t2, t3, t4],
         // Neighbor data is out of date here and is not that interesting
         &[],
     );
-
-    // Fill in quads_to_check directly instead of returning the new triangles. Way better for performances.
-    let t1_neighbor_23 = triangles.get(t1).neighbor23();
-    if t1_neighbor_23.exists() {
-        quads_to_check.push((t1, t1_neighbor_23.id));
-    }
-    let t2_neighbor_23 = triangles.get(t2.id).neighbor23();
-    if t2_neighbor_23.exists() {
-        quads_to_check.push((t2.id, t2_neighbor_23.id));
-    }
-    let t3_neighbor_23 = triangles.get(t3).neighbor23();
-    if t3_neighbor_23.exists() {
-        quads_to_check.push((t3, t3_neighbor_23.id));
-    }
-    let t4_neighbor_23 = triangles.get(t4).neighbor23();
-    if t4_neighbor_23.exists() {
-        quads_to_check.push((t4, t4_neighbor_23.id));
-    }
 }
 
 /// Splits `triangle_id` into 3 triangles (re-using the existing triangle id)
@@ -797,7 +893,7 @@ pub(crate) fn split_quad_into_four_triangles(
 ///               / 3|2 \
 ///              /   |   \
 ///             /    |    \
-///            / t1  |  t3 \
+///       n6   / t1  |  t3 \   n4
 ///           /     1|1     \
 ///          /      /1\      \
 ///         /     /     \     \
@@ -806,12 +902,14 @@ pub(crate) fn split_quad_into_four_triangles(
 ///      /2 /        t2       \ 3\
 ///     / / 3                 2 \ \
 ///   v3 ------------------------- v2
+///                  n5
 /// ```
 pub(crate) fn split_triangle_into_three_triangles(
     triangles: &mut Triangles,
     triangle_id: TriangleId,
     vertex_id: VertexId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
+    // triangle_deltas: &mut Vec<(TriangleId, TriangleData)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
@@ -822,6 +920,9 @@ pub(crate) fn split_triangle_into_three_triangles(
     // Create two new triangles for the other two
     let t2 = triangles.next_id();
     let t3 = triangles.next_id() + 1;
+    let n4 = triangles.get(t1).neighbor12();
+    let n5 = triangles.get(t1).neighbor23();
+    let n6 = triangles.get(t1).neighbor31();
 
     // t2
     triangles.create(
@@ -831,29 +932,34 @@ pub(crate) fn split_triangle_into_three_triangles(
     // t3
     triangles.create(
         [vertex_id, triangles.get(t1).v1(), triangles.get(t1).v2()],
-        [t1.into(), triangles.get(t1).neighbor12(), t2.into()],
-    );
-
-    // Update triangle indexes
-    update_triangle_neighbor(
-        triangles.get(t1).neighbor12(),
-        t1.into(),
-        t3.into(),
-        triangles,
-    );
-    update_triangle_neighbor(
-        triangles.get(t1).neighbor23(),
-        t1.into(),
-        t2.into(),
-        triangles,
+        [t1.into(), n4, t2.into()],
     );
 
     // Update t1 verts
     let verts = [vertex_id, triangles.get(t1).v3(), triangles.get(t1).v1()];
     triangles.get_mut(t1).verts = verts;
     // Update t1 neighbors
-    let neighbors = [t2.into(), triangles.get(t1).neighbor31(), t3.into()];
+    let neighbors = [t2.into(), n6, t3.into()];
     triangles.get_mut(t1).neighbors = neighbors;
+
+    // triangle_deltas.push((t1, triangles.get(t1).clone()));
+    // triangle_deltas.push((t2, triangles.get(t2).clone()));
+    // triangle_deltas.push((t3, triangles.get(t3).clone()));
+
+    // Update neighbors and fill in quads_to_check directly for later. Way better for performances.
+    if n4.exists() {
+        update_triangle_neighbor(n4.id, t1.into(), t3.into(), triangles);
+        quads_to_check.push((t3, n4.id));
+        // triangle_deltas.push((n4.id, triangles.get(n4.id).clone()));
+    }
+    if n5.exists() {
+        update_triangle_neighbor(n5.id, t1.into(), t2.into(), triangles);
+        quads_to_check.push((t2, n5.id));
+        // triangle_deltas.push((n5.id, triangles.get(n5.id).clone()));
+    }
+    if n6.exists() {
+        quads_to_check.push((t1, n6.id));
+    }
 
     #[cfg(feature = "debug_context")]
     debug_context.push_snapshot_event(
@@ -864,30 +970,16 @@ pub(crate) fn split_triangle_into_three_triangles(
         // Neighbor data is out of date here and is not that interesting
         &[],
     );
-
-    // Fill in quads_to_check directly instead of returning the new triangles. Way better for performances.
-    let t1_neighbor_23 = triangles.get(t1).neighbor23();
-    if t1_neighbor_23.exists() {
-        quads_to_check.push((t1, t1_neighbor_23.id));
-    }
-    let t2_neighbor_23 = triangles.get(t2).neighbor23();
-    if t2_neighbor_23.exists() {
-        quads_to_check.push((t2, t2_neighbor_23.id));
-    }
-    let t3_neighbor_23 = triangles.get(t3).neighbor23();
-    if t3_neighbor_23.exists() {
-        quads_to_check.push((t3, t3_neighbor_23.id));
-    }
 }
 
-pub(crate) fn update_triangle_neighbor(
+pub(crate) fn update_neighbor_neighbor(
     triangle: Neighbor,
     old_neighbour_id: Neighbor,
     new_neighbour_id: Neighbor,
     triangles: &mut Triangles,
 ) {
     #[cfg(feature = "more_profile_traces")]
-    let _span = span!(Level::TRACE, "update_triangle_neighbor").entered();
+    let _span = span!(Level::TRACE, "update_neighbor_neighbor").entered();
 
     if triangle.exists() {
         let t = triangles.get_mut(triangle.id);
@@ -901,6 +993,25 @@ pub(crate) fn update_triangle_neighbor(
     }
 }
 
+pub(crate) fn update_triangle_neighbor(
+    triangle_id: TriangleId,
+    old_neighbour_id: Neighbor,
+    new_neighbour_id: Neighbor,
+    triangles: &mut Triangles,
+) {
+    #[cfg(feature = "more_profile_traces")]
+    let _span = span!(Level::TRACE, "update_triangle_neighbor").entered();
+
+    let t = triangles.get_mut(triangle_id);
+    if t.neighbor12() == old_neighbour_id {
+        *t.neighbor12_mut() = new_neighbour_id;
+    } else if t.neighbor23() == old_neighbour_id {
+        *t.neighbor23_mut() = new_neighbour_id;
+    } else if t.neighbor31() == old_neighbour_id {
+        *t.neighbor31_mut() = new_neighbour_id;
+    }
+}
+
 /// `quads_to_check` used the shared pre-allocated buffer for efficiency.
 /// - It does not need to be cleared since it is fully emptied by each call to restore_delaunay_triangulation
 fn restore_delaunay_triangulation(
@@ -908,6 +1019,7 @@ fn restore_delaunay_triangulation(
     vertices: &Vec<Vertex>,
     from_vertex_id: VertexId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
+    // triangle_deltas: &mut Vec<(TriangleId, TriangleData)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "profile_traces")]
@@ -921,6 +1033,7 @@ fn restore_delaunay_triangulation(
             from_triangle_id,
             opposite_triangle_id,
             quads_to_check,
+            // triangle_deltas,
             #[cfg(feature = "debug_context")]
             debug_context,
         );
@@ -958,13 +1071,13 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool
 
 /// ```text
 ///                q3
-///         t3   /    \   t4
+///         n3   /    \   n4
 ///            /   To   \
 ///          /            \
 ///         q1 ---------- q2
 ///          \ 2        3 /
 ///            \   Tf   /
-///              \ 1  /
+///         n2   \ 1  /   n1
 ///                q4
 /// ```
 ///
@@ -976,13 +1089,13 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &Vec<Vertex>) -> bool
 ///
 /// ```text
 ///               q3
-///         t3  / 3|2 \   t4
+///        n3   / 3|2 \   n4
 ///           /    |    \
 ///         /      |      \
 ///        q1 2  Tf|To   3 q2
 ///         \      |      /
 ///           \    |    /
-///             \ 1|1 /
+///        n2   \ 1|1 /   n1
 ///               q4
 /// ```
 pub(crate) fn check_and_swap_quad_diagonal(
@@ -992,6 +1105,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
     from_triangle_id: TriangleId,
     opposite_triangle_id: TriangleId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
+    // triangle_deltas: &mut Vec<(TriangleId, TriangleData)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "more_profile_traces")]
@@ -999,7 +1113,7 @@ pub(crate) fn check_and_swap_quad_diagonal(
 
     let opposite_triangle = triangles.get(opposite_triangle_id);
 
-    let (quad, triangle_3, triangle_4) =
+    let (quad, n3, n4) =
     // No need to check if neighbor exists, handled by the == check since `from_triangle_id` exists
         if opposite_triangle.neighbor12().id == from_triangle_id {
             (
@@ -1039,41 +1153,43 @@ pub(crate) fn check_and_swap_quad_diagonal(
     if should_swap_diagonals(&quad, vertices) {
         let opposite_neighbor = opposite_triangle_id.into();
         let from_neighbor = from_triangle_id.into();
-
-        update_triangle_neighbor(triangle_3, opposite_neighbor, from_neighbor, triangles);
-        update_triangle_neighbor(
-            triangles.get(from_triangle_id).neighbor31(),
-            from_neighbor,
-            opposite_neighbor,
-            triangles,
-        );
+        let n1 = triangles.get(from_triangle_id).neighbor31();
 
         triangles.get_mut(from_triangle_id).verts = [quad.v4(), quad.v1(), quad.v3()];
         triangles.get_mut(opposite_triangle_id).verts = [quad.v4(), quad.v3(), quad.v2()];
 
-        triangles.get_mut(opposite_triangle_id).neighbors = [
-            from_neighbor,
-            triangle_4,
-            triangles.get(from_triangle_id).neighbor31(),
-        ];
-        *triangles.get_mut(from_triangle_id).neighbor23_mut() = triangle_3;
+        triangles.get_mut(opposite_triangle_id).neighbors = [from_neighbor, n4, n1];
+        *triangles.get_mut(from_triangle_id).neighbor23_mut() = n3;
         *triangles.get_mut(from_triangle_id).neighbor31_mut() = opposite_neighbor;
+
+        // triangle_deltas.push((from_triangle_id, triangles.get(from_triangle_id).clone()));
+        // triangle_deltas.push((
+        //     opposite_triangle_id,
+        //     triangles.get(opposite_triangle_id).clone(),
+        // ));
+
+        // Update neighbors and place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
+        // TODO Optim: could organize it better to regroup n1 and n4 ?
+        if n1.exists() {
+            update_triangle_neighbor(n1.id, from_neighbor, opposite_neighbor, triangles);
+            // triangle_deltas.push((n1.id, triangles.get(n1.id).clone()));
+        }
+        if n3.exists() {
+            update_triangle_neighbor(n3.id, opposite_neighbor, from_neighbor, triangles);
+            quads_to_check.push((from_triangle_id, n3.id));
+            // triangle_deltas.push((n3.id, triangles.get(n3.id).clone()));
+        }
+        if n4.exists() {
+            quads_to_check.push((opposite_triangle_id, n4.id));
+        }
 
         #[cfg(feature = "debug_context")]
         debug_context.push_snapshot(
             Phase::DelaunayRestoreSwapQuadDiagonals,
             &triangles,
             &[from_triangle_id, opposite_triangle_id],
-            &[triangle_3, triangles.get(from_triangle_id).neighbor31()],
+            &[n3, triangles.get(from_triangle_id).neighbor31()],
         );
-
-        // Place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
-        if triangle_3.exists() {
-            quads_to_check.push((from_triangle_id, triangle_3.id));
-        }
-        if triangle_4.exists() {
-            quads_to_check.push((opposite_triangle_id, triangle_4.id));
-        }
     }
 }
 

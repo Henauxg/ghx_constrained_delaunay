@@ -8,7 +8,7 @@ use crate::infinite::{
     quad_diagonals_intersection_2_infinite,
 };
 use crate::triangulation::{
-    normalize_vertices_coordinates, update_triangle_neighbor, Triangulation, TriangulationError,
+    normalize_vertices_coordinates, update_neighbor_neighbor, Triangulation, TriangulationError,
     DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
@@ -751,8 +751,8 @@ pub(crate) fn swap_quad_diagonal(
     triangles.get_mut(from).neighbors = [to.into(), tf_left_neighbor, tt_left_neighbor];
     triangles.get_mut(to).neighbors = [tt_right_neighbor, tf_right_neighbor, from.into()];
 
-    update_triangle_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
-    update_triangle_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
+    update_neighbor_neighbor(tt_left_neighbor, to.into(), from.into(), triangles);
+    update_neighbor_neighbor(tf_right_neighbor, from.into(), to.into(), triangles);
 
     if is_finite(quad.v1()) {
         vertex_to_triangle[quad.v1() as usize] = from;
