@@ -1,7 +1,7 @@
 use bevy::{
     app::{App, Startup},
     ecs::system::Commands,
-    log::info,
+    log::{error, info},
     math::Vec3,
     prelude::{EventWriter, IntoSystemConfigs, ResMut},
     DefaultPlugins,
@@ -66,22 +66,29 @@ fn setup(mut commands: Commands) {
         Edge::new(15, 14),
     ];
 
-    let triangulation = constrained_triangulation_from_2d_vertices(
+    let triangulation_result = constrained_triangulation_from_2d_vertices(
         &vertices,
         &constrained_edges,
         ConstrainedTriangulationConfiguration::default(),
-    )
-    .unwrap();
-
-    let delaunay_quality = check_delaunay_optimal(
-        triangulation.triangles,
-        &vertices
-            .iter()
-            .map(|v| Vertex::new(v[0], v[1]))
-            .collect::<Vec<Vertex>>(),
-        false,
     );
-    info!("CDT quality info: {:?}", delaunay_quality);
+    let debug_context = match triangulation_result {
+        Ok(triangulation) => {
+            let delaunay_quality = check_delaunay_optimal(
+                triangulation.triangles,
+                &vertices
+                    .iter()
+                    .map(|v| Vertex::new(v[0], v[1]))
+                    .collect::<Vec<Vertex>>(),
+                false,
+            );
+            info!("CDT quality info: {:?}", delaunay_quality);
+            triangulation.debug_context
+        }
+        Err(err) => {
+            error!("Failed triangulation: {:?}", err.msg);
+            err.debug_context
+        }
+    };
 
     commands.insert_resource(TrianglesDebugData::new_with_constrained_edges(
         vertices
@@ -89,7 +96,7 @@ fn setup(mut commands: Commands) {
             .map(|v| Vec3::new(v.x as f32, v.y as f32, 0.))
             .collect(),
         &constrained_edges,
-        triangulation.debug_context,
+        debug_context,
     ));
     commands.insert_resource(TrianglesDebugViewConfig::new(
         LabelMode::All,

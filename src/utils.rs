@@ -91,7 +91,7 @@ pub fn triplet_orientation(p: Vertex, q: Vertex, r: Vertex) -> Orientation {
 }
 
 #[derive(Debug)]
-pub struct EdgeSideTestResult(Float);
+pub struct EdgeSideTestResult(pub Float);
 impl EdgeSideTestResult {
     #[inline]
     pub fn is_on_right_side(&self) -> bool {
@@ -185,8 +185,8 @@ pub(crate) fn is_vertex_in_triangle_circumcircle(
     t3: Vertex,
     p: Vertex,
 ) -> bool {
-    #[cfg(feature = "more_profile_traces")]
-    let _span = span!(Level::TRACE, "is_vertex_in_triangle_circumcircle").entered();
+    // #[cfg(feature = "more_profile_traces")]
+    // let _span = span!(Level::TRACE, "is_vertex_in_triangle_circumcircle").entered();
 
     let x13 = t1.x - t3.x;
     let x23 = t2.x - t3.x;

@@ -131,7 +131,7 @@ fn setup(mut commands: Commands) {
 
     let mut triangulated_frames = Vec::new();
     for (_i, frame) in frames.iter().enumerate() {
-        // info!("Loading frame n°{}", _i);
+        info!("Loading frame n°{}", _i);
         let edges: Vec<Edge> = frame
             .edges
             .iter()

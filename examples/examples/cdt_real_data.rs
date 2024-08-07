@@ -23,8 +23,8 @@ use ghx_constrained_delaunay::{
     utils::check_degenerate_triangles,
 };
 
-const SHP_FILE_NAME: &str = "light/ne_50m_coastline";
-// const SHP_FILE_NAME: &str = "heavy/ne_10m_coastline";
+// const SHP_FILE_NAME: &str = "light/ne_50m_coastline";
+const SHP_FILE_NAME: &str = "heavy/ne_10m_coastline";
 // const SHP_FILE_NAME: &str = "heavy/Europe_coastline";
 
 // Modify to change the display scale
@@ -79,6 +79,7 @@ fn setup(mut commands: Commands) {
                 Phase::AfterConstraints,
                 Phase::FilterTriangles,
             ])),
+            // phase_record: PhaseRecord::All,
             ..Default::default()
         },
         ..Default::default()

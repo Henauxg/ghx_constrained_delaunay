@@ -4,7 +4,7 @@ use ghx_constrained_delaunay::{
         infinite_vertex_local_quad_index, INFINITE_VERTS_X_DELTAS, INFINITE_VERTS_Y_DELTAS,
     },
     types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index, Float, TriangleData,
+        next_cw_vertex_index, next_ccw_vertex_index, Float, TriangleData,
         TriangleVertexIndex, NEXT_CCW_VERTEX_INDEX, NEXT_CW_VERTEX_INDEX,
     },
 };
@@ -68,7 +68,7 @@ pub fn get_2_extrapolated_vertices_from_1_finite_vertex(
     let finite_vertex = vertices[finite_vert_id as usize];
 
     let infinite_vert_a_local_index = infinite_vertex_local_quad_index(
-        triangle.v(next_clockwise_vertex_index(finite_vertex_index)),
+        triangle.v(next_cw_vertex_index(finite_vertex_index)),
     );
     let finite_tip_a = extrapolated_vertex_from_semi_infinite_edge(
         finite_vertex,
@@ -77,7 +77,7 @@ pub fn get_2_extrapolated_vertices_from_1_finite_vertex(
     );
 
     let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-        triangle.v(next_counter_clockwise_vertex_index(finite_vertex_index)),
+        triangle.v(next_ccw_vertex_index(finite_vertex_index)),
     );
     let finite_tip_b = extrapolated_vertex_from_semi_infinite_edge(
         finite_vertex,
