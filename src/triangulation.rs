@@ -5,9 +5,9 @@ use crate::infinite::{
 };
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
-    vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Float, Neighbor, Quad, TriangleData,
-    TriangleEdgeIndex, TriangleId, Triangles, Vertex, Vertex2d, Vertex3d, VertexId, EDGE_12,
-    EDGE_23, EDGE_31, VERT_1, VERT_2,
+    vertex_next_ccw_edge_index, vertex_next_cw_edge_index, Edge, Float, Neighbor, Quad,
+    TriangleData, TriangleEdgeIndex, TriangleId, Triangles, Vertex, Vertex2d, Vertex3d, VertexId,
+    EDGE_12, EDGE_23, EDGE_31, VERT_1, VERT_2,
 };
 use crate::utils::{is_vertex_in_triangle_circumcircle, test_point_edge_side};
 
@@ -218,8 +218,8 @@ pub(crate) fn normalize_vertices_coordinates<T: Vertex2d>(
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum VertexPlacement {
     InsideTriangle(TriangleId),
-    OnTriangleEdge(TriangleId, TriangleEdgeIndex),
-    OnVertex(VertexId),
+    OnTriangleEdge(TriangleId, TriangleEdgeIndex, Edge),
+    NotFound,
 }
 
 fn find_vertex_placement(
@@ -228,7 +228,7 @@ fn find_vertex_placement(
     triangles: &Triangles,
     vertices: &[Vertex],
     #[cfg(feature = "debug_context")] _debug_context: &mut DebugContext,
-) -> Option<VertexPlacement> {
+) -> VertexPlacement {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "find_vertex_placement").entered();
 
@@ -246,65 +246,69 @@ fn find_vertex_placement(
 
         let infinite_verts = collect_infinite_triangle_vertices(&triangle.verts);
 
+        // This is the hot branch
         if infinite_verts.is_empty() {
             let (v1, v2, v3) = triangle.to_vertices(vertices);
 
-            // TODO Profile this check's position
-            if is_vertex_pair_too_close(v1, vertex) {
-                return Some(VertexPlacement::OnVertex(triangle.v1()));
+            // TODO Optim: We could in theory avoid checking 1 edge. See the "previous_edge" branch. In practice, it seems to have too many cases disjunctions (initial search versus general iteration).
+            // We don't need to check the edge we come from
+            // These 3 checks are the hot ones. Most iterations of the loop will go from one triangle to another here.
+            // This is why we don't do the side tests until we need them. (As a side effect, for the last triangle, we will do 2 of those tests twice)
+            if previous_triangle != triangle.neighbor12() {
+                let edge_12_test = test_point_edge_side((v1, v2), vertex);
+                if edge_12_test.is_on_left_side() {
+                    previous_triangle = current_triangle;
+                    current_triangle = triangle.neighbor12();
+                    continue;
+                }
             }
-            if is_vertex_pair_too_close(v2, vertex) {
-                return Some(VertexPlacement::OnVertex(triangle.v2()));
+            if previous_triangle != triangle.neighbor23() {
+                let edge_23_test = test_point_edge_side((v2, v3), vertex);
+                if edge_23_test.is_on_left_side() {
+                    previous_triangle = current_triangle;
+                    current_triangle = triangle.neighbor23();
+                    continue;
+                }
             }
-            if is_vertex_pair_too_close(v3, vertex) {
-                return Some(VertexPlacement::OnVertex(triangle.v3()));
-            }
-
-            // Check if the point is towards this triangle's neighbor
-            // Check previous triangle to avoid looping between two triangles
-            let edge_12_test = test_point_edge_side((v1, v2), vertex);
-            if edge_12_test.is_on_left_side() && previous_triangle != triangle.neighbor12() {
-                previous_triangle = current_triangle;
-                current_triangle = triangle.neighbor12();
-                continue;
-            }
-            let edge_23_test = test_point_edge_side((v2, v3), vertex);
-            if edge_23_test.is_on_left_side() && previous_triangle != triangle.neighbor23() {
-                previous_triangle = current_triangle;
-                current_triangle = triangle.neighbor23();
-                continue;
-            }
-            let edge_31_test = test_point_edge_side((v3, v1), vertex);
-            if edge_31_test.is_on_left_side() && previous_triangle != triangle.neighbor31() {
-                previous_triangle = current_triangle;
-                current_triangle = triangle.neighbor31();
-                continue;
+            if previous_triangle != triangle.neighbor31() {
+                let edge_31_test = test_point_edge_side((v3, v1), vertex);
+                if edge_31_test.is_on_left_side() {
+                    previous_triangle = current_triangle;
+                    current_triangle = triangle.neighbor31();
+                    continue;
+                }
             }
 
-            if edge_12_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12));
-            } else if edge_23_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23));
-            } else if edge_31_test.is_near_edge() {
-                return Some(VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31));
-            } else {
-                return Some(VertexPlacement::InsideTriangle(triangle_id));
+            // TODO Distance to edge
+            let edge_test = test_point_edge_side((v1, v2), vertex);
+            if edge_test.is_near_edge() {
+                return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12, triangle.edge12());
             }
+            let edge_test = test_point_edge_side((v2, v3), vertex);
+            if edge_test.is_near_edge() {
+                return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23, triangle.edge23());
+            }
+            let edge_test = test_point_edge_side((v3, v1), vertex);
+            if edge_test.is_near_edge() {
+                return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31, triangle.edge31());
+            }
+
+            return VertexPlacement::InsideTriangle(triangle_id);
         } else if infinite_verts.len() == 1 {
             let res = vertex_placement_1_infinite_vertex(
                 vertices,
                 vertex,
                 triangle,
                 triangle_id,
-                infinite_verts,
+                infinite_verts[0],
                 &mut previous_triangle,
                 &mut current_triangle,
             );
             match res {
-                Some(_) => return res,
+                Some(placement) => return placement,
                 None => continue,
             }
-        } else if infinite_verts.len() == 2 {
+        } else {
             let res = vertex_placement_2_infinite_vertex(
                 vertices,
                 vertex,
@@ -315,13 +319,13 @@ fn find_vertex_placement(
                 &mut current_triangle,
             );
             match res {
-                Some(_) => return res,
+                Some(placement) => return placement,
                 None => continue,
             }
         }
     }
 
-    None
+    VertexPlacement::NotFound
 }
 
 /// Splits the infinite quad into 4 triangles at p, the first inserted vertex.
@@ -421,25 +425,16 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         // Find an existing triangle which encloses P
         let vertex = vertices[vertex_id as usize];
-        let Some(vertex_place) = find_vertex_placement(
+        let vertex_place = find_vertex_placement(
             vertex,
             triangle_id,
             &triangles,
             &vertices,
             #[cfg(feature = "debug_context")]
             debug_context,
-        ) else {
-            return Err(TriangulationError::new(
-                format!(
-                    "Internal error, failed to find placement for vertex {:?}, step {}",
-                    vertex_id, _index
-                ),
-                #[cfg(feature = "debug_context")]
-                debug_context,
-            ));
-        };
-
+        );
         match vertex_place {
+            // Cases sorted by frequency
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
                 split_triangle_into_three_triangles(
                     &mut triangles,
@@ -450,22 +445,45 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                     debug_context,
                 )
             }
-            VertexPlacement::OnTriangleEdge(enclosing_triangle_id, edge_index) => {
+            VertexPlacement::OnTriangleEdge(enclosing_triangle_id, edge_index, edge) => {
+                // Merge close vertices. We do it here, once, to avoid doing it multiple times during the vertex placement research.
+                if is_finite(edge.from)
+                    && is_vertex_pair_too_close(vertices[edge.from as usize], vertex)
+                {
+                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                        vertex_merge_mapping[vertex_id as usize] = edge.from;
+                    }
+                    continue;
+                }
+                if is_finite(edge.to)
+                    && is_vertex_pair_too_close(vertices[edge.to as usize], vertex)
+                {
+                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                        vertex_merge_mapping[vertex_id as usize] = edge.to;
+                    }
+                    continue;
+                }
+
                 split_quad_into_four_triangles(
                     &mut triangles,
                     enclosing_triangle_id,
                     edge_index,
+                    edge,
                     vertex_id,
                     &mut quads_to_check,
                     #[cfg(feature = "debug_context")]
                     debug_context,
                 )
             }
-            VertexPlacement::OnVertex(existing_vertex_id) => {
-                if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                    vertex_merge_mapping[vertex_id as usize] = existing_vertex_id;
-                }
-                continue;
+            VertexPlacement::NotFound => {
+                return Err(TriangulationError::new(
+                    format!(
+                        "Internal error, failed to find placement for vertex {:?}, step {}",
+                        vertex_id, _index
+                    ),
+                    #[cfg(feature = "debug_context")]
+                    debug_context,
+                ));
             }
         };
 
@@ -687,6 +705,7 @@ pub(crate) fn split_quad_into_four_triangles(
     triangles: &mut Triangles,
     triangle_id: TriangleId,
     edge_index: TriangleEdgeIndex,
+    edge: Edge,
     vertex_id: VertexId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
@@ -704,29 +723,22 @@ pub(crate) fn split_quad_into_four_triangles(
     let t3 = triangles.next_id();
     let t4 = triangles.next_id() + 1;
 
-    let n1 = triangles
-        .get(t1)
-        .neighbor(next_clockwise_edge_index(edge_index));
-    let n2 = triangles
-        .get(t1)
-        .neighbor(next_counter_clockwise_edge_index(edge_index));
+    let t1_before = triangles.get(t1).clone();
+    let t2_before = triangles.get(t2).clone();
 
-    let edge = triangles.get(t1).edge(edge_index);
+    let n1 = t1_before.neighbor(next_clockwise_edge_index(edge_index));
+    let n2 = t1_before.neighbor(next_counter_clockwise_edge_index(edge_index));
 
     // t3
-    let t3_v3 = triangles.get(t1).v(opposite_vertex_index(edge_index));
+    let t3_v3 = t1_before.v(opposite_vertex_index(edge_index));
     triangles.create([vertex_id, edge.to, t3_v3], [t4.into(), n1, t1.into()]);
 
     // TODO Optim: Can do a tiny bit better
-    let t2_opposite_v_id = triangles.get(t2).get_opposite_vertex_id(&edge);
-    let t2_opposite_v_index = triangles.get(t2).vertex_index(t2_opposite_v_id);
+    let t2_opposite_v_id = t2_before.get_opposite_vertex_id(&edge);
+    let t2_opposite_v_index = t2_before.vertex_index(t2_opposite_v_id);
 
-    let n3 = triangles
-        .get(t2)
-        .neighbor(vertex_next_ccw_edge_index(t2_opposite_v_index));
-    let n4 = triangles
-        .get(t2)
-        .neighbor(vertex_next_cw_edge_index(t2_opposite_v_index));
+    let n3 = t2_before.neighbor(vertex_next_ccw_edge_index(t2_opposite_v_index));
+    let n4 = t2_before.neighbor(vertex_next_cw_edge_index(t2_opposite_v_index));
 
     // t4
     triangles.create(
@@ -770,7 +782,6 @@ pub(crate) fn split_quad_into_four_triangles(
         EventInfo::Split(vertex_id),
         &triangles,
         &[t1, t2, t3, t4],
-        // Neighbor data is out of date here and is not that interesting
         &[],
     );
 }
