@@ -1,7 +1,7 @@
 use crate::{
     triangulation::{is_vertex_pair_too_close, VertexPlacement},
     types::{
-        next_clockwise_vertex_index, next_counter_clockwise_vertex_index, opposite_edge_index,
+        next_ccw_vertex_index, next_cw_vertex_index, opposite_edge_index,
         opposite_vertex_index_from_edge, vertex_next_ccw_edge_index, vertex_next_cw_edge_index,
         EdgeVertices, Float, Neighbor, Quad, QuadVertexIndex, TriangleData, TriangleId,
         TriangleVertexIndex, Vertex, VertexId, ADJACENT_QUAD_VERTICES_INDEXES, EDGE_TO_VERTS,
@@ -239,7 +239,7 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
     // Check if the point is towards this triangle's neighbor
     // Check previous triangle to avoid looping between two triangles
     let infinite_vert_a_local_index =
-        infinite_vertex_local_quad_index(triangle.v(next_clockwise_vertex_index(finite_v_index)));
+        infinite_vertex_local_quad_index(triangle.v(next_cw_vertex_index(finite_v_index)));
     let edge_a = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_a_local_index);
     let edge_a_index = vertex_next_cw_edge_index(finite_v_index);
     let edge_a_test = test_point_edge_side(edge_a, vertex);
@@ -249,9 +249,8 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
         return None;
     }
 
-    let infinite_vert_b_local_index = infinite_vertex_local_quad_index(
-        triangle.v(next_counter_clockwise_vertex_index(finite_v_index)),
-    );
+    let infinite_vert_b_local_index =
+        infinite_vertex_local_quad_index(triangle.v(next_ccw_vertex_index(finite_v_index)));
     let edge_b = edge_from_semi_infinite_edge(finite_vertex, infinite_vert_b_local_index);
     let edge_b_index = vertex_next_ccw_edge_index(finite_v_index);
     let edge_b_test = test_point_edge_side(edge_b, vertex);

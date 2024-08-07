@@ -440,13 +440,11 @@ pub fn vertex_next_ccw_edge_index(vertex_index: TriangleVertexIndex) -> Triangle
 }
 
 #[inline]
-pub fn next_clockwise_vertex_index(vertex_index: TriangleVertexIndex) -> TriangleVertexIndex {
+pub fn next_cw_vertex_index(vertex_index: TriangleVertexIndex) -> TriangleVertexIndex {
     NEXT_CW_VERTEX_INDEX[vertex_index as usize]
 }
 #[inline]
-pub fn next_counter_clockwise_vertex_index(
-    vertex_index: TriangleVertexIndex,
-) -> TriangleVertexIndex {
+pub fn next_ccw_vertex_index(vertex_index: TriangleVertexIndex) -> TriangleVertexIndex {
     NEXT_CCW_VERTEX_INDEX[vertex_index as usize]
 }
 
