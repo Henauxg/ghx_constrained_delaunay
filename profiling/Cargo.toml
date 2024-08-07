@@ -21,11 +21,12 @@ path = "examples/dt_random_data.rs"
 ghx_constrained_delaunay = { path = "../", version = "0.2.0", features = [
     "parallel_filtering",
     "profile_traces",
+    # "more_profile_traces",
 ] }
 
 rand = "0.8"
 shapefile = "0.6.0"
-tracing = "0.1.40"
-tracing-tracy = { version = "0.11.0", features = ["flush-on-exit"] }
 
-tracing-subscriber = "0.3.18"
+tracing = "0.1"
+tracing-tracy = { version = "0.11.1", features = ["flush-on-exit"] }
+tracing-subscriber = "0.3"

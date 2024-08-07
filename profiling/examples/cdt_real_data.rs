@@ -8,9 +8,9 @@ use ghx_constrained_delaunay::{
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_tracy::TracyLayer;
 
-const SHP_FILE_NAME: &str = "Europe_coastline";
-// const SHP_FILE_NAME: &str = "ne_10m_coastline";
-// const SHP_FILE_NAME: &str = "ne_50m_coastline";
+const SHP_FILE_NAME: &str = "heavy/Europe_coastline";
+// const SHP_FILE_NAME: &str = "heavy/ne_10m_coastline";
+// const SHP_FILE_NAME: &str = "light/ne_50m_coastline";
 
 const SHP_FILES_PATH: &str = "../assets";
 
