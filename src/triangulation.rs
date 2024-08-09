@@ -762,11 +762,11 @@ pub(crate) fn split_quad_into_four_triangles(
 
     // Update neighbors and fill in quads_to_check directly for later. Way better for performances.
     if n1.exists() {
-        update_triangle_neighbor(n1.id, t1.into(), t3.into(), triangles);
+        update_triangle_neighbor(triangles.get_mut(n1.id), t1.into(), t3.into());
         quads_to_check.push((t3, n1.id));
     }
     if n4.exists() {
-        update_triangle_neighbor(n4.id, t2.into(), t4.into(), triangles);
+        update_triangle_neighbor(triangles.get_mut(n4.id), t2.into(), t4.into());
         quads_to_check.push((t4, n4.id));
     }
     if n2.exists() {
@@ -846,11 +846,11 @@ pub(crate) fn split_triangle_into_three_triangles(
 
     // Update neighbors and fill in quads_to_check directly for later. Way better for performances.
     if n4.exists() {
-        update_triangle_neighbor(n4.id, t1.into(), t3.into(), triangles);
+        update_triangle_neighbor(triangles.get_mut(n4.id), t1.into(), t3.into());
         quads_to_check.push((t3, n4.id));
     }
     if n5.exists() {
-        update_triangle_neighbor(n5.id, t1.into(), t2.into(), triangles);
+        update_triangle_neighbor(triangles.get_mut(n5.id), t1.into(), t2.into());
         quads_to_check.push((t2, n5.id));
     }
     if n6.exists() {
@@ -890,15 +890,13 @@ pub(crate) fn update_neighbor_neighbor(
 }
 
 pub(crate) fn update_triangle_neighbor(
-    triangle_id: TriangleId,
+    t: &mut TriangleData,
     old_neighbour_id: Neighbor,
     new_neighbour_id: Neighbor,
-    triangles: &mut Triangles,
 ) {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "update_triangle_neighbor").entered();
 
-    let t = triangles.get_mut(triangle_id);
     if t.neighbor12() == old_neighbour_id {
         *t.neighbor12_mut() = new_neighbour_id;
     } else if t.neighbor23() == old_neighbour_id {
@@ -966,11 +964,11 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
 /// ```text
 ///                q3
 ///         n3   /    \   n4
-///            /   To   \
+///            /   t2   \
 ///          /            \
 ///         q1 ---------- q2
 ///          \ 2        3 /
-///            \   Tf   /
+///            \   t1   /
 ///         n2   \ 1  /   n1
 ///                q4
 /// ```
@@ -986,7 +984,7 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
 ///        n3   / 3|2 \   n4
 ///           /    |    \
 ///         /      |      \
-///        q1 2  Tf|To   3 q2
+///       q1 2  t1 | t2  3 q2
 ///         \      |      /
 ///           \    |    /
 ///        n2   \ 1|1 /   n1
@@ -996,84 +994,87 @@ pub(crate) fn check_and_swap_quad_diagonal(
     triangles: &mut Triangles,
     vertices: &[Vertex],
     from_vertex_id: VertexId,
-    from_triangle_id: TriangleId,
-    opposite_triangle_id: TriangleId,
+    t1_id: TriangleId,
+    t2_id: TriangleId,
     quads_to_check: &mut Vec<(TriangleId, TriangleId)>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "check_and_swap_quad_diagonal").entered();
 
-    let opposite_triangle = triangles.get(opposite_triangle_id);
+    let t2 = triangles.get(t2_id);
 
     let (quad, n3, n4) =
-    // No need to check if neighbor exists, handled by the == check since `from_triangle_id` exists
-        if opposite_triangle.neighbor12().id == from_triangle_id {
+    // No need to check if neighbor exists, handled by the == check since `t1_id` exists
+        if t2.neighbor12().id == t1_id {
             (
                 Quad::new([
-                    opposite_triangle.v2(),
-                    opposite_triangle.v1(),
-                    opposite_triangle.v3(),
+                    t2.v2(),
+                    t2.v1(),
+                    t2.v3(),
                     from_vertex_id,
                 ]),
-                opposite_triangle.neighbor23(),
-                opposite_triangle.neighbor31(),
+                t2.neighbor23(),
+                t2.neighbor31(),
             )
-        } else if opposite_triangle.neighbor23().id == from_triangle_id {
+        } else if t2.neighbor23().id == t1_id {
             (
                 Quad::new([
-                    opposite_triangle.v3(),
-                    opposite_triangle.v2(),
-                    opposite_triangle.v1(),
+                    t2.v3(),
+                    t2.v2(),
+                    t2.v1(),
                     from_vertex_id,
                 ]),
-                opposite_triangle.neighbor31(),
-                opposite_triangle.neighbor12(),
+                t2.neighbor31(),
+                t2.neighbor12(),
             )
         } else {
             (
                 Quad::new([
-                    opposite_triangle.v1(),
-                    opposite_triangle.v3(),
-                    opposite_triangle.v2(),
+                    t2.v1(),
+                    t2.v3(),
+                    t2.v2(),
                     from_vertex_id,
                 ]),
-                opposite_triangle.neighbor12(),
-                opposite_triangle.neighbor23(),
+                t2.neighbor12(),
+                t2.neighbor23(),
             )
         };
 
     if should_swap_diagonals(&quad, vertices) {
-        let opposite_neighbor = opposite_triangle_id.into();
-        let from_neighbor = from_triangle_id.into();
+        let t2_as_neighbor = t2_id.into();
+        let t1_as_neighbor = t1_id.into();
 
-        let n1 = triangles.get(from_triangle_id).neighbor31();
+        let n1 = triangles.get(t1_id).neighbor31();
+        let n2 = triangles.get(t1_id).neighbor12();
 
-        triangles.get_mut(from_triangle_id).verts = [quad.v4(), quad.v1(), quad.v3()];
-        triangles.get_mut(opposite_triangle_id).verts = [quad.v4(), quad.v3(), quad.v2()];
-
-        triangles.get_mut(opposite_triangle_id).neighbors = [from_neighbor, n4, n1];
-        *triangles.get_mut(from_triangle_id).neighbor23_mut() = n3;
-        *triangles.get_mut(from_triangle_id).neighbor31_mut() = opposite_neighbor;
+        // Tmp
+        *triangles.get_mut(t1_id) = TriangleData {
+            verts: [quad.v4(), quad.v1(), quad.v3()],
+            neighbors: [n2, n3, t2_as_neighbor],
+        };
+        *triangles.get_mut(t2_id) = TriangleData {
+            verts: [quad.v4(), quad.v3(), quad.v2()],
+            neighbors: [t1_as_neighbor, n4, n1],
+        };
 
         // Update neighbors and place any new triangles pairs which are now opposite to `from_vertex_id` on the stack, to be checked
-        // TODO Optim: could organize it better to regroup n1 and n4 ?
         if n1.exists() {
-            update_triangle_neighbor(n1.id, from_neighbor, opposite_neighbor, triangles);
+            update_triangle_neighbor(triangles.get_mut(n1.id), t1_as_neighbor, t2_as_neighbor);
         }
         if n3.exists() {
-            update_triangle_neighbor(n3.id, opposite_neighbor, from_neighbor, triangles);
-            quads_to_check.push((from_triangle_id, n3.id));
+            update_triangle_neighbor(triangles.get_mut(n3.id), t2_as_neighbor, t1_as_neighbor);
+            quads_to_check.push((t1_id, n3.id));
         }
         if n4.exists() {
-            quads_to_check.push((opposite_triangle_id, n4.id));
+            quads_to_check.push((t2_id, n4.id));
         }
 
         #[cfg(feature = "debug_context")]
         debug_context.push_snapshot(
             Phase::DelaunayRestoreSwapQuadDiagonals,
             &triangles,
-            &[from_triangle_id, opposite_triangle_id],
+            &[t1_id, t2_id],
             &[n3, n1],
         );
     }
