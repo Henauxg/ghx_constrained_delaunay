@@ -18,7 +18,7 @@ This benchmark bulk loads mutliple real data set (shapefiles):
 - **ne_10m_coastline**: 410957 vertices, 406824 constraint edges
 - **Europe_coastline**: 2912812 vertices, 2837094 constraint edges
 
-Run it with `cargo run --release --example real_data_benchmark` in the `benchmarks` directory.
+Run it with `cargo run --release --example cdt_benchmark` in the `benchmarks` directory.
 
 ### Results
 
