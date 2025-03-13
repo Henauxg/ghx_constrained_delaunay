@@ -945,9 +945,10 @@ fn restore_delaunay_triangulation_constrained(
 }
 
 /// This is almost the exact copy of [triangulation::should_swap_diagonals] but this needs to also check q4 for infinite.
-/// TODO Optimization: If we could ensure that we build all [EdgeData] with a finite q4 we could forego this chekck here too and use the same implem (and optimize a check away by the same occasion)
 #[inline(always)]
-pub fn constrained_should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
+pub(crate) fn constrained_should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
+    // TODO Optimization: If we could ensure that we build all EdgeData with a finite q4 we could forego this check here too and use the same implem (and optimize a check away by the same occasion)
+
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 
