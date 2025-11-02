@@ -12,26 +12,22 @@ pub trait Vertex2d: Clone + Copy + Sized {
 
 impl Vertex2d for Vec2 {
     #[inline(always)]
-    #[must_use]
     fn x(self) -> Float {
         self.x as Float
     }
 
     #[inline(always)]
-    #[must_use]
     fn y(self) -> Float {
         self.y as Float
     }
 }
 impl Vertex2d for DVec2 {
     #[inline(always)]
-    #[must_use]
     fn x(self) -> Float {
         self.x as Float
     }
 
     #[inline(always)]
-    #[must_use]
     fn y(self) -> Float {
         self.y as Float
     }
@@ -47,38 +43,32 @@ pub trait Vertex3d:
 }
 impl Vertex3d for Vec3 {
     #[inline(always)]
-    #[must_use]
     fn normalize(self) -> Self {
         self.normalize()
     }
 
     #[inline(always)]
-    #[must_use]
     fn cross(self, rhs: Self) -> Self {
         self.cross(rhs)
     }
 
     #[inline(always)]
-    #[must_use]
     fn dot(self, rhs: Self) -> Float {
         self.dot(rhs) as Float
     }
 }
 impl Vertex3d for DVec3 {
     #[inline(always)]
-    #[must_use]
     fn normalize(self) -> Self {
         self.normalize()
     }
 
     #[inline(always)]
-    #[must_use]
     fn cross(self, rhs: Self) -> Self {
         self.cross(rhs)
     }
 
     #[inline(always)]
-    #[must_use]
     fn dot(self, rhs: Self) -> Float {
         self.dot(rhs) as Float
     }
