@@ -15,12 +15,12 @@ use bevy::{
     hierarchy::DespawnRecursiveExt,
     input::{common_conditions::input_just_pressed, keyboard::KeyCode, ButtonInput},
     log::info,
+    math::{Vec2, Vec3},
     pbr::{MaterialPlugin, StandardMaterial},
     prelude::{default, AlphaMode, Component, Event, Resource},
     utils::HashSet,
 };
 use bevy_mod_billboard::plugin::BillboardPlugin;
-use ghx_constrained_delaunay::glam::{Vec2, Vec3};
 use ghx_constrained_delaunay::{
     debug::{DebugContext, DebugSnapshot},
     types::{Edge, TriangleId},
@@ -324,7 +324,7 @@ pub fn update_triangles_debug_view(
         _ => (),
     }
 
-    // Spawn label entites if enabled
+    // Spawn label entities if enabled
     match view_config.label_mode {
         LabelMode::All => {
             for (triangle_id, triangle_data) in snapshot.triangles.buffer().iter().enumerate() {

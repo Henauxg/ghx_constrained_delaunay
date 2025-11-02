@@ -1,12 +1,13 @@
 use bevy::{
     ecs::system::Commands,
     log::error,
+    math::Vec3,
     prelude::default,
     text::{Text, TextSection, TextStyle},
     transform::components::Transform,
 };
 use bevy_mod_billboard::BillboardTextBundle;
-use ghx_constrained_delaunay::{glam::Vec3, infinite::collect_infinite_triangle_vertices};
+use ghx_constrained_delaunay::{infinite::collect_infinite_triangle_vertices};
 use ghx_constrained_delaunay::{
     infinite::infinite_vertex_local_quad_index,
     types::{opposite_vertex_index_from_edge, TriangleData, TriangleId, VERT_1, VERT_2},
