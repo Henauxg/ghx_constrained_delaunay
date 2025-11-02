@@ -29,7 +29,6 @@ ghx_constrained_delaunay = { path = "../", version = "0.2.0", features = [
     # "progress_log",
 ] }
 
-bevy_ghx_utils = { version = "0.4.0", default-features = true }
 bevy = { version = "0.14", default-features = false, features = [
     # Default features:
 
