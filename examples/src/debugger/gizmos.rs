@@ -1,14 +1,14 @@
 use bevy::{
-    color::{palettes::css::RED, Color},
+    color::{Color, palettes::css::RED},
     ecs::system::Res,
     gizmos::gizmos::Gizmos,
-    math::{Dir3, Vec3},
+    math::{Dir3, Quat, Vec3},
 };
 use ghx_constrained_delaunay::{
     debug::EventInfo,
     types::{opposite_vertex_index_from_edge, TriangleData, TriangleId},
 };
-use ghx_constrained_delaunay::{glam::Quat, infinite::collect_infinite_triangle_vertices};
+use ghx_constrained_delaunay::{infinite::collect_infinite_triangle_vertices};
 
 use crate::{
     infinite::{
