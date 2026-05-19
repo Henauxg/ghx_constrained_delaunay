@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 
 use crate::infinite::{
     collect_infinite_quad_vertices, edge_from_semi_infinite_edge, infinite_vertex_local_quad_index,
@@ -246,6 +246,48 @@ fn cdt_filter_triangles(
     indices
 }
 
+fn rebuild_vertex_to_triangle(triangles: &Triangles, vertex_to_triangle: &mut [TriangleId]) {
+    for (triangle_id, triangle) in triangles.buffer().iter().enumerate() {
+        for vertex in triangle.verts {
+            if is_finite(vertex) {
+                vertex_to_triangle[vertex as usize] = triangle_id as TriangleId;
+            }
+        }
+    }
+}
+
+fn rebuild_triangle_neighbors(triangles: &mut Triangles) {
+    let mut edge_to_triangle = HashMap::with_capacity(triangles.count() * 3);
+    let mut neighbor_pairs = Vec::new();
+
+    for triangle in triangles.buffer.iter_mut() {
+        triangle.neighbors = [Neighbor::NONE; 3];
+    }
+
+    for (triangle_id, triangle) in triangles.buffer().iter().enumerate() {
+        for (edge_index, edge) in triangle.edges().into_iter().enumerate() {
+            let edge_key = if edge.from < edge.to {
+                (edge.from, edge.to)
+            } else {
+                (edge.to, edge.from)
+            };
+
+            if let Some((other_triangle_id, other_edge_index)) =
+                edge_to_triangle.insert(edge_key, (triangle_id, edge_index))
+            {
+                neighbor_pairs.push((triangle_id, edge_index, other_triangle_id, other_edge_index));
+            }
+        }
+    }
+
+    for (triangle_id, edge_index, other_triangle_id, other_edge_index) in neighbor_pairs {
+        triangles.buffer[triangle_id].neighbors[edge_index] =
+            Neighbor::new(other_triangle_id as TriangleId);
+        triangles.buffer[other_triangle_id].neighbors[other_edge_index] =
+            Neighbor::new(triangle_id as TriangleId);
+    }
+}
+
 fn apply_constraints(
     vertices: &[Vertex],
     triangles: &mut Triangles,
@@ -277,6 +319,9 @@ fn apply_constraints(
     let mut new_diagonals_created = VecDeque::new();
     // Shared alloc for `restore_delaunay_triangulation_constrained`
     let mut swaps_history = HashSet::new();
+
+    rebuild_triangle_neighbors(triangles);
+    rebuild_vertex_to_triangle(triangles, &mut vertex_to_triangle);
 
     for (_edge_index, constrained_edge) in constrained_edges.iter().enumerate() {
         #[cfg(feature = "debug_context")]
@@ -439,8 +484,8 @@ fn loop_around_vertex_and_search_intersection(
             #[cfg(feature = "debug_context")]
             debug_context,
         );
+        let neighbor_triangle = triangle.neighbor(edge_index);
         if intersection == EdgesIntersectionResult::Crossing {
-            let neighbor_triangle = triangle.neighbor(edge_index);
             if neighbor_triangle.exists() {
                 return Ok(EdgeFirstIntersection::Intersection(EdgeData {
                     from_triangle_id: triangle_id,
@@ -454,6 +499,19 @@ fn loop_around_vertex_and_search_intersection(
                     debug_context,
                 ));
             }
+        }
+
+        if neighbor_triangle.exists()
+            && triangles
+                .get(neighbor_triangle.id)
+                .verts
+                .contains(&constrained_edge.to)
+        {
+            return Ok(EdgeFirstIntersection::Intersection(EdgeData {
+                from_triangle_id: triangle_id,
+                to_triangle_id: neighbor_triangle.id,
+                edge,
+            }));
         }
 
         let neighbor = triangle.neighbor(next_edge_index(vert_index));
@@ -831,6 +889,20 @@ fn quad_diagonals_intersection(vertices: &[Vertex], quad: &Quad) -> EdgesInterse
     }
 }
 
+fn quad_has_constrained_diagonal(
+    vertices: &[Vertex],
+    quad: &Quad,
+    constrained_edge_vertices: &EdgeVertices,
+) -> bool {
+    if !is_finite(quad.v3()) || !is_finite(quad.v4()) {
+        return false;
+    }
+
+    let diagonal = (vertices[quad.v3() as usize], vertices[quad.v4() as usize]);
+    (diagonal.0 == constrained_edge_vertices.0 && diagonal.1 == constrained_edge_vertices.1)
+        || (diagonal.0 == constrained_edge_vertices.1 && diagonal.1 == constrained_edge_vertices.0)
+}
+
 fn remove_crossed_edges(
     triangles: &mut Triangles,
     vertices: &[Vertex],
@@ -857,11 +929,15 @@ fn remove_crossed_edges(
         let quad = intersection.to_quad(triangles);
         // If the quad is not convex (diagonals do not cross) or if an edge tip lie on the other edge,
         // we skip this edge and put it on the stack to re-process it later
-        if quad_diagonals_intersection(vertices, &quad) != EdgesIntersectionResult::Crossing {
+        let should_swap = quad_diagonals_intersection(vertices, &quad)
+            == EdgesIntersectionResult::Crossing
+            || quad_has_constrained_diagonal(vertices, &quad, constrained_edge_vertices);
+
+        if !should_swap {
             intersections.push_back(intersection);
             non_convex_counter += 1;
         }
-        // Swap the diagonal of this strictly convex quadrilateral if the two diagonals cross normaly
+        // Swap the diagonal if the two diagonals cross normally, or if the constrained edge is the alternate diagonal of a near-degenerate quad.
         else {
             non_convex_counter = 0;
             swap_quad_diagonal(
