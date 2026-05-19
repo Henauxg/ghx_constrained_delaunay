@@ -195,4 +195,45 @@ mod tests {
             triangulation.triangles
         );
     }
+
+    #[test]
+    fn constrained_delaunay_near_colinear_edges() {
+        let vertices = vec![
+            Vertex::new(-0.0782132158260142, 0.0),
+            Vertex::new(-0.04346227742441594, 0.10349781560157462),
+            Vertex::new(0.0388118494777121, 0.2521774205252516),
+            Vertex::new(0.10736492278480181, 0.3364695064078743),
+            Vertex::new(-0.03490517918394376, 0.12472698060408025),
+            Vertex::new(0.021085609120375826, 0.22442779757191253),
+            Vertex::new(0.12874905992983615, 0.3600245316864931),
+            Vertex::new(0.1901120866083647, 0.4212073366884178),
+            Vertex::new(-0.1901120866083661, 0.0),
+            Vertex::new(-0.1901120866083661, 2.0),
+            Vertex::new(0.19011208660836504, 0.0),
+            Vertex::new(0.19011208660836504, 2.0),
+        ];
+
+        let edges = vec![
+            Edge::new(11, 7),
+            Edge::new(8, 9),
+            Edge::new(7, 10),
+            Edge::new(9, 11),
+            Edge::new(4, 1),
+            Edge::new(1, 0),
+            Edge::new(0, 8),
+            Edge::new(6, 3),
+            Edge::new(2, 5),
+            Edge::new(3, 2),
+            Edge::new(5, 4),
+            Edge::new(6, 7),
+            Edge::new(10, 0),
+        ];
+
+        constrained_triangulation_from_2d_vertices(
+            &vertices,
+            &edges,
+            ConstrainedTriangulationConfiguration::default(),
+        )
+        .expect("Triangulation should succeed for near-colinear constrained edges");
+    }
 }
