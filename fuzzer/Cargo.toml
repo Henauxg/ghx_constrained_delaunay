@@ -10,3 +10,4 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 ghx_constrained_delaunay = { path = "../", version = "0.2.0" }
 rand = "0.8"
+robust = "1.1"

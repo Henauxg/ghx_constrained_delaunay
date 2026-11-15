@@ -89,6 +89,30 @@ mod tests {
     }
 
     #[test]
+    fn delaunay_merges_close_vertices() {
+        let vertices = vec![
+            Vertex::new(0., 0.),
+            Vertex::new(0., 1.),
+            Vertex::new(1., 1.),
+            Vertex::new(1., 0.),
+            Vertex::new(0.5, 0.5),
+            // Too close to (0.5, 0.5), and not on a horizontal or vertical line through it
+            Vertex::new(0.5 + Float::EPSILON / 2., 0.5 + Float::EPSILON / 2.),
+        ];
+
+        let triangulation =
+            triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
+                .expect("Triangulation should succeed");
+
+        assert_eq!(4, triangulation.triangles.len());
+        let uses = |v| triangulation.triangles.iter().any(|t| t.contains(&v));
+        assert!(
+            uses(4) != uses(5),
+            "Exactly one of the two close vertices is kept"
+        );
+    }
+
+    #[test]
     fn constrained_delaunay_level_1() {
         // 1-------------2
         // |          /  |
