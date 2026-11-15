@@ -13,7 +13,7 @@ use crate::triangulation::{
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
-    VERT_1, VERT_2,
+    EDGE_12, EDGE_23, EDGE_31, VERT_1, VERT_2,
 };
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
@@ -143,7 +143,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
     debug_context.push_snapshot(Phase::BeforeConstraints, &triangles, &[], &[]);
 
     // TODO Debug: consider adding debug support to this function
-    let constrained_edges_set = apply_constraints(
+    let constrained_edges = apply_constraints(
         &normalized_vertices,
         &mut triangles,
         constrained_edges,
@@ -157,7 +157,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
 
     let vert_indices = cdt_filter_triangles(
         &triangles,
-        constrained_edges_set,
+        &constrained_edges,
         config.triangle_orientation,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
@@ -170,11 +170,31 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
     })
 }
 
+/// The constrained edges of the triangulation, stored as one bit per triangle edge. An edge is marked in the
+/// triangle where it has the direction of the constrained edge.
+struct ConstrainedEdges(Vec<u8>);
+
+impl ConstrainedEdges {
+    fn new(triangles_count: usize) -> Self {
+        Self(vec![0; triangles_count])
+    }
+
+    #[inline]
+    fn insert(&mut self, triangle_id: TriangleId, edge_index: TriangleEdgeIndex) {
+        self.0[triangle_id as usize] |= 1 << edge_index;
+    }
+
+    #[inline]
+    fn contains(&self, triangle_id: TriangleId, edge_index: TriangleEdgeIndex) -> bool {
+        self.0[triangle_id as usize] & (1 << edge_index) != 0
+    }
+}
+
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
 /// the container triangle.
 fn cdt_filter_triangles(
     triangles: &Triangles,
-    constrained_edges: Vec<u8>,
+    constrained_edges: &ConstrainedEdges,
     orientation: TriangleOrientation,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
@@ -196,8 +216,8 @@ fn cdt_filter_triangles(
             continue;
         }
 
-        let flags = constrained_edges[index];
-        let triangle_edge_is_constrained = [flags & 1 != 0, flags & 2 != 0, flags & 4 != 0];
+        let triangle_edge_is_constrained =
+            [EDGE_12, EDGE_23, EDGE_31].map(|e| constrained_edges.contains(index as TriangleId, e));
 
         // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
         if triangle_edge_is_constrained.contains(&true) {
@@ -234,11 +254,10 @@ fn cdt_filter_triangles(
 
                     visited_triangles[triangle_id as usize] = true;
 
-                    let flags = constrained_edges[triangle_id as usize];
-                    for edge_index in 0..3 {
-                        if flags & (1 << edge_index) == 0 {
+                    for edge_index in [EDGE_12, EDGE_23, EDGE_31] {
+                        if !constrained_edges.contains(triangle_id, edge_index) {
                             // TODO Clean: Would it be quicker to also check for visited before adding to the stack
-                            triangles_to_explore.push(t.neighbors[edge_index]);
+                            triangles_to_explore.push(t.neighbor(edge_index));
                         }
                     }
                 }
@@ -258,7 +277,7 @@ fn apply_constraints(
     constrained_edges: &[Edge],
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Result<Vec<u8>, TriangulationError> {
+) -> Result<ConstrainedEdges, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "apply_constraints").entered();
 
@@ -359,8 +378,7 @@ fn apply_constraints(
             debug_context,
         );
     }
-    // One bit per triangle edge, set when the edge is constrained in this direction
-    let mut constrained_edges_flags = vec![0u8; triangles.count()];
+    let mut marked_edges = ConstrainedEdges::new(triangles.count());
     for constrained_edge in constrained_edges {
         let constrained_edge = Edge::new(
             vertex_merge_mapping[constrained_edge.from as usize],
@@ -374,10 +392,10 @@ fn apply_constraints(
             constrained_edge,
             vertex_to_triangle[constrained_edge.from as usize],
         ) {
-            constrained_edges_flags[triangle_id as usize] |= 1 << edge_index;
+            marked_edges.insert(triangle_id, edge_index);
         }
     }
-    Ok(constrained_edges_flags)
+    Ok(marked_edges)
 }
 
 #[derive(Debug)]
