@@ -64,6 +64,12 @@ The `fuzzer` crate runs the CDT on random inputs with vertices a few ULPs off th
 cargo run --release -p fuzzer -- [runs] [first_seed]
 ```
 
+To turn a failing seed into a test, print its input as Rust code with:
+
+```
+cargo run --release -p fuzzer -- --seed <seed>
+```
+
 # Implementation
 
 Implementation is based on *"A fast algorithm for generating constrained delaunay triangulations"* by S. W. Sloan (1993). It was chosen because the path from DT (*Delaunay Triangulation*) to CDT (*Constrained Delaunay Triangulation*) seemed quite straight-forward. However some modifications were made to the original algorithm.
@@ -86,7 +92,8 @@ A few definitions, used to clarify the explanations:
 ### 1- Duplicate and colinear vertices
 
 - To avoid some floating point accuracy issues, duplicate vertices or ones *really* too close to one another are merged together (only one will appear in the final triangulation)
-- In order to avoid creating flat triangles during the triangulation, when inserting a vertex in the triangulation, if it lies on the edge of an already existing triangle (or really really close to it), instead of splitting the enclosing triangle in 3, this existing triangle gets split in 2, and his neighbor (sharing the edge) gets split in 2 too. Then the steps of delaunay restoration are executed on the 4 created quads (instead of 3 in a "normal" case).
+- In order to avoid creating flat triangles during the triangulation, when inserting a vertex in the triangulation, if it lies exactly on the edge of an already existing triangle, instead of splitting the enclosing triangle in 3, this existing triangle gets split in 2, and his neighbor (sharing the edge) gets split in 2 too. Then the steps of delaunay restoration are executed on the 4 created quads (instead of 3 in a "normal" case).
+- The orientation and in-circle tests use exact predicates (Shewchuk's adaptive predicates, from the [robust](https://crates.io/crates/robust) crate), so their sign is always correct, even for nearly colinear vertices. Inside the triangulation, coordinates stay in a known range, so the orientation test first compares against a fixed error bound, and only computes a bound for the specific vertices when the triangle is very small.
 
 ### 2- Infinite "super" vertices
 
