@@ -196,7 +196,10 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return None;
     }
 
-    if edge_ab_test.is_near_edge() {
+    // A semi-infinite triangle can be almost flat. A point can then be near the line through a and b without being between them.
+    if edge_ab_test.is_near_edge()
+        && projects_inside_segment(finite_vertex_a, finite_vertex_b, vertex)
+    {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_ab_index,
@@ -217,6 +220,13 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     } else {
         return Some(VertexPlacement::InsideTriangle(triangle_id));
     }
+}
+
+#[inline]
+fn projects_inside_segment(a: Vertex, b: Vertex, p: Vertex) -> bool {
+    let ab = b - a;
+    let t = (p - a).dot(ab);
+    t > 0. && t < ab.length_squared()
 }
 
 #[cold]
