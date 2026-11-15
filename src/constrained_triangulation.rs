@@ -263,7 +263,6 @@ fn cdt_filter_triangles(
 
                     for edge_index in TRIANGLE_EDGES {
                         if !constrained_edges.contains(triangle_id, edge_index) {
-                            // TODO Clean: Would it be quicker to also check for visited before adding to the stack
                             triangles_to_explore.push(t.neighbor(edge_index));
                         }
                     }
