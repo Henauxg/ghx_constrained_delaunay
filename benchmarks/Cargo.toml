@@ -15,7 +15,7 @@ tiny-skia = "0.11.4"
 cdt = "0.1"
 delaunator = "1.1.0"
 spade = "2.15.1"
-ghx_constrained_delaunay = { path = "../", version = "0.2.0", features = [
+ghx_constrained_delaunay = { path = "../", version = "0.3.0", features = [
     "parallel_filtering",
 ] }
 

@@ -57,7 +57,10 @@ pub fn update_pan_orbit_camera(
     input_mouse: Res<ButtonInput<MouseButton>>,
     mut query: Query<(&mut PanOrbitCamera, &mut Transform, &Projection)>,
 ) {
-    let window = window.single();
+    // The window no longer exists while the app closes
+    let Ok(window) = window.get_single() else {
+        return;
+    };
 
     // change input mapping for orbit and panning here
     let orbit_button = MouseButton::Right;
