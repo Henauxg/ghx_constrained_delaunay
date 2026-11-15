@@ -26,13 +26,145 @@ pub use triangulation::{
 #[cfg(test)]
 mod tests {
 
+    use glam::DVec3;
+
     use crate::{
         constrained_triangulation::ConstrainedTriangulationConfiguration,
         constrained_triangulation_from_2d_vertices,
-        triangulation::TriangulationConfiguration,
-        triangulation_from_2d_vertices,
-        types::{Edge, Float, Vertex},
+        triangulation::{TriangleOrientation, TriangulationConfiguration},
+        triangulation_from_2d_vertices, triangulation_from_3d_planar_vertices,
+        types::{Edge, Float, Vertex, VertexId},
     };
+
+    fn signed_area(vertices: &[Vertex], t: &[VertexId; 3]) -> Float {
+        let (a, b, c) = (
+            vertices[t[0] as usize],
+            vertices[t[1] as usize],
+            vertices[t[2] as usize],
+        );
+        0.5 * (b - a).perp_dot(c - a)
+    }
+
+    fn reversed(triangles: &[[VertexId; 3]]) -> Vec<[VertexId; 3]> {
+        triangles.iter().map(|t| [t[0], t[2], t[1]]).collect()
+    }
+
+    fn dt_config(triangle_orientation: TriangleOrientation) -> TriangulationConfiguration {
+        TriangulationConfiguration {
+            triangle_orientation,
+            // Also covers the parallel filtering path
+            #[cfg(feature = "parallel_filtering")]
+            filter_parallel_tri_count_threshold: 0,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn delaunay_counter_clockwise() {
+        let vertices: Vec<Vertex> = (0..100)
+            .map(|i| {
+                Vertex::new(
+                    (i % 10) as Float,
+                    (i / 10) as Float + 0.01 * (i % 7) as Float,
+                )
+            })
+            .collect();
+
+        let cw =
+            triangulation_from_2d_vertices(&vertices, dt_config(TriangleOrientation::Clockwise))
+                .expect("Triangulation should succeed");
+        let ccw = triangulation_from_2d_vertices(
+            &vertices,
+            dt_config(TriangleOrientation::CounterClockwise),
+        )
+        .expect("Triangulation should succeed");
+
+        assert!(cw.triangles.iter().all(|t| signed_area(&vertices, t) < 0.));
+        assert!(ccw.triangles.iter().all(|t| signed_area(&vertices, t) > 0.));
+        assert_eq!(reversed(&cw.triangles), ccw.triangles);
+    }
+
+    #[test]
+    fn constrained_delaunay_counter_clockwise() {
+        let vertices = vec![
+            Vertex::new(0., 0.),
+            Vertex::new(0., 5.),
+            Vertex::new(5., 5.),
+            Vertex::new(5., 0.),
+            Vertex::new(4., 1.),
+            Vertex::new(4., 4.),
+            Vertex::new(1., 4.),
+            Vertex::new(1., 1.),
+        ];
+        let constrained_edges = vec![
+            Edge::new(0, 1),
+            Edge::new(1, 2),
+            Edge::new(2, 3),
+            Edge::new(3, 0),
+            Edge::new(4, 5),
+            Edge::new(5, 6),
+            Edge::new(6, 7),
+            Edge::new(7, 4),
+        ];
+        let triangulate = |triangle_orientation| {
+            constrained_triangulation_from_2d_vertices(
+                &vertices,
+                &constrained_edges,
+                ConstrainedTriangulationConfiguration {
+                    triangle_orientation,
+                    ..Default::default()
+                },
+            )
+            .expect("Triangulation should succeed")
+        };
+
+        let cw = triangulate(TriangleOrientation::Clockwise);
+        let ccw = triangulate(TriangleOrientation::CounterClockwise);
+
+        assert_eq!(8, ccw.triangles.len());
+        assert!(ccw.triangles.iter().all(|t| signed_area(&vertices, t) > 0.));
+        assert_eq!(reversed(&cw.triangles), ccw.triangles);
+    }
+
+    #[test]
+    fn orientation_3d_is_seen_from_the_normal_side() {
+        let vertices = [
+            DVec3::new(0., 0., 0.),
+            DVec3::new(0., 5., 0.),
+            DVec3::new(5., 5., 0.),
+            DVec3::new(5., 0., 0.),
+            DVec3::new(2., 3., 0.),
+        ];
+        for normal in [DVec3::Z, DVec3::NEG_Z] {
+            for orientation in [
+                TriangleOrientation::Clockwise,
+                TriangleOrientation::CounterClockwise,
+            ] {
+                let triangulation = triangulation_from_3d_planar_vertices(
+                    &vertices,
+                    normal,
+                    dt_config(orientation),
+                )
+                .expect("Triangulation should succeed");
+
+                assert_eq!(4, triangulation.triangles.len());
+                for t in &triangulation.triangles {
+                    let (a, b, c) = (
+                        vertices[t[0] as usize],
+                        vertices[t[1] as usize],
+                        vertices[t[2] as usize],
+                    );
+                    let side = (b - a).cross(c - a).dot(normal);
+                    match orientation {
+                        TriangleOrientation::Clockwise => assert!(side < 0., "{normal} {t:?}"),
+                        TriangleOrientation::CounterClockwise => {
+                            assert!(side > 0., "{normal} {t:?}")
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn delaunay_level_1() {
