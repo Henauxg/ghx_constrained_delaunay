@@ -1,7 +1,9 @@
 //! Runs the CDT on random inputs where vertices sit a few ULPs off the border of a box,
 //! and checks each output.
 //!
-//! Usage: `cargo run --release -p fuzzer -- [runs] [first_seed]`
+//! Usage:
+//! - `cargo run --release -p fuzzer -- [runs] [first_seed]` prints each failing seed.
+//! - `cargo run --release -p fuzzer -- --seed <seed>` prints the input of one seed as Rust code, to paste into a test.
 
 use ghx_constrained_delaunay::{
     constrained_triangulation::ConstrainedTriangulationConfiguration,
@@ -25,24 +27,53 @@ enum Outcome {
 }
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    let runs: u64 = args.next().map_or(10_000, |a| a.parse().expect("runs"));
-    let first_seed: u64 = args.next().map_or(0, |a| a.parse().expect("first_seed"));
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--seed") {
+        let seed = args
+            .get(1)
+            .and_then(|a| a.parse().ok())
+            .expect("--seed <seed>");
+        print_input(seed);
+        return;
+    }
+    let runs: u64 = args.first().map_or(10_000, |a| a.parse().expect("runs"));
+    let first_seed: u64 = args.get(1).map_or(0, |a| a.parse().expect("first_seed"));
 
     let mut failures = 0;
     for seed in first_seed..first_seed + runs {
-        let input = generate(seed);
-        let message = match check(&input) {
-            Outcome::Ok => continue,
-            Outcome::Error(msg) => format!("error: {msg}"),
-            Outcome::MissingEdge(edge) => format!("missing constrained edge {edge:?}"),
-            Outcome::InvertedTriangle(t) => format!("inverted triangle {t:?}"),
-            Outcome::WrongArea { area, expected } => format!("area {area}, expected {expected}"),
-        };
-        failures += 1;
-        println!("seed {seed}: {message}");
+        if let Some(message) = describe(check(&generate(seed))) {
+            failures += 1;
+            println!("seed {seed}: {message}");
+        }
     }
     println!("{failures} failures out of {runs} runs");
+}
+
+/// Returns `None` if the outcome is a success
+fn describe(outcome: Outcome) -> Option<String> {
+    Some(match outcome {
+        Outcome::Ok => return None,
+        Outcome::Error(msg) => format!("error: {msg}"),
+        Outcome::MissingEdge(edge) => format!("missing constrained edge {edge:?}"),
+        Outcome::InvertedTriangle(t) => format!("inverted triangle {t:?}"),
+        Outcome::WrongArea { area, expected } => format!("area {area}, expected {expected}"),
+    })
+}
+
+fn print_input(seed: u64) {
+    let input = generate(seed);
+    let outcome = describe(check(&input)).unwrap_or_else(|| "ok".to_string());
+    println!("// Fuzzer seed {seed}: {outcome}");
+    println!("let vertices = vec![");
+    for v in &input.vertices {
+        println!("    Vertex::new({:?}, {:?}),", v.x, v.y);
+    }
+    println!("];");
+    println!("let edges = vec![");
+    for e in &input.edges {
+        println!("    Edge::new({}, {}),", e.from, e.to);
+    }
+    println!("];");
 }
 
 /// A box whose border is the constrained CW loop. Extra vertices on each side are moved
@@ -100,6 +131,15 @@ fn generate(seed: u64) -> Input {
     }
 }
 
+// `Float` is `f32` with the `f32` feature.
+#[allow(clippy::unnecessary_cast)]
+fn coord(v: Vertex) -> robust::Coord<f64> {
+    robust::Coord {
+        x: v.x as f64,
+        y: v.y as f64,
+    }
+}
+
 fn check(input: &Input) -> Outcome {
     let triangulation = match constrained_triangulation_from_2d_vertices(
         &input.vertices,
@@ -124,7 +164,7 @@ fn check(input: &Input) -> Outcome {
     for t in &triangulation.triangles {
         let [a, b, c] = t.map(|v| input.vertices[v as usize]);
         let signed_area = 0.5 * (b - a).perp_dot(c - a);
-        if signed_area > 0. {
+        if robust::orient2d(coord(a), coord(b), coord(c)) > 0. {
             return Outcome::InvertedTriangle(*t);
         }
         area -= signed_area;
