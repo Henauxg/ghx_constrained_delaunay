@@ -22,6 +22,7 @@
 - improved: in CDT, the final filtering reads constrained edges from a flag per triangle edge instead of a hash set. Together with the previous change, CDT is 8 to 27% faster on the coastline benchmarks.
 - improved: in CDT, constrained edges are marked while the constraints are applied, instead of in a second pass over all of them. About 8% faster on the coastline benchmarks.
 - improved: vertices are inserted in BRIO order (random rounds of doubling size, each following a Hilbert curve) instead of in bins. The Delaunay triangulation is 5 to 20% faster on the benchmarks, with no setting to tune.
+- improved: from 50,000 vertices, the vertices are inserted from a copy sorted in insertion order, so that the vertices of nearby triangles are close in memory. On inputs whose vertices come in random order, DT is about 30% faster and CDT 12 to 20% faster. Inputs that are already in spatial order, such as coastlines, are unchanged.
 
 ## Version 0.2.0 (2025-03-13)
 

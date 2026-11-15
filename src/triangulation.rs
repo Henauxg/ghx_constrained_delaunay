@@ -388,6 +388,9 @@ pub(crate) fn is_vertex_pair_too_close(a: Vertex, b: Vertex) -> bool {
     dist.x.abs() < Float::EPSILON && dist.y.abs() < Float::EPSILON
 }
 
+/// Below this, the vertices fit in the CPU caches, and copying them in insertion order costs more than it saves
+const SORTED_COPY_MIN_VERTEX_COUNT: usize = 50_000;
+
 fn verts_count_to_restoration_stack_initial_capacity(verts_count: usize) -> usize {
     if verts_count < 9_000 {
         16
@@ -409,12 +412,45 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "wrap_and_triangulate_2d_normalized_vertices").entered();
 
-    let ordered_vertices = insertion_order(vertices);
+    triangulate_in_insertion_order(
+        vertices,
+        vertex_merge_mapping,
+        vertices.len() >= SORTED_COPY_MIN_VERTEX_COUNT,
+        #[cfg(feature = "debug_context")]
+        debug_context,
+    )
+}
 
-    let mut vertices_iterator = ordered_vertices.iter().enumerate();
+/// With `use_sorted_copy`, the triangulation is built on a copy of the vertices in insertion order, so that the
+/// vertices of nearby triangles are also close in memory. Its vertex ids are then positions in this copy, until
+/// `rename_vertices`.
+fn triangulate_in_insertion_order(
+    vertices: &[Vertex],
+    vertex_merge_mapping: &mut Option<Vec<VertexId>>,
+    use_sorted_copy: bool,
+    #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
+) -> Result<Triangles, TriangulationError> {
+    let ordered_vertices = insertion_order(vertices);
+    let sorted_copy = use_sorted_copy.then(|| {
+        ordered_vertices
+            .iter()
+            .map(|&id| vertices[id as usize])
+            .collect::<Vec<Vertex>>()
+    });
+    let triangulation_vertices = sorted_copy.as_deref().unwrap_or(vertices);
+    let vertex_id_at_rank = |rank: usize| match sorted_copy {
+        Some(_) => rank as VertexId,
+        None => ordered_vertices[rank],
+    };
+    let input_id = |vertex_id: VertexId| match sorted_copy {
+        Some(_) => ordered_vertices[vertex_id as usize],
+        None => vertex_id,
+    };
+    #[cfg(feature = "debug_context")]
+    let first_snapshot = debug_context.snapshots.len();
+
     // There is always at least 3 vertices
-    let (_, first_vertex_id) = vertices_iterator.next().unwrap();
-    let mut triangles = create_initial_triangles(vertices.len(), *first_vertex_id);
+    let mut triangles = create_initial_triangles(vertices.len(), vertex_id_at_rank(0));
     // Id of the triangle we are looking at
     let mut triangle_id = triangles.last_id();
 
@@ -428,7 +464,9 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     ));
 
     // Loop over all the input vertices
-    for (_index, &vertex_id) in vertices_iterator {
+    for _index in 1..ordered_vertices.len() {
+        let vertex_id = vertex_id_at_rank(_index);
+        let vertex = triangulation_vertices[vertex_id as usize];
         #[cfg(feature = "debug_context")]
         {
             let force_end = debug_context.advance_step();
@@ -438,12 +476,11 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         }
 
         // Find an existing triangle which encloses P
-        let vertex = vertices[vertex_id as usize];
         let vertex_place = find_vertex_placement(
             vertex,
             triangle_id,
             &triangles,
-            &vertices,
+            triangulation_vertices,
             #[cfg(feature = "debug_context")]
             debug_context,
         );
@@ -456,11 +493,15 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                         .verts
                         .into_iter()
                         .find(|v| {
-                            is_finite(*v) && is_vertex_pair_too_close(vertices[*v as usize], vertex)
+                            is_finite(*v)
+                                && is_vertex_pair_too_close(
+                                    triangulation_vertices[*v as usize],
+                                    vertex,
+                                )
                         });
                 if let Some(close_vertex) = close_vertex {
                     if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                        vertex_merge_mapping[vertex_id as usize] = close_vertex;
+                        vertex_merge_mapping[input_id(vertex_id) as usize] = input_id(close_vertex);
                     }
                     continue;
                 }
@@ -476,18 +517,18 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
             VertexPlacement::OnTriangleEdge(enclosing_triangle_id, edge_index, edge) => {
                 // Merge close vertices. We do it here, once, to avoid doing it multiple times during the vertex placement research.
                 if is_finite(edge.from)
-                    && is_vertex_pair_too_close(vertices[edge.from as usize], vertex)
+                    && is_vertex_pair_too_close(triangulation_vertices[edge.from as usize], vertex)
                 {
                     if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                        vertex_merge_mapping[vertex_id as usize] = edge.from;
+                        vertex_merge_mapping[input_id(vertex_id) as usize] = input_id(edge.from);
                     }
                     continue;
                 }
                 if is_finite(edge.to)
-                    && is_vertex_pair_too_close(vertices[edge.to as usize], vertex)
+                    && is_vertex_pair_too_close(triangulation_vertices[edge.to as usize], vertex)
                 {
                     if let Some(vertex_merge_mapping) = vertex_merge_mapping {
-                        vertex_merge_mapping[vertex_id as usize] = edge.to;
+                        vertex_merge_mapping[input_id(vertex_id) as usize] = input_id(edge.to);
                     }
                     continue;
                 }
@@ -504,10 +545,15 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
                 )
             }
             VertexPlacement::NotFound => {
+                #[cfg(feature = "debug_context")]
+                if sorted_copy.is_some() {
+                    rename_snapshots_vertices(debug_context, first_snapshot, &ordered_vertices);
+                }
                 return Err(TriangulationError::new(
                     format!(
                         "Internal error, failed to find placement for vertex {:?}, step {}",
-                        vertex_id, _index
+                        input_id(vertex_id),
+                        _index
                     ),
                     #[cfg(feature = "debug_context")]
                     debug_context,
@@ -517,7 +563,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         restore_delaunay_triangulation(
             &mut triangles,
-            vertices,
+            triangulation_vertices,
             vertex_id,
             &mut quads_to_check,
             #[cfg(feature = "debug_context")]
@@ -543,7 +589,38 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         }
     }
 
+    if sorted_copy.is_some() {
+        rename_vertices(&mut triangles, &ordered_vertices);
+        #[cfg(feature = "debug_context")]
+        rename_snapshots_vertices(debug_context, first_snapshot, &ordered_vertices);
+    }
+
     Ok(triangles)
+}
+
+#[cfg(feature = "debug_context")]
+fn rename_snapshots_vertices(
+    debug_context: &mut DebugContext,
+    first_snapshot: usize,
+    ordered_vertices: &[VertexId],
+) {
+    for snapshot in &mut debug_context.snapshots[first_snapshot..] {
+        rename_vertices(&mut snapshot.triangles, ordered_vertices);
+        if let EventInfo::Split(vertex_id) = &mut snapshot.event {
+            *vertex_id = ordered_vertices[*vertex_id as usize];
+        }
+    }
+}
+
+/// Replaces the position of each vertex in `ordered_vertices` with its id
+fn rename_vertices(triangles: &mut Triangles, ordered_vertices: &[VertexId]) {
+    for triangle in triangles.buffer_mut() {
+        for vertex_id in &mut triangle.verts {
+            if is_finite(*vertex_id) {
+                *vertex_id = ordered_vertices[*vertex_id as usize];
+            }
+        }
+    }
 }
 
 pub(crate) fn filter_triangles(
@@ -1199,7 +1276,7 @@ mod tests {
     use crate::{
         triangulation::{
             hilbert_index, insertion_order, normalize_vertices_coordinates,
-            transform_to_2d_planar_coordinate_system,
+            transform_to_2d_planar_coordinate_system, triangulate_in_insertion_order,
         },
         types::{Float, Vertex, VertexId},
     };
@@ -1220,6 +1297,45 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sorted_copy_gives_the_same_triangulation() {
+        // Pseudo-random vertices, with every 50th vertex duplicated to also compare the merge mapping
+        let mut state = 1u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as Float / (1u64 << 53) as Float
+        };
+        let mut vertices: Vec<Vertex> = (0..2000).map(|_| Vertex::new(next(), next())).collect();
+        for i in (0..2000).step_by(50) {
+            vertices.push(vertices[i]);
+        }
+        let triangulate = |use_sorted_copy| {
+            let mut merge_mapping = Some((0..vertices.len() as VertexId).collect());
+            #[cfg(feature = "debug_context")]
+            let mut debug_context = crate::debug::DebugContext::new(Default::default(), 1., 0., 0.);
+            let triangles = triangulate_in_insertion_order(
+                &vertices,
+                &mut merge_mapping,
+                use_sorted_copy,
+                #[cfg(feature = "debug_context")]
+                &mut debug_context,
+            )
+            .unwrap();
+            #[cfg(feature = "debug_context")]
+            let snapshots: Vec<_> = debug_context
+                .snapshots
+                .into_iter()
+                .map(|snapshot| snapshot.triangles.buffer)
+                .collect();
+            #[cfg(not(feature = "debug_context"))]
+            let snapshots: Vec<()> = Vec::new();
+            (triangles.buffer, merge_mapping, snapshots)
+        };
+        assert_eq!(triangulate(false), triangulate(true));
     }
 
     #[test]
