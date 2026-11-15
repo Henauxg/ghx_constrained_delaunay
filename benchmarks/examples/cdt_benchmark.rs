@@ -34,7 +34,11 @@ fn main() -> anyhow::Result<()> {
                     let first_vertex = vertices.len();
                     vertices.extend(part.iter().map(|p| Point2::new(p.x, p.y)));
                     let last_vertex = vertices.len() - 1;
-                    edges.extend((first_vertex..last_vertex).map(|i| [i, i + 1]));
+                    edges.extend(
+                        (first_vertex..last_vertex)
+                            .filter(|&i| vertices[i] != vertices[i + 1])
+                            .map(|i| [i, i + 1]),
+                    );
                 }
             }
             _ => unimplemented!(),

@@ -6,17 +6,19 @@ Small benchmark suite for comparing different (constrained) Delaunay triangulati
 
 | Crate                                                                                   | DT   | CDT  |
 | :-------------------------------------------------------------------------------------- | :--- | :--- |
-| [delaunator 1.0.1](https://crates.io/crates/delaunator)                                 | Yes  | No   |
+| [delaunator 1.1.0](https://crates.io/crates/delaunator)                                 | Yes  | No   |
 | [cdt 0.1.0](https://crates.io/crates/cdt)                                               | Yes  | Yes  |
-| [spade 2.0](https://crates.io/crates/spade)                                             | Yes  | Yes  |
-| [ghx_constrained_delaunay 0.1.0]("https://github.com/Henauxg/ghx_constrained_delaunay") | Yes  | Yes  |
+| [spade 2.15.1](https://crates.io/crates/spade)                                          | Yes  | Yes  |
+| [ghx_constrained_delaunay](https://github.com/Henauxg/ghx_constrained_delaunay) (this repository) | Yes  | Yes  |
 
 ## Constrained Delaunay triangulation (CDT) measures
 
 This benchmark bulk loads mutliple real data set (shapefiles):
 - **ne_50m_coastline**: 60416 vertices, 58987 constraint edges
-- **ne_10m_coastline**: 410957 vertices, 406824 constraint edges
+- **ne_10m_coastline**: 410957 vertices, 406581 constraint edges
 - **Europe_coastline**: 2912812 vertices, 2837094 constraint edges
+
+The shapefiles contain consecutive duplicate points. The zero-length constraint edges between them are removed before loading, since spade and the `cdt` crate reject them.
 
 Run it with `cargo run --release --example cdt_benchmark` in the `benchmarks` directory.
 
@@ -28,23 +30,23 @@ The dataset is both loaded with constraint edges and without (as if it was a reg
 
 | ne_50m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **18ms**                 | 23ms  | 20ms      |
-| With constraint edges    | **22ms**                 | 30ms  | 33ms      |
-| With stable vertex order | -                        | 39ms  | -         |
+| Without constraint edges | **16ms**                 | 23ms  | 16ms      |
+| With constraint edges    | **18ms**                 | 37ms  | 29ms      |
+| With stable vertex order | -                        | 37ms  | -         |
 
 | ne_10m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **124ms**                | 176ms | 202ms     |
-| With constraint edges    | **173ms**                | 233ms | -         |
-| With stable vertex order | -                        | 356ms | -         |
+| Without constraint edges | **114ms**                | 180ms | 148ms     |
+| With constraint edges    | **133ms**                | 284ms | 245ms     |
+| With stable vertex order | -                        | 286ms | -         |
 
 | Europe_coastline.shp     | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| Without constraint edges | **879ms**                | 1548ms | 4702ms(*) |
-| With constraint edges    | **1377ms**               | 1926ms | 2026ms    |
-| With stable vertex order | -                        | 3109ms | -         |
+| Without constraint edges | **887ms**                | 1588ms | 2550ms(*) |
+| With constraint edges    | **1028ms**               | 2329ms | 2064ms    |
+| With stable vertex order | -                        | 2328ms | -         |
 
-_Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 21/07/2024_
+_Median of 5 runs, obtained on an i7-14700KF CPU @ 3.40GHz, date: 15/11/2026_
 
 *The benchmark also includes a stable bulk load variant for spade that keeps the relative vertex order consistent*
 
@@ -69,7 +71,7 @@ For better comparability, measurements are grouped in point sets with less than 
 <p align="center"><img alt="dt_benchmark_small" src="../docs/assets/dt_benchmark_small_26_07_2024.png"></p>
 <p align="center"><img alt="dt_benchmark_big" src="../docs/assets/dt_benchmark_big_26_07_2024.png"></p>
 
-_Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 26/07/2024_
+_Results obtained on an i7-14700KF CPU @ 3.40GHz with spade 2.0 and delaunator 1.0.1, date: 26/07/2024_
 
 ## Credits
 
