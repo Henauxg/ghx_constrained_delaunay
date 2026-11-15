@@ -55,7 +55,11 @@ mod tests {
             // Also covers the parallel filtering path
             #[cfg(feature = "parallel_filtering")]
             filter_parallel_tri_count_threshold: 0,
-            ..Default::default()
+            #[cfg(feature = "parallel_filtering")]
+            filter_parallel_min_batch_len: TriangulationConfiguration::default()
+                .filter_parallel_min_batch_len,
+            #[cfg(feature = "debug_context")]
+            debug_config: Default::default(),
         }
     }
 
@@ -112,7 +116,8 @@ mod tests {
                 &constrained_edges,
                 ConstrainedTriangulationConfiguration {
                     triangle_orientation,
-                    ..Default::default()
+                    #[cfg(feature = "debug_context")]
+                    debug_config: Default::default(),
                 },
             )
             .expect("Triangulation should succeed")
@@ -169,10 +174,10 @@ mod tests {
     #[test]
     fn delaunay_level_1() {
         // 1-------------2
-        // |          /  |
-        // |       /     |
-        // |    /        |
-        // | /           |
+        // |  \          |
+        // |     \       |
+        // |        \    |
+        // |           \ |
         // 0-------------3
         let vertices = vec![
             Vertex::new(0., 0.),
@@ -185,7 +190,7 @@ mod tests {
             triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
                 .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 1], [0, 1, 3]], triangulation.triangles);
     }
 
     #[test]
@@ -215,7 +220,7 @@ mod tests {
                 .expect("Triangulation should succeed");
 
         assert_eq!(
-            vec![[2, 4, 3], [0, 2, 3], [5, 4, 2], [1, 5, 2]],
+            vec![[5, 4, 1], [0, 2, 3], [2, 4, 3], [1, 4, 2]],
             triangulation.triangles
         );
     }
@@ -291,7 +296,7 @@ mod tests {
         )
         .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
     }
 
     #[test]
@@ -317,7 +322,7 @@ mod tests {
         )
         .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
     }
 
     #[test]
@@ -363,14 +368,14 @@ mod tests {
 
         assert_eq!(
             vec![
-                [1, 7, 0],
-                [3, 0, 7],
-                [3, 7, 4],
-                [2, 3, 4],
-                [2, 4, 5],
-                [6, 2, 5],
-                [1, 2, 6],
-                [1, 6, 7]
+                [7, 4, 3],
+                [0, 7, 3],
+                [0, 1, 7],
+                [6, 7, 1],
+                [6, 1, 2],
+                [5, 6, 2],
+                [5, 2, 4],
+                [2, 3, 4]
             ],
             triangulation.triangles
         );

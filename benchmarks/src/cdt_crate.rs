@@ -1,5 +1,3 @@
-use crate::Distribution;
-
 #[derive(Default)]
 pub struct CdtCrate {
     vertices: Vec<(f64, f64)>,
@@ -12,7 +10,7 @@ impl crate::DelaunayCrate for CdtCrate {
         self.vertices = vertices.map(|array| (array[0], array[1])).collect()
     }
 
-    fn run_triangulation(&self, _distribution: Distribution) -> Self::ResultType {
+    fn run_triangulation(&self) -> Self::ResultType {
         cdt::triangulate_points(&self.vertices).unwrap()
     }
 }

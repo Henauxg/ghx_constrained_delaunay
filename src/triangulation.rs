@@ -24,11 +24,6 @@ use crate::debug::{DebugConfiguration, DebugContext, EventInfo, Phase};
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
 
-/// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
-/// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
-/// consecutive points are already close to each other.
-pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.7;
-
 /// Good default value for `filter_parallel_tri_count_threshold` in [`TriangulationConfiguration`]
 pub const DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD: usize = 100_000;
 /// Good default value for `filter_parallel_min_batch_len` in [`TriangulationConfiguration`]
@@ -56,11 +51,6 @@ impl TriangleOrientation {
 
 #[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
-    /// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
-    /// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
-    /// consecutive points are already close to each other.
-    pub bin_vertex_density_power: f64,
-
     /// Order of the vertices of each triangle in the result.
     pub triangle_orientation: TriangleOrientation,
 
@@ -74,10 +64,11 @@ pub struct TriangulationConfiguration {
     #[cfg(feature = "debug_context")]
     pub debug_config: DebugConfiguration,
 }
+// Not derivable with the `parallel_filtering` feature
+#[allow(clippy::derivable_impls)]
 impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
-            bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
             triangle_orientation: TriangleOrientation::default(),
 
             #[cfg(feature = "parallel_filtering")]
@@ -165,7 +156,6 @@ pub fn triangulation_from_2d_vertices<T: Vertex2d>(
 
     let triangles = wrap_and_triangulate_2d_normalized_vertices(
         &normalized_vertices,
-        config.bin_vertex_density_power,
         &mut None,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
@@ -413,19 +403,15 @@ fn verts_count_to_restoration_stack_initial_capacity(verts_count: usize) -> usiz
 /// - `vertices` should be normalized with their cooridnates in [0,1]
 pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
     vertices: &[Vertex],
-    bin_vertex_density_power: f64,
     vertex_merge_mapping: &mut Option<Vec<VertexId>>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Result<Triangles, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "wrap_and_triangulate_2d_normalized_vertices").entered();
 
-    // Sort points into bins. Cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(1/2) points.
-    // Label the bins so that consecutive bins are adjacent to one another, and then allocate each point to its appropriate bin.
-    // Sort the list of points in ascending sequence of their bin numbers so that consecutive points are grouped together in the x-y plane.
-    let partitioned_vertices = VertexBinSort::sort(&vertices, bin_vertex_density_power);
+    let ordered_vertices = insertion_order(vertices);
 
-    let mut vertices_iterator = partitioned_vertices.iter().enumerate();
+    let mut vertices_iterator = ordered_vertices.iter().enumerate();
     // There is always at least 3 vertices
     let (_, first_vertex_id) = vertices_iterator.next().unwrap();
     let mut triangles = create_initial_triangles(vertices.len(), *first_vertex_id);
@@ -544,14 +530,14 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
         #[cfg(feature = "progress_log")]
         {
-            if _index % ((partitioned_vertices.len() / 50) + 1) == 0 {
-                let progress = 100. * _index as f32 / partitioned_vertices.len() as f32;
+            if _index % ((ordered_vertices.len() / 50) + 1) == 0 {
+                let progress = 100. * _index as f32 / ordered_vertices.len() as f32;
                 info!(
                     "Triangulation progress, step n°{}, {}%: {}/{}",
                     debug_context.current_step,
                     progress,
                     _index,
-                    partitioned_vertices.len()
+                    ordered_vertices.len()
                 );
             }
         }
@@ -648,67 +634,127 @@ pub(crate) fn _singlethreaded_filter_triangles(
     indices
 }
 
-pub(crate) struct VertexBinSort {
-    bins_per_row: usize,
-    bins_count: usize,
+/// [hilbert_index] works on 16-bit coordinates
+const MAX_HILBERT_ORDER: u32 = 16;
+/// Grid levels added beyond one cell per vertex. Each level splits every cell in 4, so 2 levels give at least 16
+/// cells per vertex.
+const EXTRA_HILBERT_ORDER: u32 = 2;
+
+/// Order in which to insert the vertices: BRIO, from "Incremental constructions con BRIO" (Amenta, Choi, Rote, 2003).
+///
+/// Vertices go into random rounds of doubling size, and each round follows a Hilbert curve. Consecutive vertices are
+/// then close to each other, so the search for their triangle is short. The random rounds avoid inserting long runs
+/// of aligned vertices, which create thin triangles that later vertices keep flipping.
+///
+/// - `vertices` should be normalized with their coordinates in [0,1]
+fn insertion_order(vertices: &[Vertex]) -> Vec<VertexId> {
+    #[cfg(feature = "profile_traces")]
+    let _span = span!(Level::TRACE, "insertion_order").entered();
+
+    let order = (((vertices.len() as f64).log2() / 2.).ceil() as u32 + EXTRA_HILBERT_ORDER)
+        .min(MAX_HILBERT_ORDER);
+    let cells_per_side = 1u32 << order;
+    // A coordinate of exactly 1 belongs to the last cell
+    let cell = |t: Float| ((t * cells_per_side as Float) as u32).min(cells_per_side - 1);
+    let mut keys: Vec<(u32, VertexId)> = vertices
+        .iter()
+        .enumerate()
+        .map(|(id, v)| (hilbert_index(order, cell(v.x), cell(v.y)), id as VertexId))
+        .collect();
+
+    // Radix sort of the keys, which have 2 * order bits: two passes of `order` bits
+    let buckets = 1usize << order;
+    let mask = (buckets - 1) as u32;
+    let mut sorted = vec![(0, 0); keys.len()];
+    let mut counts = vec![0usize; buckets + 1];
+    for shift in [0, order] {
+        counts.fill(0);
+        for key in &keys {
+            counts[((key.0 >> shift) & mask) as usize + 1] += 1;
+        }
+        for bucket in 0..buckets {
+            counts[bucket + 1] += counts[bucket];
+        }
+        for key in &keys {
+            let bucket = ((key.0 >> shift) & mask) as usize;
+            sorted[counts[bucket]] = *key;
+            counts[bucket] += 1;
+        }
+        std::mem::swap(&mut keys, &mut sorted);
+    }
+
+    // Round LAST_ROUND - k holds about 1 / 2^(k+1) of the vertices. The seed is fixed so that results are reproducible.
+    const LAST_ROUND: usize = 40;
+    let mut state = 0x9E37_79B9_7F4A_7C15u64;
+    let rounds: Vec<u8> = (0..vertices.len())
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (LAST_ROUND - (state.trailing_zeros() as usize).min(LAST_ROUND)) as u8
+        })
+        .collect();
+
+    // Stable counting sort by round, which keeps the curve order within each round
+    let mut round_starts = [0usize; LAST_ROUND + 2];
+    for &(_, id) in &keys {
+        round_starts[rounds[id as usize] as usize + 1] += 1;
+    }
+    for round in 0..=LAST_ROUND {
+        round_starts[round + 1] += round_starts[round];
+    }
+    let mut ordered = vec![0; keys.len()];
+    for &(_, id) in &keys {
+        let round = rounds[id as usize] as usize;
+        ordered[round_starts[round]] = id;
+        round_starts[round] += 1;
+    }
+    ordered
 }
 
-impl VertexBinSort {
-    // Uses about vertices.len()^(vertex_density_power) bins
-    pub fn sort(vertices: &[Vertex], vertex_density_power: f64) -> Vec<VertexId> {
-        #[cfg(feature = "profile_traces")]
-        let _span = span!(Level::TRACE, "sort").entered();
+/// Position of the cell (x, y) along a Hilbert curve over a 2^order x 2^order grid, with order <= [MAX_HILBERT_ORDER].
+///
+/// Branchless version from <https://github.com/rawrunprotected/hilbert_curves> (public domain).
+fn hilbert_index(order: u32, x: u32, y: u32) -> u32 {
+    let x = x << (16 - order);
+    let y = y << (16 - order);
 
-        let bins_per_row = (vertices.len() as f64)
-            .powf(vertex_density_power / 2.)
-            .round() as usize;
-
-        let bin_sort = Self {
-            bins_per_row,
-            bins_count: bins_per_row * bins_per_row,
-        };
-
-        // Indexes of the bin corresponding to each vertex
-        let mut vertices_bin_indexes = Vec::with_capacity(vertices.len());
-        // Will be used to represent the index of a sorted vertex
-        let mut bins_counters = vec![0; bin_sort.bins_count];
-
-        for vertex in vertices {
-            let bin_index = bin_sort.bin_index_from_vertex(*vertex);
-            vertices_bin_indexes.push(bin_index);
-            // Start by counting vertices in each bin
-            bins_counters[bin_index] += 1;
-        }
-
-        // Add the amount of vertices in previous bins to each bin
-        for bin_index in 1..bin_sort.bins_count {
-            bins_counters[bin_index] += bins_counters[bin_index - 1];
-        }
-
-        let mut sorted = vec![0; vertices.len()];
-        for vertex_id in 0..vertices.len() {
-            let bin_index = vertices_bin_indexes[vertex_id];
-            bins_counters[bin_index] -= 1;
-            sorted[bins_counters[bin_index]] = vertex_id as VertexId;
-        }
-        sorted
+    let (mut a_, mut b_, mut c_, mut d_);
+    {
+        let a = x ^ y;
+        let b = 0xFFFF ^ a;
+        let c = 0xFFFF ^ (x | y);
+        let d = x & (y ^ 0xFFFF);
+        a_ = a | (b >> 1);
+        b_ = (a >> 1) ^ a;
+        c_ = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+        d_ = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
     }
-
-    fn bin_index_from_vertex(&self, vertex: Vertex) -> usize {
-        // Compute a bin index from a vertex position which is in [0.,1]
-        let bin_x = (0.99 * self.bins_per_row as Float * vertex.x) as usize;
-        let bin_y: usize = (0.99 * self.bins_per_row as Float * vertex.y) as usize;
-        self.bin_index_from_bin_position(bin_x, bin_y)
+    for shift in [2, 4] {
+        let (a, b, c, d) = (a_, b_, c_, d_);
+        a_ = (a & (a >> shift)) ^ (b & (b >> shift));
+        b_ = (a & (b >> shift)) ^ (b & ((a ^ b) >> shift));
+        c_ ^= (a & (c >> shift)) ^ (b & (d >> shift));
+        d_ ^= (b & (c >> shift)) ^ ((a ^ b) & (d >> shift));
     }
-
-    // Label the bins so that bins with consecutive indexes are spatially adjacent to one another
-    fn bin_index_from_bin_position(&self, x: usize, y: usize) -> usize {
-        if y % 2 == 0 {
-            (y * self.bins_per_row) + x
-        } else {
-            (y + 1) * self.bins_per_row - x - 1
-        }
+    {
+        let (a, b, c, d) = (a_, b_, c_, d_);
+        c_ ^= (a & (c >> 8)) ^ (b & (d >> 8));
+        d_ ^= (b & (c >> 8)) ^ ((a ^ b) & (d >> 8));
     }
+    let a = c_ ^ (c_ >> 1);
+    let b = d_ ^ (d_ >> 1);
+    let i0 = x ^ y;
+    let i1 = b | (0xFFFF ^ (i0 | a));
+    ((interleave(i1) << 1) | interleave(i0)) >> (32 - 2 * order)
+}
+
+/// Spreads the 16 low bits of `x` to the even bits
+fn interleave(x: u32) -> u32 {
+    let x = (x | (x << 8)) & 0x00FF00FF;
+    let x = (x | (x << 4)) & 0x0F0F0F0F;
+    let x = (x | (x << 2)) & 0x33333333;
+    (x | (x << 1)) & 0x55555555
 }
 
 /// Splits a quad (triangle pair) into 4 triangles
@@ -1134,9 +1180,45 @@ mod tests {
     use glam::Vec3;
 
     use crate::{
-        triangulation::{normalize_vertices_coordinates, transform_to_2d_planar_coordinate_system},
-        types::Vertex,
+        triangulation::{
+            hilbert_index, insertion_order, normalize_vertices_coordinates,
+            transform_to_2d_planar_coordinate_system,
+        },
+        types::{Float, Vertex, VertexId},
     };
+
+    #[test]
+    fn hilbert_curve_visits_each_cell_once_through_adjacent_cells() {
+        for order in [1, 2, 6] {
+            let side = 1u32 << order;
+            let mut cells: Vec<(u32, u32, u32)> = (0..side)
+                .flat_map(|x| (0..side).map(move |y| (hilbert_index(order, x, y), x, y)))
+                .collect();
+            cells.sort();
+            assert!(cells.iter().enumerate().all(|(i, cell)| cell.0 == i as u32));
+            for pair in cells.windows(2) {
+                assert_eq!(
+                    1,
+                    pair[0].1.abs_diff(pair[1].1) + pair[0].2.abs_diff(pair[1].2)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn insertion_order_has_each_vertex_once() {
+        let vertices: Vec<Vertex> = (0..1000)
+            .map(|i| {
+                Vertex::new(
+                    ((i * 37) % 1000) as Float / 1000.,
+                    ((i * 91) % 1000) as Float / 1000.,
+                )
+            })
+            .collect();
+        let mut order = insertion_order(&vertices);
+        order.sort_unstable();
+        assert_eq!((0..1000).collect::<Vec<VertexId>>(), order);
+    }
 
     #[test]
     fn triangulation_normalize_set_of_vertices() {

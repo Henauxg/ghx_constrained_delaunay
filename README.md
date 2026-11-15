@@ -164,7 +164,7 @@ Investigate if it is possible to return to a `[(-inf,-inf), (0,+inf), (+inf,-inf
 - Most vecs/stacks are pre-allocated and shared between iterations of the algorithm.
 - Hot functions are inlined (circumcircle test, …).
 - `f32` vertices positions can be used internally an option (`f32` available as a feature). `f64` are used in the benchmarks.
-- The density of vertices in the bins during the binsort phase can be configured as an input. Increasing it slightly gives better results for non-local vertices datasets (local vertices ⇒ neighbor vertices in the input collection are close to each other spatially)
+- Vertices are inserted in BRIO order ("Incremental constructions con BRIO", Amenta, Choi, Rote, 2003): random rounds of doubling size, each following a Hilbert curve. Consecutive vertices are close to each other, so finding their triangle is quick, and the random rounds avoid long runs of aligned vertices, which cause many diagonal swaps.
 - for DT only, and when the triangles count is sufficiently large, pseudo infinite triangles removal can be done in parallel. Although not the most performance critical part of the triangulation, this still yields some measurable improvements.
 
 #### Sweep-line/circle
