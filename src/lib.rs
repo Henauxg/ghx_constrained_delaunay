@@ -220,7 +220,7 @@ mod tests {
                 .expect("Triangulation should succeed");
 
         assert_eq!(
-            vec![[5, 4, 1], [0, 2, 3], [2, 4, 3], [1, 4, 2]],
+            vec![[2, 5, 4], [1, 5, 2], [0, 2, 4], [3, 0, 4]],
             triangulation.triangles
         );
     }
@@ -368,14 +368,14 @@ mod tests {
 
         assert_eq!(
             vec![
-                [7, 4, 3],
-                [0, 7, 3],
+                [2, 6, 1],
+                [1, 6, 7],
                 [0, 1, 7],
-                [6, 7, 1],
-                [6, 1, 2],
-                [5, 6, 2],
-                [5, 2, 4],
-                [2, 3, 4]
+                [0, 7, 3],
+                [4, 3, 7],
+                [4, 2, 3],
+                [4, 5, 2],
+                [2, 5, 6]
             ],
             triangulation.triangles
         );
