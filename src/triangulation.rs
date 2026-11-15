@@ -979,7 +979,9 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 
-    // Note: infinite q4 is not possible in DT (we always place a finite vertex in q4).
+    // q4 is the inserted vertex, so it is never infinite here.
+    // An infinite q3 means q1 q2 q3 has no circumcircle: it covers a strip or a corner of the plane, which
+    // is_vertex_beyond_infinite_corner tests instead.
     if is_infinite(quad.v3()) {
         return is_vertex_beyond_infinite_corner(vertices, quad);
     }
