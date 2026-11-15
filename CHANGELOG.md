@@ -14,6 +14,11 @@
 - added: `triangle_orientation` field in `TriangulationConfiguration` and `ConstrainedTriangulationConfiguration`. It sets the vertex order of the output triangles: `TriangleOrientation::Clockwise` (default) or `TriangleOrientation::CounterClockwise` (#4).
 - removed: the geometry helpers in `utils` are no longer public: `egdes_intersect`, `EdgesIntersectionResult`, `triplet_orientation`, `Orientation`, `test_point_edge_side`, `EdgeSideTestResult`, `is_point_on_right_side_of_edge`, `is_point_strictly_on_right_side_of_edge`, `line_slope` and `on_segment`. `Quad::diagonals_intersection_test` is no longer public either.
 
+### Optimizations
+
+- improved: in CDT, a constrained edge that already exists in the triangulation is found by walking around its first vertex, without geometric tests.
+- improved: in CDT, the final filtering reads constrained edges from a flag per triangle edge instead of a hash set. Together with the previous change, CDT is 8 to 27% faster on the coastline benchmarks.
+
 ## Version 0.2.0 (2025-03-13)
 
 ### Fixes 
