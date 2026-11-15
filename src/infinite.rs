@@ -197,20 +197,20 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return None;
     }
 
-    // A semi-infinite triangle can be almost flat. A point can then be close to the line of edge ab but outside the edge.
-    if edge_ab_test.is_near_edge() && is_point_projection_inside_edge(edge_ab, vertex) {
+    // A semi-infinite triangle can be almost flat. A point can then be on the line of edge ab but outside the edge.
+    if edge_ab_test.is_colinear() && is_point_projection_inside_edge(edge_ab, vertex) {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_ab_index,
             Edge::new(finite_vert_a_id, finite_vert_b_id),
         ));
-    } else if edge_a_test.is_near_edge() {
+    } else if edge_a_test.is_colinear() {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_a_index,
             Edge::new(infinite_vertex_id, finite_vert_a_id),
         ));
-    } else if edge_b_test.is_near_edge() {
+    } else if edge_b_test.is_colinear() {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_b_index,
@@ -264,13 +264,13 @@ pub(crate) fn vertex_placement_2_infinite_vertex(
         return None;
     }
 
-    if edge_a_test.is_near_edge() {
+    if edge_a_test.is_colinear() {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_a_index,
             Edge::new(finite_vert_id, infinite_vert_a_id),
         ));
-    } else if edge_b_test.is_near_edge() {
+    } else if edge_b_test.is_colinear() {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_b_index,

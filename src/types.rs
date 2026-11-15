@@ -540,7 +540,7 @@ impl QuadVertices {
     }
 
     #[inline]
-    pub fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
+    pub(crate) fn diagonals_intersection_test(&self) -> EdgesIntersectionResult {
         egdes_intersect(
             &(self.verts[QUAD_1 as usize], self.verts[QUAD_2 as usize]),
             &(self.verts[QUAD_3 as usize], self.verts[QUAD_4 as usize]),

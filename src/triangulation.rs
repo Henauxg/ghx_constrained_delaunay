@@ -279,17 +279,16 @@ fn find_vertex_placement(
                 }
             }
 
-            // TODO Distance to edge
             let edge_test = test_point_edge_side((v1, v2), vertex);
-            if edge_test.is_near_edge() {
+            if edge_test.is_colinear() {
                 return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_12, triangle.edge12());
             }
             let edge_test = test_point_edge_side((v2, v3), vertex);
-            if edge_test.is_near_edge() {
+            if edge_test.is_colinear() {
                 return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_23, triangle.edge23());
             }
             let edge_test = test_point_edge_side((v3, v1), vertex);
-            if edge_test.is_near_edge() {
+            if edge_test.is_colinear() {
                 return VertexPlacement::OnTriangleEdge(triangle_id, EDGE_31, triangle.edge31());
             }
 
@@ -436,6 +435,20 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
         match vertex_place {
             // Cases sorted by frequency
             VertexPlacement::InsideTriangle(enclosing_triangle_id) => {
+                let close_vertex =
+                    triangles
+                        .get(enclosing_triangle_id)
+                        .verts
+                        .into_iter()
+                        .find(|v| {
+                            is_finite(*v) && is_vertex_pair_too_close(vertices[*v as usize], vertex)
+                        });
+                if let Some(close_vertex) = close_vertex {
+                    if let Some(vertex_merge_mapping) = vertex_merge_mapping {
+                        vertex_merge_mapping[vertex_id as usize] = close_vertex;
+                    }
+                    continue;
+                }
                 split_triangle_into_three_triangles(
                     &mut triangles,
                     enclosing_triangle_id,

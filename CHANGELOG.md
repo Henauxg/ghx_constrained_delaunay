@@ -5,6 +5,13 @@
 ### Fixes
 
 - fix: a vertex close to the line through the finite edge of a nearly flat semi-infinite triangle, but outside that edge, was inserted on the edge. This created folded triangles and broken neighbor links, and the CDT could then fail with "aborting cycle when searching for the first intersection of an edge" (#6).
+- fix: the orientation and in-circle tests now use exact predicates (`robust` crate), so their sign is always correct. This fixes most failures on nearly colinear inputs, such as points a few ULPs off a straight constrained border.
+- fix: a vertex inside the convex hull, but closer than `Float::EPSILON` to a hull edge, could stay on the hull.
+
+### Changes
+
+- changed: a vertex is only placed on an existing edge when it is exactly on that edge's line, instead of within `Float::EPSILON` of it. Vertices too close to an existing vertex are still merged.
+- removed: the geometry helpers in `utils` are no longer public: `egdes_intersect`, `EdgesIntersectionResult`, `triplet_orientation`, `Orientation`, `test_point_edge_side`, `EdgeSideTestResult`, `is_point_on_right_side_of_edge`, `is_point_strictly_on_right_side_of_edge`, `line_slope` and `on_segment`. `Quad::diagonals_intersection_test` is no longer public either.
 
 ## Version 0.2.0 (2025-03-13)
 
