@@ -127,6 +127,14 @@ pub fn test_point_edge_side(e: EdgeVertices, p: Vertex) -> EdgeSideTestResult {
     EdgeSideTestResult((p.y - e.0.y) * (e.1.x - e.0.x) - (p.x - e.0.x) * (e.1.y - e.0.y))
 }
 
+/// Returns `true` if the projection of `p` on the line through `e` falls strictly between `e.0` and `e.1`
+#[inline]
+pub(crate) fn is_point_projection_inside_edge(e: EdgeVertices, p: Vertex) -> bool {
+    let edge = e.1 - e.0;
+    let t = (p - e.0).dot(edge);
+    t > 0. && t < edge.length_squared()
+}
+
 /// Returns `true` if and only if the point `p` is on the right side of the oriented edge `e`
 ///
 /// Uses the perp cross product of vectors e0.e1 and e1.p

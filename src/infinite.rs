@@ -9,8 +9,8 @@ use crate::{
         QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
     },
     utils::{
-        egdes_intersect, is_point_strictly_on_right_side_of_edge, test_point_edge_side,
-        EdgesIntersectionResult,
+        egdes_intersect, is_point_projection_inside_edge, is_point_strictly_on_right_side_of_edge,
+        test_point_edge_side, EdgesIntersectionResult,
     },
 };
 
@@ -164,7 +164,8 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
 
     // Check if the point is towards this triangle's neighbor
     // Check previous triangle to avoid looping between two triangles
-    let edge_ab_test = test_point_edge_side((finite_vertex_a, finite_vertex_b), vertex);
+    let edge_ab = (finite_vertex_a, finite_vertex_b);
+    let edge_ab_test = test_point_edge_side(edge_ab, vertex);
     let edge_ab_index = vertex_next_cw_edge_index(finite_vert_a_index);
     if edge_ab_test.is_on_left_side()
            // Avoid looping between two triangles
@@ -197,9 +198,7 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     }
 
     // A semi-infinite triangle can be almost flat. A point can then be near the line through a and b without being between them.
-    if edge_ab_test.is_near_edge()
-        && projects_inside_segment(finite_vertex_a, finite_vertex_b, vertex)
-    {
+    if edge_ab_test.is_near_edge() && is_point_projection_inside_edge(edge_ab, vertex) {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_ab_index,
@@ -220,13 +219,6 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
     } else {
         return Some(VertexPlacement::InsideTriangle(triangle_id));
     }
-}
-
-#[inline]
-fn projects_inside_segment(a: Vertex, b: Vertex, p: Vertex) -> bool {
-    let ab = b - a;
-    let t = (p - a).dot(ab);
-    t > 0. && t < ab.length_squared()
 }
 
 #[cold]
