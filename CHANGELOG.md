@@ -7,6 +7,7 @@
 - fix: a vertex close to the line through the finite edge of a nearly flat semi-infinite triangle, but outside that edge, was inserted on the edge. This created folded triangles and broken neighbor links, and the CDT could then fail with "aborting cycle when searching for the first intersection of an edge" (#6).
 - fix: the orientation and in-circle tests now use exact predicates (`robust` crate), so their sign is always correct. This fixes most failures on nearly colinear inputs, such as points a few ULPs off a straight constrained border.
 - fix: a vertex inside the convex hull, but closer than `Float::EPSILON` to a hull edge, could stay on the hull.
+- fix: a vertex inside the convex hull could also stay on the boundary of the output when it was the most extreme vertex in two of the four infinite directions, so a few triangles along the hull were missing. Triangles with two infinite vertices are now swapped when a new vertex is further than their finite vertex in one of these directions.
 
 ### Changes
 

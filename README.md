@@ -58,7 +58,11 @@ See [benchmarks](benchmarks/README.md)
 
 # Fuzzer
 
-The `fuzzer` crate runs the CDT on random inputs with vertices a few ULPs off the border of a box, and prints the seeds that fail. Run it by hand with:
+The `fuzzer` crate runs the triangulations on random near-degenerate inputs, and prints the seeds that fail. It has two generators:
+- `box`: CDT of a box whose border is the constrained loop, with vertices a few ULPs off its sides. It checks that every constrained edge is in the output, that no triangle is inverted, and that the triangles cover the box.
+- `points`: Delaunay triangulation of clusters of points at very different scales. It checks, with exact predicates, that no triangle is flat or inverted, that the number of triangles matches the convex hull, and that every edge is Delaunay.
+
+Run it by hand with:
 
 ```
 cargo run --release -p fuzzer -- [runs] [first_seed]
@@ -67,7 +71,7 @@ cargo run --release -p fuzzer -- [runs] [first_seed]
 To turn a failing seed into a test, print its input as Rust code with:
 
 ```
-cargo run --release -p fuzzer -- --seed <seed>
+cargo run --release -p fuzzer -- --seed <generator> <seed>
 ```
 
 # Implementation
