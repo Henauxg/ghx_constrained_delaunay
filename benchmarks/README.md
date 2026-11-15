@@ -68,10 +68,10 @@ Results are stored in `<repository_root>/target/criterion`.
 
 For better comparability, measurements are grouped in point sets with less than 14000 vertices ("small") and more than 50000 vertices ("big").
 
-<p align="center"><img alt="dt_benchmark_small" src="../docs/assets/dt_benchmark_small_26_07_2024.png"></p>
-<p align="center"><img alt="dt_benchmark_big" src="../docs/assets/dt_benchmark_big_26_07_2024.png"></p>
+<p align="center"><img alt="dt_benchmark_small" src="../docs/assets/dt_benchmark_small_15_11_2026.png"></p>
+<p align="center"><img alt="dt_benchmark_big" src="../docs/assets/dt_benchmark_big_15_11_2026.png"></p>
 
-_Results obtained on an i7-14700KF CPU @ 3.40GHz with spade 2.0 and delaunator 1.0.1, date: 26/07/2024_
+_Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 15/11/2026_
 
 ## Credits
 
