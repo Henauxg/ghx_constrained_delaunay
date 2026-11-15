@@ -2,9 +2,7 @@ mod bench_utilities;
 
 use std::time::Duration;
 
-use benchmarks::{
-    cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate, Distribution,
-};
+use benchmarks::{cdt_crate, delaunator_crate, ghx_cdt_crate, spade_crate, DelaunayCrate};
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId, Criterion,
     SamplingMode, Throughput,
@@ -23,14 +21,14 @@ pub fn triangulation_benchmark(c: &mut Criterion) {
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::walk_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), &size, |b, _| {
-                b.iter(|| delaunay_crate.run_triangulation(Distribution::Local))
+                b.iter(|| delaunay_crate.run_triangulation())
             });
 
             let name = format!("{} (uniform)", crate_name);
             let mut delaunay_crate = Crate::default();
             delaunay_crate.init(bench_utilities::uniform_f64().take(*size));
             group.bench_with_input(BenchmarkId::new(name, size), size, |b, _| {
-                b.iter(|| delaunay_crate.run_triangulation(Distribution::Uniform))
+                b.iter(|| delaunay_crate.run_triangulation())
             });
         }
     }

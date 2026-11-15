@@ -1,7 +1,5 @@
 use ghx_constrained_delaunay::{triangulation::TriangulationConfiguration, types::Vertex};
 
-use crate::Distribution;
-
 #[derive(Default)]
 pub struct GhxCDTCrate {
     vertices: Vec<Vertex>,
@@ -16,7 +14,7 @@ impl crate::DelaunayCrate for GhxCDTCrate {
             .collect();
     }
 
-    fn run_triangulation(&self, _distribution: Distribution) -> Self::ResultType {
+    fn run_triangulation(&self) -> Self::ResultType {
         ghx_constrained_delaunay::triangulation_from_2d_vertices(
             &self.vertices,
             TriangulationConfiguration::default(),
