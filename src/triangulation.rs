@@ -634,6 +634,12 @@ pub(crate) fn _singlethreaded_filter_triangles(
     indices
 }
 
+/// [hilbert_index] works on 16-bit coordinates
+const MAX_HILBERT_ORDER: u32 = 16;
+/// Grid levels added beyond one cell per vertex. Each level splits every cell in 4, so 2 levels give at least 16
+/// cells per vertex.
+const EXTRA_HILBERT_ORDER: u32 = 2;
+
 /// Order in which to insert the vertices: BRIO, from "Incremental constructions con BRIO" (Amenta, Choi, Rote, 2003).
 ///
 /// Vertices go into random rounds of doubling size, and each round follows a Hilbert curve. Consecutive vertices are
@@ -645,17 +651,15 @@ fn insertion_order(vertices: &[Vertex]) -> Vec<VertexId> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "insertion_order").entered();
 
-    // About 16 grid cells per vertex
-    let order = (((vertices.len() as f64).log2() / 2.).ceil() as u32 + 2).clamp(1, 16);
-    let max_cell = ((1u32 << order) - 1) as Float;
+    let order = (((vertices.len() as f64).log2() / 2.).ceil() as u32 + EXTRA_HILBERT_ORDER)
+        .min(MAX_HILBERT_ORDER);
+    let cells_per_side = 1u32 << order;
+    // A coordinate of exactly 1 belongs to the last cell
+    let cell = |t: Float| ((t * cells_per_side as Float) as u32).min(cells_per_side - 1);
     let mut keys: Vec<(u32, VertexId)> = vertices
         .iter()
         .enumerate()
-        .map(|(id, v)| {
-            let x = (v.x * max_cell) as u32;
-            let y = (v.y * max_cell) as u32;
-            (hilbert_index(order, x, y), id as VertexId)
-        })
+        .map(|(id, v)| (hilbert_index(order, cell(v.x), cell(v.y)), id as VertexId))
         .collect();
 
     // Radix sort of the keys, which have 2 * order bits: two passes of `order` bits
@@ -708,7 +712,7 @@ fn insertion_order(vertices: &[Vertex]) -> Vec<VertexId> {
     ordered
 }
 
-/// Position of the cell (x, y) along a Hilbert curve over a 2^order x 2^order grid, with order <= 16.
+/// Position of the cell (x, y) along a Hilbert curve over a 2^order x 2^order grid, with order <= [MAX_HILBERT_ORDER].
 ///
 /// Branchless version from <https://github.com/rawrunprotected/hilbert_curves> (public domain).
 fn hilbert_index(order: u32, x: u32, y: u32) -> u32 {
