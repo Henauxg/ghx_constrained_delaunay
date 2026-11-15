@@ -44,6 +44,8 @@ pub type TriangleEdgeIndex = u8;
 pub const EDGE_12: TriangleEdgeIndex = 0;
 pub const EDGE_23: TriangleEdgeIndex = 1;
 pub const EDGE_31: TriangleEdgeIndex = 2;
+/// All the edge indexes of a triangle, in order
+pub const TRIANGLE_EDGES: [TriangleEdgeIndex; 3] = [EDGE_12, EDGE_23, EDGE_31];
 
 /// Local index of a vertex in a quad
 pub type QuadVertexIndex = u8;

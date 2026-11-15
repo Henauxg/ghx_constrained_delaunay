@@ -13,7 +13,7 @@ use crate::triangulation::{
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
-    EDGE_12, EDGE_23, EDGE_31, VERT_1, VERT_2,
+    TRIANGLE_EDGES, VERT_1, VERT_2,
 };
 use crate::utils::{egdes_intersect, is_vertex_in_triangle_circumcircle, EdgesIntersectionResult};
 
@@ -217,7 +217,7 @@ fn cdt_filter_triangles(
         }
 
         let triangle_edge_is_constrained =
-            [EDGE_12, EDGE_23, EDGE_31].map(|e| constrained_edges.contains(index as TriangleId, e));
+            TRIANGLE_EDGES.map(|e| constrained_edges.contains(index as TriangleId, e));
 
         // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
         if triangle_edge_is_constrained.contains(&true) {
@@ -254,7 +254,7 @@ fn cdt_filter_triangles(
 
                     visited_triangles[triangle_id as usize] = true;
 
-                    for edge_index in [EDGE_12, EDGE_23, EDGE_31] {
+                    for edge_index in TRIANGLE_EDGES {
                         if !constrained_edges.contains(triangle_id, edge_index) {
                             // TODO Clean: Would it be quicker to also check for visited before adding to the stack
                             triangles_to_explore.push(t.neighbor(edge_index));
