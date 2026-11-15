@@ -18,6 +18,7 @@
 
 - improved: in CDT, a constrained edge that already exists in the triangulation is found by walking around its first vertex, without geometric tests.
 - improved: in CDT, the final filtering reads constrained edges from a flag per triangle edge instead of a hash set. Together with the previous change, CDT is 8 to 27% faster on the coastline benchmarks.
+- improved: in CDT, constrained edges are marked while the constraints are applied, instead of in a second pass over all of them. About 8% faster on the coastline benchmarks.
 
 ## Version 0.2.0 (2025-03-13)
 
