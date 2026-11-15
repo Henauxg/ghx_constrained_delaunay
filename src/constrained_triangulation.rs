@@ -9,7 +9,7 @@ use crate::infinite::{
 };
 use crate::triangulation::{
     normalize_vertices_coordinates, update_neighbor_neighbor, TriangleOrientation, Triangulation,
-    TriangulationError, DEFAULT_BIN_VERTEX_DENSITY_POWER,
+    TriangulationError,
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
@@ -35,13 +35,8 @@ use crate::{
     },
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ConstrainedTriangulationConfiguration {
-    /// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
-    /// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
-    /// consecutive points are already close to each other.
-    pub bin_vertex_density_power: f64,
-
     /// Order of the vertices of each triangle in the result.
     ///
     /// It doesn't change how the constrained edges orientation is read.
@@ -49,17 +44,6 @@ pub struct ConstrainedTriangulationConfiguration {
 
     #[cfg(feature = "debug_context")]
     pub debug_config: DebugConfiguration,
-}
-
-impl Default for ConstrainedTriangulationConfiguration {
-    fn default() -> Self {
-        Self {
-            bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
-            triangle_orientation: TriangleOrientation::default(),
-            #[cfg(feature = "debug_context")]
-            debug_config: DebugConfiguration::default(),
-        }
-    }
 }
 
 /// Same as [constrained_triangulation_from_2d_vertices] but input vertices are in 3d and will be transformed to 2d before the triangulation.
@@ -135,7 +119,6 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
     let mut vertex_merge_mapping = Some((0..vertices.len() as VertexId).collect());
     let mut triangles = wrap_and_triangulate_2d_normalized_vertices(
         &normalized_vertices,
-        config.bin_vertex_density_power,
         &mut vertex_merge_mapping,
         #[cfg(feature = "debug_context")]
         &mut debug_context,

@@ -13,6 +13,7 @@
 
 - changed: a vertex is only placed on an existing edge when it is exactly on that edge's line, instead of within `Float::EPSILON` of it. Vertices too close to an existing vertex are still merged.
 - added: `triangle_orientation` field in `TriangulationConfiguration` and `ConstrainedTriangulationConfiguration`. It sets the vertex order of the output triangles: `TriangleOrientation::Clockwise` (default) or `TriangleOrientation::CounterClockwise` (#4).
+- removed: `bin_vertex_density_power` from `TriangulationConfiguration` and `ConstrainedTriangulationConfiguration`, and `DEFAULT_BIN_VERTEX_DENSITY_POWER`. The insertion order no longer uses bins.
 - removed: the geometry helpers in `utils` are no longer public: `egdes_intersect`, `EdgesIntersectionResult`, `triplet_orientation`, `Orientation`, `test_point_edge_side`, `EdgeSideTestResult`, `is_point_on_right_side_of_edge`, `is_point_strictly_on_right_side_of_edge`, `line_slope` and `on_segment`. `Quad::diagonals_intersection_test` is no longer public either.
 
 ### Optimizations
@@ -20,7 +21,7 @@
 - improved: in CDT, a constrained edge that already exists in the triangulation is found by walking around its first vertex, without geometric tests.
 - improved: in CDT, the final filtering reads constrained edges from a flag per triangle edge instead of a hash set. Together with the previous change, CDT is 8 to 27% faster on the coastline benchmarks.
 - improved: in CDT, constrained edges are marked while the constraints are applied, instead of in a second pass over all of them. About 8% faster on the coastline benchmarks.
-- improved: the default `bin_vertex_density_power` is now 0.7 instead of 0.5, which uses smaller bins. Up to 24% faster on points in random order, and 4% on the Europe coastline. The documentation of this setting described it backwards: each bin holds about N^(1 - density_power) points.
+- improved: vertices are inserted in BRIO order (random rounds of doubling size, each following a Hilbert curve) instead of in bins. The Delaunay triangulation is 5 to 20% faster on the benchmarks, with no setting to tune.
 
 ## Version 0.2.0 (2025-03-13)
 
