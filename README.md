@@ -56,6 +56,14 @@ To download them just pull the submodule with:
 
 See [benchmarks](benchmarks/README.md)
 
+# Fuzzer
+
+The `fuzzer` crate runs the CDT on random inputs with vertices a few ULPs off the border of a box, and prints the seeds that fail. Run it by hand with:
+
+```
+cargo run --release -p fuzzer -- [runs] [first_seed]
+```
+
 # Implementation
 
 Implementation is based on *"A fast algorithm for generating constrained delaunay triangulations"* by S. W. Sloan (1993). It was chosen because the path from DT (*Delaunay Triangulation*) to CDT (*Constrained Delaunay Triangulation*) seemed quite straight-forward. However some modifications were made to the original algorithm.

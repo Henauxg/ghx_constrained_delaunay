@@ -1,0 +1,12 @@
+[package]
+name = "fuzzer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Random near-degenerate inputs for ghx_constrained_delaunay"
+repository = "https://github.com/Henauxg/ghx_constrained_delaunay"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+ghx_constrained_delaunay = { path = "../", version = "0.2.0" }
+rand = "0.8"
