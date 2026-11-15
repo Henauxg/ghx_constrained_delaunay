@@ -24,8 +24,10 @@ use crate::debug::{DebugConfiguration, DebugContext, EventInfo, Phase};
 #[cfg(feature = "profile_traces")]
 use tracing::{span, Level};
 
-/// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
-pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.5;
+/// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
+/// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
+/// consecutive points are already close to each other.
+pub const DEFAULT_BIN_VERTEX_DENSITY_POWER: f64 = 0.7;
 
 /// Good default value for `filter_parallel_tri_count_threshold` in [`TriangulationConfiguration`]
 pub const DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD: usize = 100_000;
@@ -54,7 +56,9 @@ impl TriangleOrientation {
 
 #[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
-    /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
+    /// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
+    /// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
+    /// consecutive points are already close to each other.
     pub bin_vertex_density_power: f64,
 
     /// Order of the vertices of each triangle in the result.
@@ -650,7 +654,7 @@ pub(crate) struct VertexBinSort {
 }
 
 impl VertexBinSort {
-    // Each bin will contain roughly vertices.len()^(vertex_density_power) vertices
+    // Uses about vertices.len()^(vertex_density_power) bins
     pub fn sort(vertices: &[Vertex], vertex_density_power: f64) -> Vec<VertexId> {
         #[cfg(feature = "profile_traces")]
         let _span = span!(Level::TRACE, "sort").entered();

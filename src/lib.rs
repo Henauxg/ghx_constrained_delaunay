@@ -169,10 +169,10 @@ mod tests {
     #[test]
     fn delaunay_level_1() {
         // 1-------------2
-        // |  \          |
-        // |     \       |
-        // |        \    |
-        // |           \ |
+        // |          /  |
+        // |       /     |
+        // |    /        |
+        // | /           |
         // 0-------------3
         let vertices = vec![
             Vertex::new(0., 0.),
@@ -185,7 +185,7 @@ mod tests {
             triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
                 .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[1, 2, 3], [0, 1, 3]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
         )
         .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
     }
 
     #[test]
@@ -317,7 +317,7 @@ mod tests {
         )
         .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[2, 3, 0], [2, 0, 1]], triangulation.triangles);
+        assert_eq!(vec![[2, 3, 0], [1, 2, 0]], triangulation.triangles);
     }
 
     #[test]

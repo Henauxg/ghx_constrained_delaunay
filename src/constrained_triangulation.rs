@@ -37,7 +37,9 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct ConstrainedTriangulationConfiguration {
-    /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
+    /// Binsort covers the region to triangulate with a grid of about N^(density_power) bins, so each bin holds about
+    /// N^(1 - density_power) points. Higher values suit inputs in random order. Lower values suit inputs where
+    /// consecutive points are already close to each other.
     pub bin_vertex_density_power: f64,
 
     /// Order of the vertices of each triangle in the result.
