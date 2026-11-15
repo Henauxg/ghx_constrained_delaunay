@@ -19,6 +19,7 @@
 - improved: in CDT, a constrained edge that already exists in the triangulation is found by walking around its first vertex, without geometric tests.
 - improved: in CDT, the final filtering reads constrained edges from a flag per triangle edge instead of a hash set. Together with the previous change, CDT is 8 to 27% faster on the coastline benchmarks.
 - improved: in CDT, constrained edges are marked while the constraints are applied, instead of in a second pass over all of them. About 8% faster on the coastline benchmarks.
+- improved: the default `bin_vertex_density_power` is now 0.7 instead of 0.5, which uses smaller bins. Up to 24% faster on points in random order, and 4% on the Europe coastline. The documentation of this setting described it backwards: each bin holds about N^(1 - density_power) points.
 
 ## Version 0.2.0 (2025-03-13)
 
