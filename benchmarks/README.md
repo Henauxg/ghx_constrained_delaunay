@@ -30,21 +30,21 @@ The dataset is both loaded with constraint edges and without (as if it was a reg
 
 | ne_50m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **16ms**                 | 23ms  | 16ms      |
-| With constraint edges    | **18ms**                 | 37ms  | 29ms      |
+| Without constraint edges | **13ms**                 | 23ms  | 17ms      |
+| With constraint edges    | **16ms**                 | 36ms  | 31ms      |
 | With stable vertex order | -                        | 37ms  | -         |
 
 | ne_10m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **114ms**                | 180ms | 148ms     |
-| With constraint edges    | **133ms**                | 284ms | 245ms     |
-| With stable vertex order | -                        | 286ms | -         |
+| Without constraint edges | **97ms**                 | 178ms | 147ms     |
+| With constraint edges    | **118ms**                | 279ms | 245ms     |
+| With stable vertex order | -                        | 282ms | -         |
 
 | Europe_coastline.shp     | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| Without constraint edges | **887ms**                | 1588ms | 2550ms(*) |
-| With constraint edges    | **1028ms**               | 2329ms | 2064ms    |
-| With stable vertex order | -                        | 2328ms | -         |
+| Without constraint edges | **694ms**                | 1559ms | 2612ms(*) |
+| With constraint edges    | **842ms**                | 2300ms | 2046ms    |
+| With stable vertex order | -                        | 2318ms | -         |
 
 _Median of 5 runs, obtained on an i7-14700KF CPU @ 3.40GHz, date: 15/11/2026_
 
