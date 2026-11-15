@@ -188,6 +188,13 @@ impl ConstrainedEdges {
     fn contains(&self, triangle_id: TriangleId, edge_index: TriangleEdgeIndex) -> bool {
         self.0[triangle_id as usize] & (1 << edge_index) != 0
     }
+
+    /// Replaces the marks of all the edges of `triangle_id`, in edge index order
+    #[inline]
+    fn set(&mut self, triangle_id: TriangleId, edges: [bool; 3]) {
+        self.0[triangle_id as usize] =
+            edges[0] as u8 | (edges[1] as u8) << 1 | (edges[2] as u8) << 2;
+    }
 }
 
 /// Filter triangles that should be removed due to the input domains constraints or due to being part of
@@ -302,6 +309,8 @@ fn apply_constraints(
     // Shared alloc for `restore_delaunay_triangulation_constrained`
     let mut swaps_history = HashSet::new();
 
+    let mut marked_edges = ConstrainedEdges::new(triangles.count());
+
     for (_edge_index, constrained_edge) in constrained_edges.iter().enumerate() {
         #[cfg(feature = "debug_context")]
         {
@@ -337,6 +346,16 @@ fn apply_constraints(
             continue;
         }
 
+        if let Some((triangle_id, edge_index)) = find_triangle_with_edge(
+            triangles,
+            constrained_edge,
+            vertex_to_triangle[constrained_edge.from as usize],
+        ) {
+            // Already an edge of the triangulation
+            marked_edges.insert(triangle_id, edge_index);
+            continue;
+        }
+
         let constrained_edge_vertices = &constrained_edge.to_vertices(vertices);
         // 'intersections' will store all the edges crossed by the constrained edge
         register_intersected_edges(
@@ -359,6 +378,7 @@ fn apply_constraints(
             triangles,
             vertices,
             &mut vertex_to_triangle,
+            &mut marked_edges,
             constrained_edge_vertices,
             &mut intersections,
             &mut new_diagonals_created,
@@ -371,22 +391,15 @@ fn apply_constraints(
             triangles,
             vertices,
             &mut vertex_to_triangle,
+            &mut marked_edges,
             constrained_edge,
             &mut new_diagonals_created,
             &mut swaps_history,
             #[cfg(feature = "debug_context")]
             debug_context,
         );
-    }
-    let mut marked_edges = ConstrainedEdges::new(triangles.count());
-    for constrained_edge in constrained_edges {
-        let constrained_edge = Edge::new(
-            vertex_merge_mapping[constrained_edge.from as usize],
-            vertex_merge_mapping[constrained_edge.to as usize],
-        );
-        if constrained_edge.from == constrained_edge.to {
-            continue;
-        }
+
+        // The constrained edge is now an edge of the triangulation, and no later swap removes it
         if let Some((triangle_id, edge_index)) = find_triangle_with_edge(
             triangles,
             constrained_edge,
@@ -590,16 +603,6 @@ fn register_intersected_edges(
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
 
-    if find_triangle_with_edge(
-        triangles,
-        constrained_edge,
-        vertex_to_triangle[constrained_edge.from as usize],
-    )
-    .is_some()
-    {
-        return Ok(());
-    }
-
     let search_result = search_first_interstected_quad(
         triangles,
         vertices,
@@ -787,9 +790,10 @@ fn get_next_triangle_edge_intersection(
 /// Tt: triangle to
 /// c1, c2: crossed edge
 /// q1, q2, q3, q4: quad coords
-pub(crate) fn swap_quad_diagonal(
+fn swap_quad_diagonal(
     triangles: &mut Triangles,
     vertex_to_triangle: &mut Vec<TriangleId>,
+    constrained_edges: &mut ConstrainedEdges,
     edges_data_collections: &mut [&mut VecDeque<EdgeData>],
     edge_data: &EdgeData,
     quad: &Quad,
@@ -817,6 +821,17 @@ pub(crate) fn swap_quad_diagonal(
     let tf_right_neighbor = triangles
         .get(from)
         .neighbor(next_counter_clockwise_edge_index(tf_left_edge_index));
+
+    // The 4 outer edges keep their direction, so their marks move with them. The new diagonal is not
+    // constrained: constrained edges are never swapped.
+    let tt_left_constrained = constrained_edges.contains(to, tt_left_edge_index);
+    let tt_right_constrained =
+        constrained_edges.contains(to, next_clockwise_edge_index(tt_left_edge_index));
+    let tf_left_constrained = constrained_edges.contains(from, tf_left_edge_index);
+    let tf_right_constrained =
+        constrained_edges.contains(from, next_counter_clockwise_edge_index(tf_left_edge_index));
+    constrained_edges.set(from, [false, tf_left_constrained, tt_left_constrained]);
+    constrained_edges.set(to, [tt_right_constrained, tf_right_constrained, false]);
 
     triangles.get_mut(from).verts = [quad.v3(), quad.v4(), quad.v1()];
     triangles.get_mut(to).verts = [quad.v3(), quad.v2(), quad.v4()];
@@ -908,6 +923,7 @@ fn remove_crossed_edges(
     triangles: &mut Triangles,
     vertices: &[Vertex],
     vertex_to_triangle: &mut Vec<TriangleId>,
+    constrained_edges: &mut ConstrainedEdges,
     constrained_edge_vertices: &EdgeVertices,
     intersections: &mut VecDeque<EdgeData>,
     new_diagonals_created: &mut VecDeque<EdgeData>,
@@ -940,6 +956,7 @@ fn remove_crossed_edges(
             swap_quad_diagonal(
                 triangles,
                 vertex_to_triangle,
+                constrained_edges,
                 &mut [intersections, new_diagonals_created],
                 &intersection,
                 &quad,
@@ -976,6 +993,7 @@ fn restore_delaunay_triangulation_constrained(
     triangles: &mut Triangles,
     vertices: &[Vertex],
     vertex_to_triangle: &mut Vec<TriangleId>,
+    constrained_edges: &mut ConstrainedEdges,
     constrained_edge: Edge,
     new_diagonals_created: &mut VecDeque<EdgeData>,
     swaps_history: &mut HashSet<(TriangleId, TriangleId)>,
@@ -1000,6 +1018,7 @@ fn restore_delaunay_triangulation_constrained(
                 swap_quad_diagonal(
                     triangles,
                     vertex_to_triangle,
+                    constrained_edges,
                     &mut [new_diagonals_created],
                     &new_edge,
                     &quad,
