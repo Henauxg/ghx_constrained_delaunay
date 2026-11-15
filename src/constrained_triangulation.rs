@@ -167,7 +167,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
 /// the container triangle.
 fn cdt_filter_triangles(
     triangles: &Triangles,
-    constrained_edges: HashSet<Edge>,
+    constrained_edges: Vec<u8>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "profile_traces")]
@@ -188,11 +188,8 @@ fn cdt_filter_triangles(
             continue;
         }
 
-        let triangle_edge_is_constrained = [
-            constrained_edges.contains(&triangle.edge12()),
-            constrained_edges.contains(&triangle.edge23()),
-            constrained_edges.contains(&triangle.edge31()),
-        ];
+        let flags = constrained_edges[index];
+        let triangle_edge_is_constrained = [flags & 1 != 0, flags & 2 != 0, flags & 4 != 0];
 
         // Stop at the first non-visited triangle with a constrained edge: we found a new unvisited domain
         if triangle_edge_is_constrained.contains(&true) {
@@ -229,8 +226,9 @@ fn cdt_filter_triangles(
 
                     visited_triangles[triangle_id as usize] = true;
 
-                    for (edge_index, edge) in t.edges().iter().enumerate() {
-                        if !constrained_edges.contains(edge) {
+                    let flags = constrained_edges[triangle_id as usize];
+                    for edge_index in 0..3 {
+                        if flags & (1 << edge_index) == 0 {
                             // TODO Clean: Would it be quicker to also check for visited before adding to the stack
                             triangles_to_explore.push(t.neighbors[edge_index]);
                         }
@@ -252,11 +250,10 @@ fn apply_constraints(
     constrained_edges: &[Edge],
     vertex_merge_mapping: Vec<VertexId>,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
-) -> Result<HashSet<Edge>, TriangulationError> {
+) -> Result<Vec<u8>, TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "apply_constraints").entered();
 
-    let mut constrained_edges_set = HashSet::with_capacity(constrained_edges.len());
     // Map each finite vertex to one of the triangles (the last) that contains it
     let mut vertex_to_triangle = vec![0; vertices.len()];
     for (index, t) in triangles.buffer().iter().enumerate() {
@@ -307,11 +304,8 @@ fn apply_constraints(
             vertex_merge_mapping[constrained_edge.to as usize],
         );
 
-        // Check for invalid or duplicate edges
-        // We will use this Set built iteratively for domains removal at the end
-        if constrained_edge.from == constrained_edge.to
-            || constrained_edges_set.insert(constrained_edge) == false
-        {
+        // Skip edges between merged vertices. Duplicate edges are found as already present below.
+        if constrained_edge.from == constrained_edge.to {
             // Skipping
             continue;
         }
@@ -357,7 +351,25 @@ fn apply_constraints(
             debug_context,
         );
     }
-    Ok(constrained_edges_set)
+    // One bit per triangle edge, set when the edge is constrained in this direction
+    let mut constrained_edges_flags = vec![0u8; triangles.count()];
+    for constrained_edge in constrained_edges {
+        let constrained_edge = Edge::new(
+            vertex_merge_mapping[constrained_edge.from as usize],
+            vertex_merge_mapping[constrained_edge.to as usize],
+        );
+        if constrained_edge.from == constrained_edge.to {
+            continue;
+        }
+        if let Some((triangle_id, edge_index)) = find_triangle_with_edge(
+            triangles,
+            constrained_edge,
+            vertex_to_triangle[constrained_edge.from as usize],
+        ) {
+            constrained_edges_flags[triangle_id as usize] |= 1 << edge_index;
+        }
+    }
+    Ok(constrained_edges_flags)
 }
 
 #[derive(Debug)]
@@ -515,6 +527,31 @@ fn search_first_interstected_quad(
     Ok(intersection)
 }
 
+/// Walks once around `edge.from`, starting from `from_triangle`, and returns the triangle that contains `edge`
+/// in this direction, with the index of the edge in it. Only reads the triangles, without any geometric test.
+#[inline]
+fn find_triangle_with_edge(
+    triangles: &Triangles,
+    edge: Edge,
+    from_triangle: TriangleId,
+) -> Option<(TriangleId, TriangleEdgeIndex)> {
+    let mut triangle_id = from_triangle;
+    for _ in 0..triangles.count() {
+        let triangle = triangles.get(triangle_id);
+        let from_index = triangle.vertex_index(edge.from);
+        // Edge `i` goes from vertex `i` to vertex `i + 1`
+        if triangle.verts[(from_index as usize + 1) % 3] == edge.to {
+            return Some((triangle_id, from_index as TriangleEdgeIndex));
+        }
+        let next = triangle.neighbor(outermost_clockwise_edge_index_around(from_index));
+        if !next.exists() || next.id == from_triangle {
+            return None;
+        }
+        triangle_id = next.id;
+    }
+    None
+}
+
 fn register_intersected_edges(
     triangles: &Triangles,
     vertices: &[Vertex],
@@ -526,6 +563,16 @@ fn register_intersected_edges(
 ) -> Result<(), TriangulationError> {
     #[cfg(feature = "profile_traces")]
     let _span = span!(Level::TRACE, "register_intersected_edges").entered();
+
+    if find_triangle_with_edge(
+        triangles,
+        constrained_edge,
+        vertex_to_triangle[constrained_edge.from as usize],
+    )
+    .is_some()
+    {
+        return Ok(());
+    }
 
     let search_result = search_first_interstected_quad(
         triangles,
