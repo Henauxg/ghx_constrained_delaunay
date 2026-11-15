@@ -31,10 +31,33 @@ pub const DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD: usize = 100_000;
 /// Good default value for `filter_parallel_min_batch_len` in [`TriangulationConfiguration`]
 pub const DEFAULT_FILTER_PARALLEL_MIN_BATCH_LEN: usize = 1000;
 
+/// Order of the 3 vertices of each triangle in a [`Triangulation`].
+///
+/// The orientation is measured with the y axis pointing up. With the 3d functions, it is seen from the side the plane normal points to.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TriangleOrientation {
+    #[default]
+    Clockwise,
+    CounterClockwise,
+}
+impl TriangleOrientation {
+    /// `verts` MUST be in clockwise order
+    #[inline(always)]
+    pub(crate) fn orient(self, verts: [VertexId; 3]) -> [VertexId; 3] {
+        match self {
+            TriangleOrientation::Clockwise => verts,
+            TriangleOrientation::CounterClockwise => [verts[0], verts[2], verts[1]],
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TriangulationConfiguration {
     /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
     pub bin_vertex_density_power: f64,
+
+    /// Order of the vertices of each triangle in the result.
+    pub triangle_orientation: TriangleOrientation,
 
     /// Minimum count of triangles that needs to be reached in order to enable parallel filtering.
     #[cfg(feature = "parallel_filtering")]
@@ -50,6 +73,7 @@ impl Default for TriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            triangle_orientation: TriangleOrientation::default(),
 
             #[cfg(feature = "parallel_filtering")]
             filter_parallel_tri_count_threshold: DEFAULT_ILTER_PARALLEL_TRI_COUNT_THRESHOLD,
@@ -533,7 +557,7 @@ pub(crate) fn wrap_and_triangulate_2d_normalized_vertices(
 
 pub(crate) fn filter_triangles(
     triangles: &Triangles,
-    _config: &TriangulationConfiguration,
+    config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "profile_traces")]
@@ -545,13 +569,14 @@ pub(crate) fn filter_triangles(
     #[cfg(feature = "parallel_filtering")]
     let indices = _multithreaded_filter_triangles(
         triangles,
-        _config,
+        config,
         #[cfg(feature = "debug_context")]
         &mut filtered_debug_triangles,
     );
     #[cfg(not(feature = "parallel_filtering"))]
     let indices = _singlethreaded_filter_triangles(
         triangles,
+        config.triangle_orientation,
         #[cfg(feature = "debug_context")]
         &mut filtered_debug_triangles,
     );
@@ -568,6 +593,7 @@ pub(crate) fn _multithreaded_filter_triangles(
     config: &TriangulationConfiguration,
     #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
 ) -> Vec<[VertexId; 3]> {
+    let orientation = config.triangle_orientation;
     if triangles.count() > config.filter_parallel_tri_count_threshold {
         // Debug loop out of the // loop because filtered_debug_triangles cannot be accessed as mut from multiple tasks.
         #[cfg(feature = "debug_context")]
@@ -585,33 +611,31 @@ pub(crate) fn _multithreaded_filter_triangles(
             .par_iter()
             .with_min_len(config.filter_parallel_min_batch_len)
             .filter_map(|t| match t.is_finite() {
-                true => Some(t.verts),
+                true => Some(orientation.orient(t.verts)),
                 false => None,
             })
             // TODO Is it possible to pre-set the capacity of indices ?
             // .collect_into_vec(&mut indices);
             .collect()
     } else {
-        let mut indices = Vec::with_capacity(triangles.count());
-        for t in triangles.buffer().iter() {
-            if t.is_finite() {
-                indices.push(t.verts);
-                #[cfg(feature = "debug_context")]
-                filtered_debug_triangles.push(t.clone());
-            }
-        }
-        indices
+        _singlethreaded_filter_triangles(
+            triangles,
+            orientation,
+            #[cfg(feature = "debug_context")]
+            filtered_debug_triangles,
+        )
     }
 }
 
 pub(crate) fn _singlethreaded_filter_triangles(
     triangles: &Triangles,
+    orientation: TriangleOrientation,
     #[cfg(feature = "debug_context")] filtered_debug_triangles: &mut Triangles,
 ) -> Vec<[VertexId; 3]> {
     let mut indices = Vec::with_capacity(triangles.count());
     for t in triangles.buffer().iter() {
         if t.is_finite() {
-            indices.push(t.verts);
+            indices.push(orientation.orient(t.verts));
             #[cfg(feature = "debug_context")]
             filtered_debug_triangles.push(t.clone());
         }

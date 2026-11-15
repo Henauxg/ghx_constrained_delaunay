@@ -8,8 +8,8 @@ use crate::infinite::{
     quad_diagonals_intersection_2_infinite,
 };
 use crate::triangulation::{
-    normalize_vertices_coordinates, update_neighbor_neighbor, Triangulation, TriangulationError,
-    DEFAULT_BIN_VERTEX_DENSITY_POWER,
+    normalize_vertices_coordinates, update_neighbor_neighbor, TriangleOrientation, Triangulation,
+    TriangulationError, DEFAULT_BIN_VERTEX_DENSITY_POWER,
 };
 use crate::types::{
     next_counter_clockwise_edge_index, TriangleEdgeIndex, Triangles, Vertex, Vertex2d, Vertex3d,
@@ -40,6 +40,11 @@ pub struct ConstrainedTriangulationConfiguration {
     /// Binsort will cover the region to be triangulated by a rectangular grid so that each bin contains roughly N^(density_power) points.
     pub bin_vertex_density_power: f64,
 
+    /// Order of the vertices of each triangle in the result.
+    ///
+    /// It doesn't change how the constrained edges orientation is read.
+    pub triangle_orientation: TriangleOrientation,
+
     #[cfg(feature = "debug_context")]
     pub debug_config: DebugConfiguration,
 }
@@ -48,6 +53,7 @@ impl Default for ConstrainedTriangulationConfiguration {
     fn default() -> Self {
         Self {
             bin_vertex_density_power: DEFAULT_BIN_VERTEX_DENSITY_POWER,
+            triangle_orientation: TriangleOrientation::default(),
             #[cfg(feature = "debug_context")]
             debug_config: DebugConfiguration::default(),
         }
@@ -152,6 +158,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
     let vert_indices = cdt_filter_triangles(
         &triangles,
         constrained_edges_set,
+        config.triangle_orientation,
         #[cfg(feature = "debug_context")]
         &mut debug_context,
     );
@@ -168,6 +175,7 @@ pub fn constrained_triangulation_from_2d_vertices<T: Vertex2d>(
 fn cdt_filter_triangles(
     triangles: &Triangles,
     constrained_edges: HashSet<Edge>,
+    orientation: TriangleOrientation,
     #[cfg(feature = "debug_context")] debug_context: &mut DebugContext,
 ) -> Vec<[VertexId; 3]> {
     #[cfg(feature = "profile_traces")]
@@ -199,7 +207,7 @@ fn cdt_filter_triangles(
             triangles_to_explore.clear();
 
             if triangle.is_finite() {
-                indices.push(triangle.verts);
+                indices.push(orientation.orient(triangle.verts));
                 #[cfg(feature = "debug_context")]
                 filtered_debug_triangles.push(triangle.clone());
             }
@@ -222,7 +230,7 @@ fn cdt_filter_triangles(
                 } else {
                     let t = triangles.get(triangle_id);
                     if t.is_finite() {
-                        indices.push(t.verts);
+                        indices.push(orientation.orient(t.verts));
                         #[cfg(feature = "debug_context")]
                         filtered_debug_triangles.push(t.clone());
                     }
