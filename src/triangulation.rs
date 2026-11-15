@@ -1,7 +1,8 @@
 use crate::infinite::{
-    collect_infinite_triangle_vertices, is_finite, is_infinite, is_vertex_in_half_plane_1,
-    vertex_placement_1_infinite_vertex, vertex_placement_2_infinite_vertex, INFINITE_V0_ID,
-    INFINITE_V1_ID, INFINITE_V2_ID, INFINITE_V3_ID,
+    collect_infinite_triangle_vertices, is_finite, is_infinite, is_vertex_beyond_infinite_corner,
+    is_vertex_in_half_plane_1, vertex_placement_1_infinite_vertex,
+    vertex_placement_2_infinite_vertex, INFINITE_V0_ID, INFINITE_V1_ID, INFINITE_V2_ID,
+    INFINITE_V3_ID,
 };
 use crate::types::{
     next_clockwise_edge_index, next_counter_clockwise_edge_index, opposite_vertex_index,
@@ -974,10 +975,9 @@ pub(crate) fn should_swap_diagonals(quad: &Quad, vertices: &[Vertex]) -> bool {
     #[cfg(feature = "more_profile_traces")]
     let _span = span!(Level::TRACE, "should_swap_diagonals").entered();
 
-    // Get rid of this case early: an infinite vertex cannot be in the circumcircle of the other triangle
     // Note: infinite q4 is not possible in DT (we always place a finite vertex in q4).
     if is_infinite(quad.v3()) {
-        return false;
+        return is_vertex_beyond_infinite_corner(vertices, quad);
     }
 
     let is_q1_finite = is_finite(quad.v1());

@@ -185,7 +185,7 @@ mod tests {
             triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
                 .expect("Triangulation should succeed");
 
-        assert_eq!(vec![[0, 1, 3], [1, 2, 3]], triangulation.triangles);
+        assert_eq!(vec![[1, 2, 3], [0, 1, 3]], triangulation.triangles);
     }
 
     #[test]
@@ -215,9 +215,33 @@ mod tests {
                 .expect("Triangulation should succeed");
 
         assert_eq!(
-            vec![[0, 2, 3], [2, 4, 3], [1, 5, 2], [5, 4, 2]],
+            vec![[2, 4, 3], [0, 2, 3], [5, 4, 2], [1, 5, 2]],
             triangulation.triangles
         );
+    }
+
+    #[test]
+    fn delaunay_hull_is_convex() {
+        // A small island, then a far point above it. Vertex 4 is the highest point of the island, but ends up
+        // strictly inside the convex hull once vertex 5 is added.
+        let vertices = vec![
+            Vertex::new(-128.3, -24.41259765625),
+            Vertex::new(-128.290087890625, -24.39736328125001),
+            Vertex::new(-128.2908203125, -24.36464843750001),
+            Vertex::new(-128.30361328125, -24.333593750000006),
+            Vertex::new(-128.330126953125, -24.3232421875),
+            Vertex::new(-177.3541015625, 28.217041015625),
+        ];
+
+        let triangulation =
+            triangulation_from_2d_vertices(&vertices, TriangulationConfiguration::default())
+                .expect("Triangulation should succeed");
+
+        // 6 vertices, 5 of them on the convex hull: 2 * 6 - 2 - 5 triangles
+        assert_eq!(5, triangulation.triangles.len());
+        for v in 0..6 {
+            assert!(triangulation.triangles.iter().any(|t| t.contains(&v)));
+        }
     }
 
     #[test]

@@ -118,6 +118,34 @@ pub fn collect_infinite_quad_vertices(quad: &[VertexId]) -> ArrayVec<QuadVertexI
     infinite_verts
 }
 
+/// For a quad whose q3 is infinite, together with q1 or q2: the triangle q1 q2 q3 is the corner of the plane at its
+/// finite vertex, between the directions of its two infinite vertices. That vertex must stay the most extreme one in
+/// both directions. Returns `true` if q4 is further than it in one of them, so the diagonal must be swapped.
+///
+/// Returns `false` when q1 and q2 are both finite: q1 q2 q3 is then a strip beyond the edge q1 q2, and q4 is on the
+/// other side of that edge.
+#[cold]
+pub(crate) fn is_vertex_beyond_infinite_corner(vertices: &[Vertex], quad: &Quad) -> bool {
+    let (corner, infinite_vert) = if is_infinite(quad.v1()) {
+        (quad.v2(), quad.v1())
+    } else if is_infinite(quad.v2()) {
+        (quad.v1(), quad.v2())
+    } else {
+        return false;
+    };
+    let corner = vertices[corner as usize];
+    let vertex = vertices[quad.v4() as usize];
+    [infinite_vert, quad.v3()]
+        .into_iter()
+        .any(|infinite_vertex_id| {
+            let direction = infinite_vertex_local_quad_index(infinite_vertex_id) as usize;
+            // Each direction is along one axis, so the sign of this product is exact
+            (vertex.x - corner.x) * INFINITE_VERTS_X_DELTAS[direction]
+                + (vertex.y - corner.y) * INFINITE_VERTS_Y_DELTAS[direction]
+                > 0.
+        })
+}
+
 #[cold]
 pub(crate) fn is_vertex_in_half_plane_1(
     vertices: &[Vertex],

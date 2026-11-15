@@ -4,8 +4,8 @@ use hashbrown::HashSet;
 
 use crate::infinite::{
     collect_infinite_quad_vertices, edge_from_semi_infinite_edge, infinite_vertex_local_quad_index,
-    is_finite, is_infinite, is_vertex_in_half_plane_1, quad_diagonals_intersection_1_infinite,
-    quad_diagonals_intersection_2_infinite,
+    is_finite, is_infinite, is_vertex_beyond_infinite_corner, is_vertex_in_half_plane_1,
+    quad_diagonals_intersection_1_infinite, quad_diagonals_intersection_2_infinite,
 };
 use crate::triangulation::{
     normalize_vertices_coordinates, update_neighbor_neighbor, TriangleOrientation, Triangulation,
@@ -1045,8 +1045,11 @@ pub(crate) fn constrained_should_swap_diagonals(quad: &Quad, vertices: &[Vertex]
 
     // Get rid of this case early: an infinite vertex cannot be in the circumcircle of the other triangle
     // Note: infinite q4 is not possible in DT (we always place a finite vertex in q4). This can only occur in CDT
-    if is_infinite(quad.v3()) || is_infinite(quad.v4()) {
+    if is_infinite(quad.v4()) {
         return false;
+    }
+    if is_infinite(quad.v3()) {
+        return is_vertex_beyond_infinite_corner(vertices, quad);
     }
 
     let is_q1_finite = is_finite(quad.v1());
