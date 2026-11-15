@@ -30,23 +30,23 @@ The dataset is both loaded with constraint edges and without (as if it was a reg
 
 | ne_50m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **13ms**                 | 23ms  | 17ms      |
-| With constraint edges    | **16ms**                 | 36ms  | 31ms      |
+| Without constraint edges | **14ms**                 | 23ms  | 16ms      |
+| With constraint edges    | **15ms**                 | 37ms  | 29ms      |
 | With stable vertex order | -                        | 37ms  | -         |
 
 | ne_10m_coastline.shp     | ghx_constrained_delaunay | Spade | cdt crate |
 | ------------------------ | ------------------------ | ----- | --------- |
-| Without constraint edges | **97ms**                 | 178ms | 147ms     |
-| With constraint edges    | **118ms**                | 279ms | 245ms     |
+| Without constraint edges | **92ms**                 | 176ms | 146ms     |
+| With constraint edges    | **114ms**                | 279ms | 242ms     |
 | With stable vertex order | -                        | 282ms | -         |
 
 | Europe_coastline.shp     | ghx_constrained_delaunay | Spade  | cdt crate |
 | ------------------------ | ------------------------ | ------ | --------- |
-| Without constraint edges | **694ms**                | 1559ms | 2612ms(*) |
-| With constraint edges    | **842ms**                | 2300ms | 2046ms    |
-| With stable vertex order | -                        | 2318ms | -         |
+| Without constraint edges | **657ms**                | 1574ms | 2608ms(*) |
+| With constraint edges    | **809ms**                | 2299ms | 2088ms    |
+| With stable vertex order | -                        | 2346ms | -         |
 
-_Median of 5 runs, obtained on an i7-14700KF CPU @ 3.40GHz, date: 15/11/2026_
+_Median of 5 runs, obtained on an i7-14700KF CPU @ 3.40GHz, date: 16/11/2026_
 
 *The benchmark also includes a stable bulk load variant for spade that keeps the relative vertex order consistent*
 
@@ -68,10 +68,10 @@ Results are stored in `<repository_root>/target/criterion`.
 
 For better comparability, measurements are grouped in point sets with less than 14000 vertices ("small") and more than 50000 vertices ("big").
 
-<p align="center"><img alt="dt_benchmark_small" src="../docs/assets/dt_benchmark_small_15_11_2026.png"></p>
-<p align="center"><img alt="dt_benchmark_big" src="../docs/assets/dt_benchmark_big_15_11_2026.png"></p>
+<p align="center"><img alt="dt_benchmark_small" src="../docs/assets/dt_benchmark_small_16_11_2026.png"></p>
+<p align="center"><img alt="dt_benchmark_big" src="../docs/assets/dt_benchmark_big_16_11_2026.png"></p>
 
-_Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 15/11/2026_
+_Results obtained on an i7-14700KF CPU @ 3.40GHz, date: 16/11/2026_
 
 ## Credits
 
