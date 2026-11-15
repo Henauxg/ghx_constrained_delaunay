@@ -49,4 +49,4 @@ more_profile_traces = ["profile_traces"]
 
 
 [workspace]
-members = ["benchmarks", "examples", "profiling"]
+members = ["benchmarks", "examples", "fuzzer", "profiling"]
