@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- fix: a vertex close to the line through the finite edge of a nearly flat semi-infinite triangle, but outside that edge, was inserted on the edge. This created folded triangles and broken neighbor links, and the CDT could then fail with "aborting cycle when searching for the first intersection of an edge" (#6).
+
 ## Version 0.2.0 (2025-03-13)
 
 ### Fixes 

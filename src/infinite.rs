@@ -9,8 +9,8 @@ use crate::{
         QUAD_3, QUAD_4, VERT_1, VERT_2, VERT_3,
     },
     utils::{
-        egdes_intersect, is_point_strictly_on_right_side_of_edge, test_point_edge_side,
-        EdgesIntersectionResult,
+        egdes_intersect, is_point_projection_inside_edge, is_point_strictly_on_right_side_of_edge,
+        test_point_edge_side, EdgesIntersectionResult,
     },
 };
 
@@ -164,7 +164,8 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
 
     // Check if the point is towards this triangle's neighbor
     // Check previous triangle to avoid looping between two triangles
-    let edge_ab_test = test_point_edge_side((finite_vertex_a, finite_vertex_b), vertex);
+    let edge_ab = (finite_vertex_a, finite_vertex_b);
+    let edge_ab_test = test_point_edge_side(edge_ab, vertex);
     let edge_ab_index = vertex_next_cw_edge_index(finite_vert_a_index);
     if edge_ab_test.is_on_left_side()
            // Avoid looping between two triangles
@@ -196,7 +197,8 @@ pub(crate) fn vertex_placement_1_infinite_vertex(
         return None;
     }
 
-    if edge_ab_test.is_near_edge() {
+    // A semi-infinite triangle can be almost flat. A point can then be close to the line of edge ab but outside the edge.
+    if edge_ab_test.is_near_edge() && is_point_projection_inside_edge(edge_ab, vertex) {
         return Some(VertexPlacement::OnTriangleEdge(
             triangle_id,
             edge_ab_index,
